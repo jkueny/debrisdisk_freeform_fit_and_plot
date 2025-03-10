@@ -1,8 +1,8 @@
-import pyklip.klip as klip
-import pyklip.spectra_management as spec
-import pyklip.fakes as fakes
-import pyklip.kpp.stat.stat_utils as stat_utils
-import pyklip.empca as empca
+import dev.pyklip.klip as klip
+import dev.pyklip.spectra_management as spec
+import dev.pyklip.fakes as fakes
+import dev.pyklip.kpp.stat.stat_utils as stat_utils
+import dev.pyklip.empca as empca
 import multiprocessing as mp
 import ctypes
 import numpy as np

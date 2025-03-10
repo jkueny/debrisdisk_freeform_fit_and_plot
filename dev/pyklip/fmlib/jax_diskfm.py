@@ -1,9 +1,9 @@
 # pylint: disable=C0103
+import ctypes
 from sys import version_info
 from os import path
 import multiprocessing as mp
 from copy import deepcopy
-import ctypes
 
 import pickle
 import h5py
@@ -13,15 +13,13 @@ import jax.numpy as jnp
 from functools import partial
 
 import numpy as np
-import scipy.ndimage as ndimage
 
-from dev.pyklip.fmlib.nofm import NoFM
-import dev.pyklip.fm as fm
-from dev.pyklip.klip import rotate
+from pyklip.fmlib.nofm import NoFM
+import pyklip.fm as fm
 
-# import matplotlib.pyplot as plt
-# define the global variables for that code
-class DiskFM(NoFM):
+from j_klip import rotate_image
+
+class JDFM(NoFM):
     """Defining a model disk to which we apply the Forward Modelling. There are 3 ways:
 
             * "Save Basis mode" (save_basis=true), we are preparing to save the FM basis
@@ -205,7 +203,7 @@ class DiskFM(NoFM):
         self.update_disk(model_disk)
 
     @partial(jax.jit, static_argnums=0)
-    def update_disk(self, model_disk, wind_PAs=None):
+    def update_disk(self, model_disk):
         """
         Takes model disk and rotates it to the PAs of the input images for use as
         reference PSFS
@@ -220,80 +218,23 @@ class DiskFM(NoFM):
         Returns:
             None
         """
-        self.model_disks = np.zeros(self.inputs_shape)
-        if wind_PAs is not None:
-            self.PAs = wind_PAs
-        
 
-        # Extract the # of WL per files
-        n_wv_per_file = self.nwvs  # Number of wavelenths per file.
+        # This is either a multi WL 3D model in a multi-wl 3D data
+        # or a single WL 3D model in a single-wl 2D data, we do nothing
+        self.model_disk = model_disk
 
-        model_disk_shape = np.shape(model_disk)
+        self.model_disks = jnp.tile(model_disk, self.inputs_shape)
 
-        if (np.size(model_disk_shape) == 2) & (n_wv_per_file > 1):
-            # This is a single WL 2D model in a multi-wl 3D data,
-            # in that case we repeat this model at each WL
-            self.model_disk = np.broadcast_to(model_disk, (n_wv_per_file, ) +
-                                              model_disk.shape)
-            model_disk_shape = np.shape(model_disk)
-        else:
-            # This is either a multi WL 3D model in a multi-wl 3D data
-            # or a single WL 3D model in a single-wl 2D data, we do nothing
-            self.model_disk = model_disk
+        centers = jnp.array([self.aligned_center] * self.inputs_shape[0])
+        flipx_toggles = jnp.array([True] * self.inputs_shape[0])
 
-        # Check if we have a disk at multiple wavelengths
-        if np.size(model_disk_shape) > 2:  # Then it's a multiWL model
-            n_model_wvs = model_disk_shape[0]
+        # We can do better than the OG for-loop with the power of JAX
+        models_rotated = jax.vmap(rotate_image)(self.model_disks, self.PAs, centers, flipx_toggles)
 
-            if n_model_wvs != n_wv_per_file:
-                # Both models and data are multiWL, but not the same number of WLs !
-                raise ValueError(
-                    """Number of wls in disk model ({0}) don't match number of wls in
-                    the data ({1})""".format(n_model_wvs, n_wv_per_file))
+        models_rot_nonan = jnp.nan_to_num(models_rotated, nan=0.0)
 
-            for k in np.arange(self.nfiles):
-                for j, _ in enumerate(range(n_model_wvs)):
-                    model_copy = deepcopy(model_disk[j, :, :])
-                    model_copy = rotate(
-                        model_copy,
-                        self.PAs[k * n_wv_per_file + j],
-                        self.aligned_center,
-                        flipx=True,
-                    )
-                    # model_copy[np.where(np.isnan(model_copy))] = 0.0
-                    model_copy[model_copy != model_copy] = 0.0
-                    self.model_disks[k * n_wv_per_file + j, :, :] = model_copy
+        self.model_disks = jnp.reshape(models_rot_nonan, (self.inputs_shape[0], -1)) # new size (N_images, height*width)
 
-        else:  # This is a 2D disk model and a wl = 1 case
-            for i, pa_here in enumerate(self.PAs):
-                model_copy = deepcopy(model_disk)#.astype(np.float64).newbyteorder("=")
-                mod_rot_flipx = rotate(model_copy,
-                                    pa_here,
-                                    # 22,
-                                    self.aligned_center,
-                                    flipx=True)
-                # mod_rot_flipx = rotate_image(
-                #                     model_copy,
-                #                     pa_here,
-                #                     self.aligned_center,
-                #                     flipx=True,
-                #                     )
-                # fig, ax = plt.subplots(1,2)
-                # ax[0].imshow(mod_rot_flipx,origin="lower")
-                # ax[1].imshow(mod_rot2,origin="lower")
-                # plt.show()
-                # exit()
-                # mod_rot_flipx = np.flip(model_rot, axis=1)
-                # model_copy[np.where(np.isnan(model_copy))] = 0.0
-                mod_rot_flipx[mod_rot_flipx != mod_rot_flipx] = 0.0
-                mod_rot_flipx = mod_rot_flipx.at
-                self.model_disks[i] = mod_rot_flipx
-
-        self.model_disks = np.reshape(
-            self.model_disks,
-            (self.inputs_shape[0],
-             self.inputs_shape[1] * self.inputs_shape[2]),
-        )
 
     def alloc_fmout(self, output_img_shape):
         """Allocates shared memory for the output of the shared memory

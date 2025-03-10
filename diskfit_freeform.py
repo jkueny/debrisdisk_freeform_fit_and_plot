@@ -30,18 +30,13 @@ default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name o
 # default_parameter_file = 'HR4796_i_smlyot_20230309_10.yaml'  # name of the parameter file
 # you can also call it with the python function argument -p
 
-# For parallelization stuff...?
-MPI = False  ## by default the MCMC is not mpi. you can change it
-## in the the python function argument --mpi
 
 import glob
 
-import warnings
 
 
 # # because this error was coming up
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-from multiprocessing import cpu_count
 
 
 from datetime import datetime
@@ -58,14 +53,14 @@ import matplotlib.pyplot as plt
 import yaml
 
 
-from pyklip.instruments.Instrument import GenericData
+from dev.pyklip.instruments.Instrument import GenericData
 
-from pyklip.fmlib.diskfm import DiskFM
-import pyklip.fm as fm
+from dev.pyklip.fmlib.diskfm import DiskFM
+import dev.pyklip.fm as fm
 
 
-import make_gpi_psf_for_disks as gpidiskpsf
-import astro_unit_conversion as convert
+# import make_gpi_psf_for_disks as gpidiskpsf
+# import astro_unit_conversion as convert
 
 import jax
 import jax.numpy as jnp

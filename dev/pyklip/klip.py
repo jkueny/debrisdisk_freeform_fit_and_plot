@@ -6,49 +6,6 @@ import scipy.interpolate as sinterp
 from scipy.stats import t
 import warnings
 
-import cv2
-
-import numba
-
-@numba.jit(fastmath=True, parallel=False)
-def bilinear_interpolate(input_img, y_coords, x_coords):
-    """
-    Perform bilinear interpolation for a set of x and y coordinates in a given 2D array.
-    
-    Parameters:
-    - input_img: The source 2D array (image) from which to interpolate values.
-    - y_coords: The y coordinates at which to interpolate.
-    - x_coords: The x coordinates at which to interpolate.
-    
-    Returns:
-    - Interpolated values at the specified coordinates.
-    """
-    # Initialize the output array with NaNs, which will remain for out-of-bounds coordinates
-    output = np.empty(y_coords.shape, dtype=np.float32)
-    print(y_coords.shape)
-    output.fill(np.nan)
-
-    height, width = input_img.shape
-
-    for i in range(x_coords.shape[0]):
-        x, y = x_coords[i], y_coords[i]
-
-        # Check if the coordinates are within the bounds of the input image
-        if (x >= 0) and (x < width - 1) and (y >= 0) and (y < height - 1):
-            x_floor, y_floor = np.floor(x,dtype=int), np.floor(y,dtype=int)
-            x_ceil, y_ceil = np.ceil(x,dtype=int), np.ceil(y,dtype=int)
-            
-            # Calculate the fractional part of the coordinates
-            x_frac, y_frac = x - x_floor, y - y_floor
-            
-            # Calculate the interpolated value
-            val = (input_img[y_floor, x_floor] * (1 - x_frac) * (1 - y_frac) +
-                   input_img[y_floor, x_ceil] * x_frac * (1 - y_frac) +
-                   input_img[y_ceil, x_floor] * (1 - x_frac) * y_frac +
-                   input_img[y_ceil, x_ceil] * x_frac * y_frac)
-            output[y,x] = val
-
-    return output
 
 
 def make_polar_coordinates(x, y, center=[0,0]):
@@ -447,26 +404,6 @@ def align_and_scale(img, new_center, old_center=None, scale_factor=1, dtype=floa
 
     return resampled_img
 
-def rotate_image(img, angle, center, flipx=False):
-    # Ensure array is in a suitable format (float32 or uint8 typically works well with OpenCV)
-    # if img.dtype != np.uint8:
-    #     img = img.astype(np.uint8)
-    
-    # Dimensions of the original array
-    height, width = img.shape[:2]
-    
-    
-    # Calculate the rotation matrix
-    rotation_matrix = cv2.getRotationMatrix2D(center, -angle, 1.0)
-    
-    # Perform the rotation using linear interpolation
-    rotated_array = cv2.warpAffine(img, rotation_matrix, (width, height), flags=cv2.INTER_CUBIC)
-    
-    # Flip the x-axis if required
-    if flipx:
-        rotated_array = np.flip(rotated_array, axis=1)
-    
-    return rotated_array
 
 
 def rotate(img, angle, center, new_center=None, flipx=False, astr_hdr=None):

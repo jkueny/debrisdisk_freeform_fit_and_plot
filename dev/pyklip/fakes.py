@@ -13,7 +13,7 @@ import astropy.modeling as modeling
 
 
 
-import pyklip.spectra_management as spec
+import dev.pyklip.spectra_management as spec
 
 
 def convert_pa_to_image_polar(pa, astr_hdr):

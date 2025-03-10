@@ -6,7 +6,6 @@ from time import time
 import itertools
 import multiprocessing as mp
 import ctypes
-import numba
 
 import numpy as np
 import scipy.linalg as la
@@ -14,8 +13,8 @@ from scipy.stats import norm
 import scipy.ndimage as ndimage
 import scipy.interpolate as sinterp
 
-import pyklip.klip as klip
-from pyklip.parallelized import _arraytonumpy, high_pass_filter_imgs, generate_noise_maps
+import dev.pyklip.klip as klip
+from dev.pyklip.parallelized import _arraytonumpy, high_pass_filter_imgs, generate_noise_maps
 
 
 #Logic to test mkl exists
