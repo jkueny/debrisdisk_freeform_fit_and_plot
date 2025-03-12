@@ -219,7 +219,7 @@ class JDFM(NoFM):
 
         fmout_size = int(np.prod(output_img_shape))
         fmout_shape = output_img_shape
-        fmout = mp.Array(self.data_type, fmout_size)
+        fmout = np.array(self.data_type, fmout_size)
         return fmout, fmout_shape
 
     def fm_from_eigen(self,
@@ -644,8 +644,8 @@ class JDFM(NoFM):
         # we run self.fm_parallelize.
         self.save_basis = False
 
-    @partial(jax.jit, static_argnums=0)
-    def fm_parallelized(self):
+    @jax.jit
+    def fm_jaxed(self):
         """
         Functions like jfm.klip_dataset, but it uses previously measured KL modes,
         section positions, and klip parameter to return the forward modelling.
@@ -729,15 +729,22 @@ class JDFM(NoFM):
             'numbasis': self.numbasis,
             'PAs': self.PAs,
             'aligned_center': self.aligned_center,
-            'dataset': ,
-                 save_basis=False,
-                 aligned_center=None,
-                 psf_library=None,
-                 mode=None,
-                 annuli=None,
-                 subsections=None,
-                 numthreads=None
-            # ... include any other static config you need
+            'OWA': self.OWA,
+            'IWA':self.IWA,
+            # Bundle all the KL basis-related dictionaries into one sub-dictionary:
+            'kl_basis_data': {
+                'klmodes_dict': getattr(self, 'klmodes_dict', None),
+                'evecs_dict': getattr(self, 'evecs_dict', None),
+                'evals_dict': getattr(self, 'evals_dict', None),
+                'ref_psfs_indicies_dict': getattr(self, 'ref_psfs_indicies_dict', None),
+                'section_ind_dict': getattr(self, 'section_ind_dict', None),
+                'radstart_dict': getattr(self, 'radstart_dict', None),
+                'radend_dict': getattr(self, 'radend_dict', None),
+                'phistart_dict': getattr(self, 'phistart_dict', None),
+                'phiend_dict': getattr(self, 'phiend_dict', None),
+                'input_img_num_dict': getattr(self, 'input_img_num_dict', None),
+                'klparam_dict': getattr(self, 'klparam_dict', None),
+            }
         }
         return children, static
 
@@ -749,7 +756,21 @@ class JDFM(NoFM):
         instance.numbasis = static['numbasis']
         instance.PAs = static['PAs']
         instance.aligned_center = static['aligned_center']
-        # ... reassign any other static configuration as needed.
+        instance.OWA = static['OWA']
+        instance.IWA = static['IWA']
+        # From the KL basis file
+        kl_basis_data = static['kl_basis_data']
+        instance.klmodes_dict = kl_basis_data['klmodes_dict']
+        instance.evecs_dict = kl_basis_data['evecs_dict']
+        instance.evals_dict = kl_basis_data['evals_dict']
+        instance.ref_psfs_indicies_dict = kl_basis_data['ref_psfs_indicies_dict']
+        instance.section_ind_dict = kl_basis_data['section_ind_dict']
+        instance.radstart_dict = kl_basis_data['radstart_dict']
+        instance.radend_dict = kl_basis_data['radend_dict']
+        instance.phistart_dict = kl_basis_data['phistart_dict']
+        instance.phiend_dict = kl_basis_data['phiend_dict']
+        instance.input_img_num_dict = kl_basis_data['input_img_num_dict']
+        instance.klparam_dict = kl_basis_data['klparam_dict']
         return instance
 
 
