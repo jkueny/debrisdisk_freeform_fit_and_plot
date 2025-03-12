@@ -17,7 +17,7 @@ import scipy.ndimage as ndimage
 
 from dev.pyklip.fmlib.nofm import NoFM
 import dev.pyklip.fm as fm
-from dev.pyklip.klip import rotate
+from dev.pyklip.klip import rotate_image
 
 # import matplotlib.pyplot as plt
 # define the global variables for that code
@@ -204,7 +204,6 @@ class DiskFM(NoFM):
         # Prepare the first disk for FM
         self.update_disk(model_disk)
 
-    @partial(jax.jit, static_argnums=0)
     def update_disk(self, model_disk, wind_PAs=None):
         """
         Takes model disk and rotates it to the PAs of the input images for use as
@@ -265,35 +264,17 @@ class DiskFM(NoFM):
                     self.model_disks[k * n_wv_per_file + j, :, :] = model_copy
 
         else:  # This is a 2D disk model and a wl = 1 case
-            for i, pa_here in enumerate(self.PAs):
-                model_copy = deepcopy(model_disk)#.astype(np.float64).newbyteorder("=")
-                mod_rot_flipx = rotate(model_copy,
-                                    pa_here,
-                                    # 22,
-                                    self.aligned_center,
-                                    flipx=True)
-                # mod_rot_flipx = rotate_image(
-                #                     model_copy,
-                #                     pa_here,
-                #                     self.aligned_center,
-                #                     flipx=True,
-                #                     )
-                # fig, ax = plt.subplots(1,2)
-                # ax[0].imshow(mod_rot_flipx,origin="lower")
-                # ax[1].imshow(mod_rot2,origin="lower")
-                # plt.show()
-                # exit()
-                # mod_rot_flipx = np.flip(model_rot, axis=1)
-                # model_copy[np.where(np.isnan(model_copy))] = 0.0
-                mod_rot_flipx[mod_rot_flipx != mod_rot_flipx] = 0.0
-                mod_rot_flipx = mod_rot_flipx.at
-                self.model_disks[i] = mod_rot_flipx
+            model_copy = np.array(model_disk, dtype=np.float64, copy=True)
+            model_copies = np.repeat(model_copy[None, :, :], self.inputs_shape[0], axis=0)
+            model_disks = np.array([rotate_image(mod_cp, pa_here, self.aligned_center, flipx=True)
+                                         for mod_cp, pa_here in zip(model_copies, self.PAs)])
+            model_disks[model_disks != model_disks] = 0.0
+
 
         self.model_disks = np.reshape(
-            self.model_disks,
+            model_disks,
             (self.inputs_shape[0],
-             self.inputs_shape[1] * self.inputs_shape[2]),
-        )
+             self.inputs_shape[1] * self.inputs_shape[2]))
 
     def alloc_fmout(self, output_img_shape):
         """Allocates shared memory for the output of the shared memory

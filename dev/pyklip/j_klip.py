@@ -1,4 +1,7 @@
 import jax.numpy as jnp
+import jax
+
+from functools import partial
 
 def bilinear_interpolate(image, i_coords, j_coords):
     """
@@ -40,7 +43,7 @@ def bilinear_interpolate(image, i_coords, j_coords):
     # Compute the interpolated value
     return wa * Ia + wb * Ib + wc * Ic + wd * Id
 
-def rotate_image(image: jnp.ndarray, angle_deg: float, center: tuple, flip_x: bool = False) -> jnp.ndarray:
+def rotate_image(image: jnp.ndarray, angle_deg: float, center: tuple) -> jnp.ndarray:
     """
     Rotate a 2D image (JAX array) by a given angle (in degrees, CCW positive)
     about a specified center. Optionally, flip the rotated image along the x-axis.
@@ -85,7 +88,6 @@ def rotate_image(image: jnp.ndarray, angle_deg: float, center: tuple, flip_x: bo
     rotated = bilinear_interpolate(image, i_in, j_in)
 
     # Optionally flip the image along the x-axis (i.e. reverse columns).
-    if flip_x:
-        rotated = jnp.flip(rotated, axis=1)
+    rotated = jnp.flip(rotated, axis=1)
 
     return rotated

@@ -55,12 +55,13 @@ import yaml
 
 from dev.pyklip.instruments.Instrument import GenericData
 
+from dev.pyklip.fmlib.jax_diskfm import JDFM
 from dev.pyklip.fmlib.diskfm import DiskFM
 import dev.pyklip.fm as fm
 
 
-# import make_gpi_psf_for_disks as gpidiskpsf
-# import astro_unit_conversion as convert
+import utils.make_gpi_psf_for_disks as gpidiskpsf
+import utils.astro_unit_conversion as convert
 
 import jax
 import jax.numpy as jnp
@@ -81,7 +82,7 @@ def convolve_model(input_model, psf):
     return model_convolved
 
 
-def loss_function(mod_pix_params, disk_image, psf, diskobj):
+def loss_function(mod_pix_params, disk_image, psf):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
         convolve by the PSF (psf is global)
@@ -116,8 +117,8 @@ def loss_function(mod_pix_params, disk_image, psf, diskobj):
     #                                              FILE_PREFIX + '_klbasis.h5'),
     #                  load_from_basis=True)
 
-    diskobj.update_disk(freeform_image)
-    freeform_fm = diskobj.fm_parallelized()[0]
+    DISKOBJ.update_disk(freeform_image)
+    freeform_fm = DISKOBJ.fm_parallelized()[0]
 
     # reduced data have already been naned outside of the minimization
     # zone, so we don't need to do it also for model_fm
@@ -333,10 +334,10 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
                         psf_library=psflib)
     else:
         # load the the KL basis and define the diskFM object
-        diskobj = DiskFM(None,
+        diskobj = JDFM(None,
                         None,
                         None,
-                        np.asarray(model_convolved_here),
+                        model_convolved_here,
                         basis_filename=os.path.join(klipdir,
                                                     file_prefix + '_klbasis.h5'),
                         load_from_basis=True)
@@ -351,50 +352,13 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 # --- JIT-Compiled Gradient Computation ---
 loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 
-def optimize_model(num_steps=500, lr=0.1):
-    # Grab the info from the yaml file
-    FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
-    KLIPDIR = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'],
-                           'klip_fm_files')
-    RESULTS_DIR = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'],
-                           'results_freeform')
-    # load DISTANCE_STAR & PIXSCALE_INS and make them global
-    DISTANCE_STAR = params_mcmc_yaml['DISTANCE_STAR']
-    PIXSCALE_INS = params_mcmc_yaml['PIXSCALE_INS']
-    ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
-    FIRST_TIME = params_mcmc_yaml["FIRST_TIME"]
-
-    dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml,
-                                                quietklip=True)
+def optimize_model(target_image, psf, num_steps=500, lr=0.1):
     
-    # load wheremask2generatedisk
-    WHEREMASK2GENERATEDISK = fits.getdata(
-        os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits'))
-
-
-    # load PSF
-    psf = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
-    jax_psf = jnp.array(psf)
-    jax_psf /= jnp.sum(jax_psf)
-
-    # measure the size of images DIMENSION and make it global
-    DIMENSION = round(ALIGNED_CENTER[0]) * 2
+    dimension = target_image.shape
+    jax_target_image = jnp.array(target_image)
 
     # Initialize the initial image of random pixels
-    image_params = initialize_freeform_model(DIMENSION)
-
-    
-    # initialize_diskfm and make diskobj global
-    DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
-                                params_mcmc_yaml,
-                                psf=jax_psf,
-                                psflib=psflib,
-                                quietklip=True)
-    
-    # mask the disk image
-    TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK
-    jax_target_image = jnp.array(TARGET_IMAGE)
-
+    image_params = initialize_freeform_model(dimension)
 
     # Set up the optimizer
     optimizer = optax.adam(lr)
@@ -404,7 +368,7 @@ def optimize_model(num_steps=500, lr=0.1):
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, jax_target_image, jax_psf, DISKOBJ)
+        loss, grads = loss_and_grad(image_params, jax_target_image, psf)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -436,8 +400,56 @@ if __name__ == "__main__":
     yaml_path_file = os.path.join(os.getcwd(), str_yalm)
     with open(yaml_path_file, 'r') as yaml_file:
         params_mcmc_yaml = yaml.safe_load(yaml_file)
+    # Grab the info from the yaml file
+    FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
+    KLIPDIR = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'],
+                           'klip_fm_files')
+    RESULTS_DIR = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'],
+                           'results_freeform')
+    # load DISTANCE_STAR & PIXSCALE_INS and make them global
+    DISTANCE_STAR = params_mcmc_yaml['DISTANCE_STAR']
+    PIXSCALE_INS = params_mcmc_yaml['PIXSCALE_INS']
+    ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
+    FIRST_TIME = params_mcmc_yaml["FIRST_TIME"]
+
+    dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml,
+                                                quietklip=True)
     
-    optimized_model, loss_history = optimize_model()
+    # load wheremask2generatedisk
+    WHEREMASK2GENERATEDISK = fits.getdata(
+        os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits'))
+
+
+    # load PSF
+    psf = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
+    JAX_PSF = jnp.array(psf)
+    JAX_PSF /= jnp.sum(JAX_PSF)
+
+    # measure the size of images DIMENSION and make it global
+    DIMENSION = round(ALIGNED_CENTER[0]) * 2
+
+    if FIRST_TIME:
+        print(FIRST_TIME)
+        # initialize_diskfm and make diskobj global
+        DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
+                                    params_mcmc_yaml,
+                                    psf=JAX_PSF,
+                                    psflib=psflib,
+                                    quietklip=True)
+        exit()
+    else:
+        DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
+                                    params_mcmc_yaml,
+                                    psf=JAX_PSF,
+                                    psflib=psflib,
+                                    quietklip=True)
+    
+    # mask the disk image
+    TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK
+    
+    optimized_model, loss_history = optimize_model(target_image=TARGET_IMAGE,
+                                                   psf=JAX_PSF,
+                                                   )
 
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))

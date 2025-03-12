@@ -6,6 +6,9 @@ import scipy.interpolate as sinterp
 from scipy.stats import t
 import warnings
 
+import cv2
+
+
 
 
 def make_polar_coordinates(x, y, center=[0,0]):
@@ -458,6 +461,27 @@ def rotate(img, angle, center, new_center=None, flipx=False, astr_hdr=None):
         _rotate_wcs_hdr(astr_hdr, angle, flipx=flipx)
 
     return resampled_img
+
+def rotate_image(img, angle, center, flipx=False):
+    # Ensure array is in a suitable format (float32 or uint8 typically works well with OpenCV)
+    # if img.dtype != np.uint8:
+    #     img = img.astype(np.uint8)
+    
+    # Dimensions of the original array
+    height, width = img.shape[:2]
+    
+    
+    # Calculate the rotation matrix
+    rotation_matrix = cv2.getRotationMatrix2D(center, -angle, 1.0)
+    
+    # Perform the rotation using linear interpolation
+    rotated_array = cv2.warpAffine(img, rotation_matrix, (width, height), flags=cv2.INTER_CUBIC)
+    
+    # Flip the x-axis if required
+    if flipx:
+        rotated_array = np.flip(rotated_array, axis=1)
+    
+    return rotated_array
 
 
 def _rotate_wcs_hdr(wcs_header, rot_angle, flipx=False, flipy=False):

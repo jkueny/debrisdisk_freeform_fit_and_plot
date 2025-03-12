@@ -14,19 +14,19 @@ from functools import partial
 
 import numpy as np
 
-from pyklip.fmlib.nofm import NoFM
-import pyklip.fm as fm
+from dev.pyklip.fmlib.nofm import NoFM
+import dev.pyklip.j_fm as jfm
 
-from j_klip import rotate_image
+from dev.pyklip.j_klip import rotate_image
 
 class JDFM(NoFM):
     """Defining a model disk to which we apply the Forward Modelling. There are 3 ways:
 
             * "Save Basis mode" (save_basis=true), we are preparing to save the FM basis
             * "Load Basis mode" (load_from_basis = true), most of the parameters are
-              derived from the previous fm.klip_dataset which measured FM basis.
+              derived from the previous jfm.klip_dataset which measured FM basis.
             * "Simple FM mode" (save_basis = load_from_basis = False). Just
-              for a unique disk FM.
+              for a unique disk jfm.
 
 
         Args:
@@ -53,15 +53,15 @@ class JDFM(NoFM):
                             independently, which will create false results.
                             - In "Load Basis mode", this parameter is not read, we just
                             use the aligned_center set for the images in the previous
-                            fm.klip_dataset and save in basis_filename
+                            jfm.klip_dataset and save in basis_filename
                             - In "Save Basis mode", or "Simple FM mode" we define it
                             and then check that it is the same one used for the images
-                            in fm.klip_dataset
-            mode: deprecated parameter, ignored here and defined in fm.klip_dataset
-            annuli: deprecated parameter, ignored here and defined in fm.klip_dataset
+                            in jfm.klip_dataset
+            mode: deprecated parameter, ignored here and defined in jfm.klip_dataset
+            annuli: deprecated parameter, ignored here and defined in jfm.klip_dataset
             subsections: deprecated parameter, ignored here and defined
-                         in fm.klip_dataset
-            numthreads: deprecated parameter. All centering are done in fm.klip_dataset 
+                         in jfm.klip_dataset
+            numthreads: deprecated parameter. All centering are done in jfm.klip_dataset 
 
         Returns:
             A DiskFM Object
@@ -78,10 +78,7 @@ class JDFM(NoFM):
                  save_basis=False,
                  aligned_center=None,
                  psf_library=None,
-                 mode=None,
-                 annuli=None,
-                 subsections=None,
-                 numthreads=None):
+                 ):
         """
 
             Initilaizes the DiskFM class
@@ -105,29 +102,6 @@ class JDFM(NoFM):
         else:
             inputs_shape = np.array([inputs_shape])
 
-        if mode is not None:
-            print(mode)
-            print("Warning: Argument 'mode' in pyklip.fmlib.diskfm.DiskFM class definition "\
-                "is deprecated (not used and will be removed in a future version). " \
-                "KLIP reduction parameters (mode, annuli and subsections) "\
-                "are only defined once in klip_dataset [pyklip.parallelized]. ")
-
-        if numthreads is not None:
-            print("Warning: Argument 'numthreads' in pyklip.fmlib.diskfm.DiskFM class definition "\
-                "is deprecated (not used and will be removed in a future version). " \
-                "All centering are done in fm.klip_dataset ")
-
-        if annuli is not None:
-            print("Warning: Argument 'annuli' in pyklip.fmlib.diskfm.DiskFM class definition "\
-                "is deprecated (not used and will be removed in a future version). " \
-                "KLIP reduction parameters (mode, annuli and subsections) "\
-                "are only defined once in klip_dataset [pyklip.parallelized].")
-
-        if subsections is not None:
-            print("Warning: Argument 'subsections' in pyklip.fmlib.diskfm.DiskFM class definition "\
-                "is deprecated (not used and will be removed in a future version). " \
-                "KLIP reduction parameters (mode, annuli and subsections) "\
-                "are only defined once in klip_dataset [pyklip.parallelized].")
         #ensure the setup is done in both DiskFM.__init__ and NoFM.__init__
         super().__init__(inputs_shape, numbasis) #call the init function of NoFM (parent class)
 
@@ -181,14 +155,11 @@ class JDFM(NoFM):
             self.output_imgs_shape = output_imgs_shape
 
             self.PAs = dataset.PAs
-            self.wvs = dataset.wvs
 
-            self.nwvs = int(np.size(np.unique(
-                self.wvs)))  # Get the number of wvls
-            self.nfiles = int(self.inputs_shape[0] /
-                              self.nwvs)  # Get the number of files
 
-            # default aligned_center if none (same default as fm.parallelized):
+            self.nfiles = int(self.inputs_shape[0])  # Get the number of files
+
+            # default aligned_center if none (same default as jfm.parallelized):
             if aligned_center is None:
                 centers = dataset.centers
                 aligned_center = [
@@ -226,10 +197,10 @@ class JDFM(NoFM):
         self.model_disks = jnp.tile(model_disk, self.inputs_shape)
 
         centers = jnp.array([self.aligned_center] * self.inputs_shape[0])
-        flipx_toggles = jnp.array([True] * self.inputs_shape[0])
+        # flipx_toggles = jnp.array([True] * self.inputs_shape[0])
 
         # We can do better than the OG for-loop with the power of JAX
-        models_rotated = jax.vmap(rotate_image)(self.model_disks, self.PAs, centers, flipx_toggles)
+        models_rotated = jax.vmap(rotate_image)(self.model_disks, self.PAs, centers)
 
         models_rot_nonan = jnp.nan_to_num(models_rotated, nan=0.0)
 
@@ -237,7 +208,7 @@ class JDFM(NoFM):
 
 
     def alloc_fmout(self, output_img_shape):
-        """Allocates shared memory for the output of the shared memory
+        """Allocates shared memory  for the output of the shared memory
 
 
         Args:
@@ -278,7 +249,7 @@ class JDFM(NoFM):
                       **kwargs):
         """
         Generate forward models using the KL modes, eigenvectors, and eigenvectors from
-        KLIP. Calls fm.py functions to perform the forward modelling. If we wish to save
+        KLIP. Calls jfm.py functions to perform the forward modelling. If we wish to save
         the KL modes, it save in dictionnaries.
 
         Args:
@@ -328,10 +299,12 @@ class JDFM(NoFM):
             sci = aligned_imgs[input_img_num, section_ind[0]]
             refs = aligned_imgs[ref_psfs_indicies, :]
             refs = refs[:, section_ind[0]]
+
         else:
-            wlstrkey = 'wl' + str(int(self.wvs[input_img_num] * 1000)).zfill(4)
+            wlstrkey = 'wl1000'# spectral cube mode disabled
             sci = self.aligned_images_dict[wlstrkey][input_img_num,
                                                      section_ind[0]]
+
             # in the case of load_from_basis, the images are already
             # saved in the DiskFM object, we can save a few tens of
             # Mbytes (per cpu) by not saving them
@@ -340,11 +313,10 @@ class JDFM(NoFM):
         # use the disk model stored
         model_sci = self.model_disks[input_img_num, section_ind[0]]
         # model_sci[np.where(np.isnan(model_sci))] = 0
-        model_sci[model_sci != model_sci] = 0
+        model_sci_nonan = jnp.nan_to_num(model_sci, nan=0.0)
         model_ref = self.model_disks[ref_psfs_indicies, :]
         model_ref = model_ref[:, section_ind[0]]
-        # model_ref[np.where(np.isnan(model_ref))] = 0
-        model_ref[model_ref != model_ref] = 0
+        model_ref_nonan = jnp.nan_to_num(model_ref, nan=0.0)
         if mode == 'RDI':
             #if only RDI we skip the deltaKL calculation since we do only over-subctraction
             delta_KL = klmodes * 0.
@@ -352,7 +324,7 @@ class JDFM(NoFM):
             # using original Kl modes and reference models, compute the perturbed KL modes
             # (spectra is already in models)
             if self.load_from_basis == False:
-                delta_KL = fm.perturb_specIncluded(
+                delta_KL = jfm.perturb_specIncluded(
                     evals,
                     evecs,
                     klmodes,
@@ -364,7 +336,7 @@ class JDFM(NoFM):
                 # in the case of load_from_basis, the images are already saved in the
                 # DiskFM object, we can save a few tens of Mbytes (per cpu) by not 
                 # saving them and just passing them to the nex function
-                delta_KL = fm.perturb_specIncluded(
+                delta_KL = jfm.perturb_specIncluded(
                     evals,
                     evecs,
                     klmodes,
@@ -375,18 +347,18 @@ class JDFM(NoFM):
                 )
 
         # calculate postklip_psf using delta_KL
-        postklip_psf, _, _ = fm.calculate_fm(delta_KL,
+        postklip_psf, _, _ = jfm.calculate_fm(delta_KL,
                                              klmodes,
                                              numbasis,
                                              sci,
-                                             model_sci,
+                                             model_sci_nonan,
                                              inputflux=None)
 
         # write forward modelled disk to fmout (as output)
         # need to derotate the image in this step
 
         for thisnumbasisindex in range(np.size(numbasis)):
-            fm._save_rotated_section(input_img_shape,
+            output_img = jfm._save_rotated_section(input_img_shape,
                                      postklip_psf[thisnumbasisindex],
                                      section_ind,
                                      fmout[input_img_num, :, :,
@@ -403,8 +375,9 @@ class JDFM(NoFM):
                                      flipx=flipx)
 
         # We save the KL basis and params for this image and section in a dictionnaries
+        # This is only called when initializing diskFM first time. JKK
         if self.save_basis is True:
-            # save the parameter used in KLIP-FM. We save a float64 to avoid pbs
+            # save the parameter used in KLIP-jfm. We save a float64 to avoid pbs
             # in the saving and loading
 
             if mode == 'RDI':
@@ -421,21 +394,15 @@ class JDFM(NoFM):
             self.klparam_dict['output_imgs_shape'] = np.float64(
                 output_img_shape)
 
-            # To have a single identifier for each set of aligned images,
-            # we save the wavelenght in nm
-            wlstrkey = 'wl' + str(int(self.wvs[input_img_num] * 1000)).zfill(4)
-            self.aligned_images_dict[wlstrkey] = aligned_imgs
 
-            # save the center for aligning the image in KLIP-FM. In practice, this
+            # save the center for aligning the image in KLIP-jfm. In practice, this
             # center will be used for all the models after we load.
             self.klparam_dict['aligned_center_x'] = np.float64(ref_center[0])
             self.klparam_dict['aligned_center_y'] = np.float64(ref_center[1])
 
             # We save information about the dataset that will be used when we load the KL basis
             self.klparam_dict['PAs'] = np.float64(self.PAs)
-            self.klparam_dict['wvs'] = np.float64(self.wvs)
 
-            self.klparam_dict['nwvs'] = np.float64(self.nwvs)
             self.klparam_dict['nfiles'] = np.float64(self.nfiles)
 
             # To have a single identifier for each set of section/image for the
@@ -460,7 +427,7 @@ class JDFM(NoFM):
         """
         After running KLIP-FM, we need to reshape fmout so that the numKL dimension is
         the first one and not the last. We also use this function to save the KL basis
-        because it is called by fm.py at the end fm.klip_parallelized
+        because it is called by jfm.py at the end jfm.klip_parallelized
 
         Args:
             fmout: numpy array of ouput of FM
@@ -473,8 +440,8 @@ class JDFM(NoFM):
         if self.save_basis:
             self.save_kl_basis()
 
-        # FIXME We save the matrix here it here because it is called by fm.py at the end
-        # fm.klip_parallelized but this is not ideal.
+        # FIXME We save the matrix here it here because it is called by jfm.py at the end
+        # jfm.klip_parallelized but this is not ideal.
 
         dims = fmout.shape
         fmout = np.rollaxis(
@@ -516,11 +483,9 @@ class JDFM(NoFM):
         """
 
         weighted = len(np.shape(pixel_weights)) > 1
-        numwvs = dataset.numwvs
         fmout_spec = fmout.reshape([
             fmout.shape[0],
-            fmout.shape[1] // numwvs,
-            numwvs,
+            fmout.shape[1],
             fmout.shape[2],
             fmout.shape[3],
         ])  # (b, N_cube, wvs, y, x) 5-D cube
@@ -544,31 +509,6 @@ class JDFM(NoFM):
             zaxis=numbasis,
         )
 
-        # if there is more than one wavelength, save also spectral cubes
-        if dataset.numwvs > 1:
-
-            KLmode_spectral_cubes = np.nanmean(pixel_weights * fmout_spec,
-                                               axis=1)
-            if weighted:
-                # if the pixel weights aren't just 1 (i.e., weighted case), we need to
-                # normalize for that.
-                KLmode_spectral_cubes /= np.nanmean(pixel_weights, axis=1)
-
-            for KLcutoff, spectral_cube in zip(numbasis,
-                                               KLmode_spectral_cubes):
-                # calibrate spectral cube if needed
-                if calibrate_flux:
-                    spectral_cube = dataset.calibrate_output(spectral_cube,
-                                                             spectral=True)
-                dataset.savedata(
-                    path.join(
-                        outputdir, fileprefix +
-                        "-fmpsf-KL{0}-speccube.fits".format(KLcutoff)),
-                    spectral_cube,
-                    klipparams=klipparams.format(numbasis=KLcutoff),
-                    filetype="PSF Subtracted Spectral Cube",
-                )
-
     def save_kl_basis(self):
         """
         Save the KL basis and other needed parameters
@@ -591,27 +531,8 @@ class JDFM(NoFM):
 
         _, file_extension = path.splitext(self.basis_filename)
 
-        if file_extension == ".pkl":
-            # transform mp dicts to normal dicts
-            pkl_file = open(self.basis_filename, "wb")
 
-            pickle.dump(dict(aligned_images_dict), pkl_file, protocol=2)
-
-            pickle.dump(dict(klmodes_dict), pkl_file, protocol=2)
-            pickle.dump(dict(evecs_dict), pkl_file, protocol=2)
-            pickle.dump(dict(evals_dict), pkl_file, protocol=2)
-            pickle.dump(dict(ref_psfs_indicies_dict), pkl_file, protocol=2)
-            pickle.dump(dict(section_ind_dict), pkl_file, protocol=2)
-
-            pickle.dump(dict(radstart_dict), pkl_file, protocol=2)
-            pickle.dump(dict(radend_dict), pkl_file, protocol=2)
-            pickle.dump(dict(phistart_dict), pkl_file, protocol=2)
-            pickle.dump(dict(phiend_dict), pkl_file, protocol=2)
-            pickle.dump(dict(input_img_num_dict), pkl_file, protocol=2)
-
-            pickle.dump(dict(klparam_dict), pkl_file, protocol=2)
-
-        elif file_extension == ".h5":
+        if file_extension == ".h5":
             # transform mp dicts to normal dicts
             # make a single dictionnary and save in h5
 
@@ -633,20 +554,19 @@ class JDFM(NoFM):
             _save_dict_to_hdf5(saving_in_h5_dict, self.basis_filename)
 
             del saving_in_h5_dict
-
         else:
-            raise ValueError(file_extension +
+            raise TypeError(file_extension +
                              """ is not a possible extension. Filenames can
-                haves 2 recognizable extension2: .h5 and .pkl""")
+                have 1 recognizable extension: .h5 """)
 
     def load_basis_files(self, psf_library=None, kl_basis_file=None):
         """
         Loads in previously saved basis files and sets variables for fm_from_eigen
 
         Args:
-            dataset: an instance of Instrument.Data, after fm.klip_dataset.
+            dataset: an instance of Instrument.Data, after jfm.klip_dataset.
                      Allow me to pass in the structure some correction parameters
-                     set by fm.klip_dataset, such as IWA, OWA, aligned_center.
+                     set by jfm.klip_dataset, such as IWA, OWA, aligned_center.
                      KL basis and sections information are passed via global variables
 
         Returns:
@@ -659,60 +579,9 @@ class JDFM(NoFM):
         manager = mp.Manager()
 
         # Load in file
-        if file_extension == ".pkl":
-            pkl_file = open(self.basis_filename, "rb")
-            if version_info.major == 3:
-                # Using encoding='latin1' is required for unpickling NumPy arrays
-                # and instances of datetime, date and time pickled by Python 2.
-                self.aligned_images_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
 
-                self.klmodes_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.evecs_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.evals_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.ref_psfs_indicies_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.section_ind_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-
-                self.radstart_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.radend_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.phistart_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.phiend_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.input_img_num_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-
-                self.klparam_dict = pickle.load(pkl_file, encoding="latin1")
-
-            else:
-                self.aligned_images_dict = dict(pickle.load(pkl_file))
-
-                self.klmodes_dict = dict(pickle.load(pkl_file))
-                self.evecs_dict = dict(pickle.load(pkl_file))
-                self.evals_dict = dict(pickle.load(pkl_file))
-                self.ref_psfs_indicies_dict = dict(
-                    pickle.load(pkl_file))
-                self.section_ind_dict = dict(pickle.load(pkl_file))
-
-                self.radstart_dict = dict(pickle.load(pkl_file))
-                self.radend_dict = dict(pickle.load(pkl_file))
-                self.phistart_dict = dict(pickle.load(pkl_file))
-                self.phiend_dict = dict(pickle.load(pkl_file))
-                self.input_img_num_dict = dict(pickle.load(pkl_file))
-
-                self.klparam_dict = pickle.load(pkl_file)
-
-        else:
-
-            if file_extension == ".h5":
-                kl_basis_file = _load_dict_from_hdf5(self.basis_filename)
+        if file_extension == ".h5":
+            kl_basis_file = _load_dict_from_hdf5(self.basis_filename)
 
 
         self.aligned_images_dict = dict(
@@ -739,7 +608,7 @@ class JDFM(NoFM):
         # read key name for each section and image
         self.dict_keys = sorted(self.klmodes_dict.keys())
 
-        # load parameters of the correction that fm.klip_dataset produced
+        # load parameters of the correction that jfm.klip_dataset produced
         # when we saved the FM basis.
 
         self.isRDI = (self.klparam_dict['isRDI'] == 1)
@@ -766,15 +635,13 @@ class JDFM(NoFM):
 
         # Those are loaded to avoid depending at all on the dataset when we load the KL basis
         self.PAs = self.klparam_dict['PAs']
-        self.wvs = self.klparam_dict['wvs']
 
-        self.nwvs = int(self.klparam_dict['nwvs'])  # Get the number of wvls
         self.nfiles = int(
             self.klparam_dict['nfiles'])  # Get the number of wvls
 
         dim_frame = self.klparam_dict['input_img_shape']
         self.inputs_shape = np.array(
-            (self.nfiles * self.nwvs, int(dim_frame[0]), int(dim_frame[1])))
+            (self.nfiles, int(dim_frame[0]), int(dim_frame[1])))
 
         # After loading it, we stop saving the KL basis to avoid saving it every time
         # we run self.fm_parallelize.
@@ -783,7 +650,7 @@ class JDFM(NoFM):
     @partial(jax.jit, static_argnums=0)
     def fm_parallelized(self):
         """
-        Functions like fm.klip_dataset, but it uses previously measured KL modes,
+        Functions like jfm.klip_dataset, but it uses previously measured KL modes,
         section positions, and klip parameter to return the forward modelling.
         Do not save fits.
 
@@ -798,22 +665,16 @@ class JDFM(NoFM):
         """
 
         fmout_data, fmout_shape = self.alloc_fmout(self.output_imgs_shape)
-        fmout_np = fm._arraytonumpy(fmout_data,
+        fmout_np = jfm._arraytonumpy(fmout_data,
                                     fmout_shape,
                                     dtype=self.data_type)
-        # this line is added to be able to use fm._save_rotated_section
+        # this line is added to be able to use jfm._save_rotated_section
         # which uses global var outputs_shape
-        fm.outputs_shape = self.output_imgs_shape
+        jfm.outputs_shape = self.output_imgs_shape
 
-        wvs = self.wvs
+        
+        mode = None
 
-        if self.isRDI:
-            mode = 'RDI'
-        else:
-            mode = None
-            # We are only interested in the RDI mode
-            # if not we don't care since it does not have an
-            # impact at this point
 
         for key in self.dict_keys:  # loop pver the sections/images
 
@@ -821,8 +682,6 @@ class JDFM(NoFM):
 
             # To have a single identifier for each set of aligned images,
             # we save the wavelenght in nm
-            # wl_here = wvs[img_num]
-            # wlstr = 'wl' + str(int(wl_here * 1000)).zfill(4)
 
             # in load mode, we do not pass aligned_images_dict
             # because it is already in the class to
@@ -849,7 +708,7 @@ class JDFM(NoFM):
                 mode=mode)
 
         # put any finishing touches on the FM Output
-        fmout_np = fm._arraytonumpy(fmout_data,
+        fmout_np = jfm._arraytonumpy(fmout_data,
                                     fmout_shape,
                                     dtype=self.data_type)
         fmout_np = self.cleanup_fmout(fmout_np)
@@ -857,29 +716,44 @@ class JDFM(NoFM):
         # Check if we have a disk model at multiple wavelengths.
         # If true then it's a non- collapsed spec mode disk and we need to reorganise
         # fmout_return. We use the same mean so that it corresponds to
-        # klip image-speccube.fits produced by.fm.klip_dataset
-        if np.size(np.shape(self.model_disk)) > 2:
+        # klip image-speccube.fits produced by.jfm.klip_dataset
 
-            n_wv_per_file = self.nwvs  # Number of WL per file.
-
-            # Collapse across all files, keeping the wavelengths intact.
-            fmout_return = np.zeros([
-                np.size(self.numbasis),
-                n_wv_per_file,
-                self.inputs_shape[1],
-                self.inputs_shape[2],
-            ])
-            for i in np.arange(n_wv_per_file):
-                fmout_return[:, i, :, :] = np.nansum(
-                    fmout_np[:, i::n_wv_per_file, :, :], axis=1) / float(
-                        self.nfiles)
-
-        else:
-            # If false then this is a collapsed-spec mode or pol mode: collapsed
-            # across all files
-            fmout_return = np.nanmean(fmout_np, axis=1)
+        # If false then this is a collapsed-spec mode or pol mode: collapsed
+        # across all files
+        fmout_return = np.nanmean(fmout_np, axis=1)
 
         return fmout_return
+    def __tree_flatten__(self):
+        # Separate dynamic (differentiable) fields from static ones.
+        # For example, if only self.model_disk (and/or self.model_disks) are dynamic:
+        children = (self.model_disk, self.model_disks)
+        static = {
+            'inputs_shape': self.inputs_shape,
+            'numbasis': self.numbasis,
+            'PAs': self.PAs,
+            'aligned_center': self.aligned_center,
+            'dataset': ,
+                 save_basis=False,
+                 aligned_center=None,
+                 psf_library=None,
+                 mode=None,
+                 annuli=None,
+                 subsections=None,
+                 numthreads=None
+            # ... include any other static config you need
+        }
+        return children, static
+
+    @classmethod
+    def __tree_unflatten__(cls, static, children):
+        instance = cls.__new__(cls)
+        instance.model_disk, instance.model_disks = children
+        instance.inputs_shape = static['inputs_shape']
+        instance.numbasis = static['numbasis']
+        instance.PAs = static['PAs']
+        instance.aligned_center = static['aligned_center']
+        # ... reassign any other static configuration as needed.
+        return instance
 
 
 ##############################################################################

@@ -1,0 +1,307 @@
+# PYKLIP PARAMETERS
+FIRST_TIME: True
+FIRST_TIME_GS: True #first time doing pyklip gridsearch
+#if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
+DISK_MODEL: original # original or modified Max MB model code
+MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
+DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
+KLMODE_NUMBER: 11 # number of KL modes used in the reduction < nb images in the basis
+ANNULI: 1 # number of annuli in the KLIP reduction
+IWA: 11 # pixels
+OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+MOVE_HERE: 17  #minrot in PyKLIP ADI
+HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
+#use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
+# ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
+ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
+WL: 0.527 #wavelength in microns
+# The optimal parang span is 118 deg?
+
+#  In the KLIP do you want to remove the images where the disk is on the satspots 
+# if True: frames are removed
+# if False: frames are not removed
+RM_FILE_DISK_CROSS_SATSPOTS: False 
+# The images where the disk is on the satspots are autonatically remove to measure the PSF
+INSTRUMENT: MagAO-X  # SPHERE or GPI
+# LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
+BAND_DIR: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci2/lite_psflib  # name of folder where are the data (from basedir)
+RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
+#                         # Carefull, this dir must also contains the data
+# FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
+FILE_PREFIX: camsci2_g_20230312_13 #prefix for all saved files (carefull not to erase your results)
+BAND_NAME: 2023 Mar 12, $g$ band #for plot titles uniquely
+
+
+# STAR OBSERVATION PARAMETERS
+DISTANCE_STAR: 72.8   #distance of the disk in pc
+PIXSCALE_INS: 0.012  #picscale of your data
+
+# MCMC PARAMETERS
+NEW_BACKEND: True
+#if NEW_BACKEND=0, reset the backend, if not, start where you stopped
+NWALKERS: 188 #Number of walkers (should be at least twice the # parameters)
+#~530 iter w/ 94 cpus in 24 hr
+N_ITER_MCMC: 5000 #Number of interation
+NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
+# There is no burn-in phase here, the burnin only intervened when reading the data
+
+# INITIAL MODEL PARAMETERS
+## This is just for making the minimization zone ##
+#
+r1_init: 76 #include just for initializing the mask function
+r2_init: 88 #include just for initializing the mask function
+beta_init: 16
+a_r_init: 0.01
+inc_init: 77 #trying 45. init for the mask2minimize
+pa_init: 25
+dx_init: -3.5 # Chen+ 2020, J-band (bluest)
+dy_init: 1.5
+N_init: 3.14
+
+# The wind may have changed direction over time
+ADD_WDH: 1
+WDH_DPA: 88 #delta PA b/w WDHs from windsoCC
+WDH_DPA2: 10 #delta PA b/w WDHs from windsoCC
+USE_NOISE: True
+# If the radial prof was subtracted during the image preprocessing + registration
+RPROFSUB: False
+
+# WIND PARAMETERS
+hr1_init: 0.1 #include just for initializing the mask function
+hr2_init: 60 #include just for initializing the mask function
+
+rscale_init: 1.5946265244423321
+hbeta_init: -7.05142851001044
+ha_r_init:  0.3931129337352681
+hsig_init: 1.0617905300773094
+hpa_init: 147.85268148730944
+hdx_init:  -8.147737397314394
+hdy_init: -0.1518436754662303
+hdz_init: 0.8623378710536198
+hN_init: 575.2580584825
+dtheta_init: 1.0120280055464734
+
+hbeta2_init: -7.05142851001044
+ha_r2_init:  0.3931129337352681
+hsig2_init: 1.0617905300773094
+hpa2_init: 59.8526814873094
+hdx2_init: -8.147737397314394
+hdy2_init: -0.1518436754662303
+hdz2_init: 0.8623378710536198
+hN2_init: 575.2580584825
+dtheta2_init: 1.0120280055464734
+
+ha_r3_init: 1.1272483184407314
+hpa3_init: 116.23097739224258
+hdy3_init: -0.5945997930560301
+hdz3_init:  -0.12853668729585607
+hN3_init: 133.9931748885
+dtheta3_init: 1.044314996407543
+
+# hoffset_init: -2
+# WIND PARAMETER STATES [0,1] --> [fixed, free]
+
+rscale_state: 0
+hbeta_state: 1
+ha_r_state: 1
+hsig_state: 1
+hpa_state: 1
+hdx_state: 1
+hdy_state: 1
+hdz_state: 1
+# hoffset_state: 1
+hN_state: 1
+dtheta_state: 1
+hbeta2_state: 1
+ha_r2_state: 1
+hsig2_state: 1
+hpa2_state: 1
+hdx2_state: 1
+hdy2_state: 1
+hdz2_state: 1
+hN2_state: 1
+dtheta2_state: 1
+ha_r3_state: 1
+hpa3_state: 1
+hdy3_state: 1
+hdz3_state: 1
+hN3_state: 1
+dtheta3_state: 1
+
+r_inner: 65
+r_outer: 110
+
+# MASKING PARAMETERS
+MASK_IN_SCALING: 1
+MASK_OUT_SCALING: 1
+MASK_SPECKLES: 6 #central circle mask
+MASK_MINOR: 58 #OWA to isolate minor axis
+MASK_DX: 0
+MASK_DY: -3.6
+DELTA_RADII: 1 #width of noisemap rings
+# Measured disk spine profile in z'
+WIDOW_MASK: False
+WIDOW_PT1: [127,130] #[y,x], 53.4 deg from horizontal
+WIDOW_PT2: [138,107] #[y,x], -11.1 deg from horizontal 
+WIDOW_PT3: [98,91] #[y,x], 53.4 deg from horizontal
+WIDOW_PT4: [87,117] #[y,x], -11.1 deg from horizontal 
+
+# offset: 0.
+# the parameter of the priors are still defined inside the code logp(theta) function
+
+
+# MCMC PLOTTING PARAMETERS
+BURNIN: 500   #We remove the first BURNIN iteration
+THIN: 1       #thin (bin) the chains
+QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
+sigma: 1 # the number of sigma used to measure the error bars.
+VSCALING_MIN: 0.3
+VSCALING_MAX: 0.3
+
+# MCMC PLOTTING PARAMETERS. 
+# NAME and descirption THAT WILL APPEARS IN THE CORNER PLOTS
+# and printed analysis 
+NAMES:
+# - rscale
+- Beta
+- a_r
+- sig
+- PA
+- dx
+- dy
+- dz
+- Norm
+- dtheta
+# - Beta2
+- a_r2
+# - sig2
+- PA2
+# - dx2
+- dy2
+- dz2
+# - offset
+- Norm2
+- dtheta2
+- a_r3
+- PA3
+- dy3
+- dz3
+- Norm3
+- dtheta3
+# - Omega
+# - ekowa
+# - ikowa
+# - RA
+# - Decl
+# - RAp
+# - Declp
+# - Rkowa
+
+
+LABELS:
+  Alph1: $\alpha$1[%]
+  Alph2: $\alpha$2[%]
+  alpha_in: $\alpha_{in}$
+  alpha_out: $\alpha_{out}$
+  Beta: $\beta$
+  Beta2: $\beta$2
+  offset: $dz$
+  Norm: $N$
+  Norm2: $N$2
+  Norm3: $N$3
+  a_r: a_r
+  a_r2: a_r2
+  a_r3: a_r3
+  dtheta: $d\theta$
+  dtheta2: $d\theta$2
+  dtheta3: $d\theta$3
+  sig: $\sigma$
+  sig2: $\sigma$2
+  PA: $pa[^{\circ}]$
+  PA2: $pa2[^{\circ}]$
+  PA3: $pa$3
+  R1: R1[au]
+  R2: R2[au]
+  RC: $R_c$[au]
+  dx: $dx$
+  dx2: $dx$2
+  dy: $dy$
+  dy2: $dy$2
+  dy3: $dy$
+  dz: $dz$
+  dz2: $dz$2
+  dz3: $dz$3
+  g1: g1[%]
+  g2: g2[%]
+  g3: g3[%]
+  inc: $i[^{\circ}]$
+  rscale: rscale[ADU]
+  amin: $a_{min}$[um]
+  amax: amax[um]
+  aexp: aexp
+
+VARIABLES:
+  Alph1: $\alpha$1
+  Alph2: $\alpha$2
+  alpha_in: $\alpha_{in}$
+  alpha_out: $\alpha_{out}$
+  Beta: $\beta$
+  Beta2: $\beta$2
+  Norm: $N$
+  Norm2: $N$2
+  Norm3: $N$3
+  a_r: a_r
+  a_r2: a_r2
+  a_r3: a_r3
+  PA: $pa$
+  PA2: $pa$2
+  PA3: $pa$3
+  R1: R1
+  R2: R2
+  RC: $R_c$
+  dx: $dx$
+  dy: $dy$
+  dy2: $dy$2
+  dy3: $dy$
+  g1: g1
+  g2: g2
+  g3: g3
+  inc: $i$
+  amin: $a_{min}$
+  amax: amax
+  aexp: aexp
+
+COMMENTS:
+  Argpe: ' deg, argument of pericentre'
+  Alph1: ' %, first relative HG weight'
+  Alph2: ' %, second relative HG weight'
+  alpha_in: ' inner radial power law'
+  alpha_out: ' outer radial power law'
+  Beta: ' radial power law'
+  Norm: ' ADU, normalisation'
+  a_r: ' aspect ratio'
+  PA: ' degree, principal angle'
+  R1: ' AU, inner radius'
+  R2: ' AU, outer radius'
+  RC: ' AU, max density radius'
+  dx: ' au, + -> NW offset disk plane Minor Axis'
+  dy: ' au, + -> SW offset disk plane Major Axis'
+  g1: ' %, 1st HG param'
+  g2: ' %, 2nd HG param'
+  g3: ' %, 3rd HG param'
+  inc: ' degree, inclination'
+  R1mas: ' mas, inner radius'
+  ecc: ' eccentricity (deprojected, or disk plane)'
+  amin: ' um, min grain size'
+  amax: ' um, max grain size'
+  aexp: ' power grain size distribution'
+
+  # R2mas: 'mas, outer radius'
+  # ekowa: deproj. (true) eccentricity (Kowalsky)
+  # ikowa: degree, deproj. (true) inclination (Kowalsky)
+  #RA: mas, ->E right ascension
+  # RAp: pix, ->E right ascension
+  # Rkowa: mas, deproj. (true) semi major axis (Kowalsky)
+  # Decl: mas, ->N declination
+  # Declp: pix, -> N declination
+  # Omega: deg, longitude of the ascending node
