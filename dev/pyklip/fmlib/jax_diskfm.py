@@ -2,7 +2,6 @@
 import ctypes
 from sys import version_info
 from os import path
-import multiprocessing as mp
 from copy import deepcopy
 
 import pickle
@@ -119,21 +118,20 @@ class JDFM(NoFM):
             save_basis = False
 
         if self.save_basis is True:
-            manager = mp.Manager()
-            self.klmodes_dict = manager.dict()
-            self.evecs_dict = manager.dict()
-            self.evals_dict = manager.dict()
-            self.aligned_images_dict = manager.dict()
-            self.ref_psfs_indicies_dict = manager.dict()
-            self.section_ind_dict = manager.dict()
+            self.klmodes_dict = dict()
+            self.evecs_dict = dict()
+            self.evals_dict = dict()
+            self.aligned_images_dict = dict()
+            self.ref_psfs_indicies_dict = dict()
+            self.section_ind_dict = dict()
 
-            self.radstart_dict = manager.dict()
-            self.radend_dict = manager.dict()
-            self.phistart_dict = manager.dict()
-            self.phiend_dict = manager.dict()
-            self.input_img_num_dict = manager.dict()
+            self.radstart_dict = dict()
+            self.radend_dict = dict()
+            self.phistart_dict = dict()
+            self.phiend_dict = dict()
+            self.input_img_num_dict = dict()
 
-            self.klparam_dict = manager.dict()
+            self.klparam_dict = dict()
         # Coords where align_and_scale places model center
 
         if self.load_from_basis is True:  # We want to load the FM basis
@@ -173,7 +171,7 @@ class JDFM(NoFM):
         # Prepare the first disk for FM
         self.update_disk(model_disk)
 
-    @partial(jax.jit, static_argnums=0)
+    @jax.jit
     def update_disk(self, model_disk):
         """
         Takes model disk and rotates it to the PAs of the input images for use as
@@ -194,13 +192,13 @@ class JDFM(NoFM):
         # or a single WL 3D model in a single-wl 2D data, we do nothing
         self.model_disk = model_disk
 
-        self.model_disks = jnp.tile(model_disk, self.inputs_shape)
+        all_model_disks = jnp.tile(model_disk, self.inputs_shape)
 
         centers = jnp.array([self.aligned_center] * self.inputs_shape[0])
         # flipx_toggles = jnp.array([True] * self.inputs_shape[0])
 
         # We can do better than the OG for-loop with the power of JAX
-        models_rotated = jax.vmap(rotate_image)(self.model_disks, self.PAs, centers)
+        models_rotated = jax.vmap(rotate_image)(all_model_disks, self.PAs, centers)
 
         models_rot_nonan = jnp.nan_to_num(models_rotated, nan=0.0)
 
@@ -576,7 +574,6 @@ class JDFM(NoFM):
             file_extension = ""
         else:
             _, file_extension = path.splitext(self.basis_filename)
-        manager = mp.Manager()
 
         # Load in file
 
