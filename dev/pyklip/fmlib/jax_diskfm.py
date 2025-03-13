@@ -227,7 +227,6 @@ class JDFM(NoFM):
                       evals=None,
                       evecs=None,
                       input_img_shape=None,
-                      output_img_shape=None,
                       input_img_num=None,
                       ref_psfs_indicies=None,
                       section_ind=None,
@@ -293,15 +292,10 @@ class JDFM(NoFM):
             print(err_string)
             raise Exception(err_string)
 
-        if self.load_from_basis == False:
-            sci = aligned_imgs[input_img_num, section_ind[0]]
-            refs = aligned_imgs[ref_psfs_indicies, :]
-            refs = refs[:, section_ind[0]]
+        sci = aligned_imgs[input_img_num, section_ind[0]]
+        refs = aligned_imgs[ref_psfs_indicies, :]
+        refs = refs[:, section_ind[0]]
 
-        else:
-            wlstrkey = 'wl1000'# spectral cube mode disabled
-            sci = self.aligned_images_dict[wlstrkey][input_img_num,
-                                                     section_ind[0]]
 
             # in the case of load_from_basis, the images are already
             # saved in the DiskFM object, we can save a few tens of
@@ -312,8 +306,10 @@ class JDFM(NoFM):
         model_sci = self.model_disks[input_img_num, section_ind[0]]
         # model_sci[np.where(np.isnan(model_sci))] = 0
         model_sci_nonan = jnp.nan_to_num(model_sci, nan=0.0)
-        model_ref = self.model_disks[ref_psfs_indicies, :]
-        model_ref = model_ref[:, section_ind[0]]
+        # recall model_disks is stored in a matrix
+        # with dims [n_images, image_height * image_width]
+        model_refs_full = self.model_disks[ref_psfs_indicies, :] #full images
+        model_ref = model_refs_full[:, section_ind[0]] #likely still full images
         model_ref_nonan = jnp.nan_to_num(model_ref, nan=0.0)
         if mode == 'RDI':
             #if only RDI we skip the deltaKL calculation since we do only over-subctraction
@@ -321,30 +317,18 @@ class JDFM(NoFM):
         else:
             # using original Kl modes and reference models, compute the perturbed KL modes
             # (spectra is already in models)
-            if self.load_from_basis == False:
-                delta_KL = jfm.perturb_specIncluded(
-                    evals,
-                    evecs,
-                    klmodes,
-                    refs,
-                    model_ref,
-                    return_perturb_covar=False,
-                )
-            else:
-                # in the case of load_from_basis, the images are already saved in the
-                # DiskFM object, we can save a few tens of Mbytes (per cpu) by not 
-                # saving them and just passing them to the nex function
-                delta_KL = jfm.perturb_specIncluded(
-                    evals,
-                    evecs,
-                    klmodes,
-                    self.aligned_images_dict[wlstrkey][ref_psfs_indicies, :]
-                    [:, section_ind[0]],
-                    model_ref,
-                    return_perturb_covar=False,
-                )
+            delta_KL = jfm.perturb_specIncluded(
+                evals,
+                evecs,
+                klmodes,
+                refs,
+                model_ref_nonan,
+                return_perturb_covar=False,
+            )
 
         # calculate postklip_psf using delta_KL
+        # calculate_fm returns the disk model with oversub and selfsub artifacts
+        # as well as just the KLIP oversub and selfsub vectors, in that order
         postklip_psf, _, _ = jfm.calculate_fm(delta_KL,
                                              klmodes,
                                              numbasis,
@@ -371,55 +355,57 @@ class JDFM(NoFM):
                                      IOWA,
                                      ref_center,
                                      flipx=flipx)
+        return output_img
+        # # comment out for now, JKK 03/12/2025
+        # # We save the KL basis and params for this image and section in a dictionnaries
+        # # This is only called when initializing diskFM first time. JKK
+        # if self.save_basis is True:
+        #     # save the parameter used in KLIP-jfm. We save a float64 to avoid pbs
+        #     # in the saving and loading
 
-        # We save the KL basis and params for this image and section in a dictionnaries
-        # This is only called when initializing diskFM first time. JKK
-        if self.save_basis is True:
-            # save the parameter used in KLIP-jfm. We save a float64 to avoid pbs
-            # in the saving and loading
+        #     if mode == 'RDI':
+        #         self.klparam_dict['isRDI'] = np.float64(1.)
+        #     else:
+        #         self.klparam_dict['isRDI'] = np.float64(0.)
 
-            if mode == 'RDI':
-                self.klparam_dict['isRDI'] = np.float64(1.)
-            else:
-                self.klparam_dict['isRDI'] = np.float64(0.)
+        #     [IWA, OWA] = IOWA
+        #     self.klparam_dict['IWA'] = np.float64(IWA)
+        #     self.klparam_dict['OWA'] = np.float64(OWA)
 
-            [IWA, OWA] = IOWA
-            self.klparam_dict['IWA'] = np.float64(IWA)
-            self.klparam_dict['OWA'] = np.float64(OWA)
-
-            self.klparam_dict['input_img_shape'] = np.float64(input_img_shape)
-            self.klparam_dict['numbasis'] = np.float64(numbasis)
-            self.klparam_dict['output_imgs_shape'] = np.float64(
-                output_img_shape)
+        #     self.klparam_dict['input_img_shape'] = np.float64(input_img_shape)
+        #     self.klparam_dict['numbasis'] = np.float64(numbasis)
+        #     self.klparam_dict['output_imgs_shape'] = np.float64(
+        #         output_img_shape)
 
 
-            # save the center for aligning the image in KLIP-jfm. In practice, this
-            # center will be used for all the models after we load.
-            self.klparam_dict['aligned_center_x'] = np.float64(ref_center[0])
-            self.klparam_dict['aligned_center_y'] = np.float64(ref_center[1])
+        #     # save the center for aligning the image in KLIP-jfm. In practice, this
+        #     # center will be used for all the models after we load.
+        #     self.klparam_dict['aligned_center_x'] = np.float64(ref_center[0])
+        #     self.klparam_dict['aligned_center_y'] = np.float64(ref_center[1])
 
-            # We save information about the dataset that will be used when we load the KL basis
-            self.klparam_dict['PAs'] = np.float64(self.PAs)
+        #     # We save information about the dataset that will be used when we load the KL basis
+        #     self.klparam_dict['PAs'] = np.float64(self.PAs)
 
-            self.klparam_dict['nfiles'] = np.float64(self.nfiles)
+        #     self.klparam_dict['nfiles'] = np.float64(self.nfiles)
 
-            # To have a single identifier for each set of section/image for the
-            # dictionnaries key, we use section first pixel and image number
-            curr_im = str(input_img_num).zfill(3)
-            namkey = 'idsec' + str(section_ind[0][0]) + 'i' + curr_im
-            # saving the KL modes dictionnaries
-            self.klmodes_dict[namkey] = klmodes
-            self.evals_dict[namkey] = evals
-            self.evecs_dict[namkey] = evecs
-            self.ref_psfs_indicies_dict[namkey] = ref_psfs_indicies
-            self.section_ind_dict[namkey] = section_ind
+        #     # To have a single identifier for each set of section/image for the
+        #     # dictionnaries key, we use section first pixel and image number
+        #     curr_im = str(input_img_num).zfill(3)
+        #     namkey = 'idsec' + str(section_ind[0][0]) + 'i' + curr_im
+        #     # saving the KL modes dictionnaries
+        #     self.klmodes_dict[namkey] = klmodes
+        #     self.evals_dict[namkey] = evals
+        #     self.evecs_dict[namkey] = evecs
+        #     self.ref_psfs_indicies_dict[namkey] = ref_psfs_indicies
+        #     self.section_ind_dict[namkey] = section_ind
 
-            # saving the section delimiters dictionnaries
-            self.radstart_dict[namkey] = radstart
-            self.radend_dict[namkey] = radend
-            self.phistart_dict[namkey] = phistart
-            self.phiend_dict[namkey] = phiend
-            self.input_img_num_dict[namkey] = input_img_num
+        #     # saving the section delimiters dictionnaries
+        #     self.radstart_dict[namkey] = radstart
+        #     self.radend_dict[namkey] = radend
+        #     self.phistart_dict[namkey] = phistart
+        #     self.phiend_dict[namkey] = phiend
+        #     self.input_img_num_dict[namkey] = input_img_num
+            
 
     def cleanup_fmout(self, fmout):
         """
@@ -660,8 +646,10 @@ class JDFM(NoFM):
                     * if N_wl > 1, size is  [n_KL,N_wl,x,y]
 
         """
-
+        # In the OG DiskFM this is usually (84, 224, 224, 1)
+        # for, e.g., the HR4796 z' data
         fmout_data, fmout_shape = self.alloc_fmout(self.output_imgs_shape)
+        # fmout_shape is just (N, x, y, b) where b is numbasis (usually just one value)
         fmout_np = jfm._arraytonumpy(fmout_data,
                                     fmout_shape,
                                     dtype=self.data_type)
@@ -683,26 +671,25 @@ class JDFM(NoFM):
             # in load mode, we do not pass aligned_images_dict
             # because it is already in the class to
             # save memory
-            self.fm_from_eigen(
-                klmodes=self.klmodes_dict[key],
-                evals=self.evals_dict[key],
-                evecs=self.evecs_dict[key],
-                input_img_shape=[self.inputs_shape[1], self.inputs_shape[2]],
-                output_img_shape=self.output_imgs_shape,
-                input_img_num=img_num,
-                ref_psfs_indicies=self.ref_psfs_indicies_dict[key],
-                section_ind=self.section_ind_dict[key],
-                radstart=self.radstart_dict[key],
-                radend=self.radend_dict[key],
-                phistart=self.phistart_dict[key],
-                phiend=self.phiend_dict[key],
-                padding=0.0,
-                IOWA=(self.IWA, self.OWA),
-                ref_center=self.aligned_center,
-                parang=self.PAs[img_num],
-                numbasis=self.numbasis,
-                fmout=fmout_np,
-                mode=mode)
+            fmout = self.fm_from_eigen(
+                    klmodes=self.klmodes_dict[key],
+                    evals=self.evals_dict[key],
+                    evecs=self.evecs_dict[key],
+                    input_img_shape=[self.inputs_shape[1], self.inputs_shape[2]],
+                    input_img_num=img_num,
+                    ref_psfs_indicies=self.ref_psfs_indicies_dict[key],
+                    section_ind=self.section_ind_dict[key],
+                    radstart=self.radstart_dict[key],
+                    radend=self.radend_dict[key],
+                    phistart=self.phistart_dict[key],
+                    phiend=self.phiend_dict[key],
+                    padding=0.0,
+                    IOWA=(self.IWA, self.OWA),
+                    ref_center=self.aligned_center,
+                    parang=self.PAs[img_num],
+                    numbasis=self.numbasis,
+                    fmout=fmout_np,
+                    mode=mode)
 
         # put any finishing touches on the FM Output
         fmout_np = jfm._arraytonumpy(fmout_data,

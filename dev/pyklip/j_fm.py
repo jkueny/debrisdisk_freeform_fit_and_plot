@@ -608,11 +608,13 @@ def calculate_fm_singleNumbasis(delta_KL_nospec, original_KL, numbasis, sci, mod
     else:
         Nlambda = delta_KL.shape[1]
         #Before delta_KL.shape = (max_basis,N_lambda or N_ref,N_pix)
-        delta_KL = jnp.rollaxis(delta_KL,1,0)
+        # delta_KL = jnp.rollaxis(delta_KL,1,0)
+        delta_KL = jnp.moveaxis(delta_KL,1,0)
         #Now delta_KL.shape = (N_lambda or N_ref,max_basis,N_pix)
         # np.rollaxis(delta_KL,2,1).shape = (N_lambda or N_ref,N_pix,max_basis)
         # np.dot() takes the last dimension of first array and sum over the second to last dimension of second array
-        selfsubtraction_1_inner_products = jnp.dot(sci_mean_sub_rows, jnp.rollaxis(delta_KL,2,1))
+        # selfsubtraction_1_inner_products = jnp.dot(sci_mean_sub_rows, jnp.rollaxis(delta_KL,2,1))
+        selfsubtraction_1_inner_products = jnp.dot(sci_mean_sub_rows, jnp.moveaxis(delta_KL,2,1))
         # selfsubtraction_1_inner_products.shape = (N_lambda or N_ref,max_basis,max_basis)
     selfsubtraction_2_inner_products = jnp.dot(sci_mean_sub_rows, original_KL.T)
 
@@ -1131,7 +1133,7 @@ def _save_rotated_section(input_shape, sector, sector_ind, output_img, output_im
         output_img_numstacked.shape = [outputs_shape[1], outputs_shape[2]]
         output_img_numstacked_incr = output_img_numstacked.at[rot_sector_validpix_2d].set(output_img_numstacked + 1)
         output_img_numstacked.shape = [outputs_shape[1] *  outputs_shape[2]]
-        
+
     return output_img_flat
 
 
