@@ -32,6 +32,7 @@ default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name o
 
 
 import glob
+import re
 
 
 
@@ -56,33 +57,75 @@ import yaml
 from dev.pyklip.instruments.Instrument import GenericData
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
+from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_jaxed
 from dev.pyklip.fmlib.diskfm import DiskFM
 import dev.pyklip.fm as fm
 
 
 import utils.make_gpi_psf_for_disks as gpidiskpsf
 import utils.astro_unit_conversion as convert
+from utils.klip_basis import load_kl_basis, unpack_basis_data
+
 
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import convolve2d
 import optax
 
+
+update_disk_jit = jax.jit(update_disk, static_argnames=["aligned_center",
+                                                        "min_num_models",])
+# fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
+
+def parang_sort(filename):
+        """Extracts the float value between '2x2bin_' and '_parang'."""
+        match = re.search(r'2x2bin_([-+]?\d*\.\d+|\d+)_parang', filename)
+        if match:
+            return float(match.group(1))  # Convert extracted string to float
+        return float('inf')  # Assign an arbitrary large value if no match is found
+
 def convolve_model(input_model, psf):
     # psf = jnp.asarray(psf)
     assert psf.shape[0] == psf.shape[1], "Instr. PSF image is not square. How can this be?!"
     kernel_size = psf.shape[0] #should be square
     # Pad image to maintain size
-    padded_image = jnp.pad(input_model, [(kernel_size//2, kernel_size//2),
-                                   (kernel_size//2, kernel_size//2)], mode='reflect')
+    # padded_image = jnp.pad(input_model, [(kernel_size//2, kernel_size//2),
+    #                                (kernel_size//2, kernel_size//2)], mode='reflect')
 
     # Apply convoluted convolution
-    model_convolved = convolve2d(padded_image, psf, mode="valid")
+    model_convolved = convolve2d(input_model, psf, mode="same")
     
     return model_convolved
 
+def insert_section_into_full_image(flat_section, full_shape, section_inds):
+    """
+    Given:
+      - flat_section: a 1D JAX array of length N_pixels_section (the forward-modeled section)
+      - full_shape: tuple (height, width) for the full image (e.g. (224, 224))
+      - section_inds: a JAX array or tuple of indices that select the section in the full image.
+                     In your case, section_inds has shape (1, N_pixels_section), so we'll flatten it.
+    
+    This function flattens a blank full image, updates it at the given 1D indices with the values from flat_section,
+    and then reshapes it back to full_shape.
+    
+    Returns:
+      A full image (JAX array) of shape full_shape with the section inserted.
+    """
+    # Ensure section_inds is a 1D index array.
+    section_inds = jnp.ravel(jnp.array(section_inds))
+    # Create a blank full image flattened.
+    total_pixels = np.prod(full_shape)
+    full_image_flat = jnp.zeros(total_pixels)
+    # Use .at to update the flattened array.
+    full_image_flat = full_image_flat.at[section_inds].set(flat_section)
+    # Reshape back to full_shape.
+    full_image = full_image_flat.reshape(full_shape)
+    return full_image
 
-def loss_function(mod_pix_params, disk_image, psf):
+def loss_function(mod_pix_params, disk_image, psf, aligned_images,
+                  ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
+                  section_inds_arr, klmodes_stacked, evals, evecs_stacked, 
+                  image_dim):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
         convolve by the PSF (psf is global)
@@ -101,28 +144,33 @@ def loss_function(mod_pix_params, disk_image, psf):
     # Spatil freq. such that speckles end up at 10 lamb/D
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
 
+
+
     
     # Ensure that the model pixel values range [0,1]
     freeform_model = jax.nn.sigmoid(mod_pix_params)
 
-    # modelconvolved = convolve(model, PSF, boundary='wrap')
-    # modelconvolved = fftconvolve(model, PSF, mode='same')
     freeform_image = convolve_model(freeform_model, psf)
 
-    # DISKOBJ = DiskFM(None,
-    #                  None,
-    #                  None,
-    #                  modelconvolved,
-    #                  basis_filename=os.path.join(KLIPDIR,
-    #                                              FILE_PREFIX + '_klbasis.h5'),
-    #                  load_from_basis=True)
+    global_models_prepped, ref_models_stacked = update_disk_jit(model_disk=freeform_image,
+                                                            PAs=PAs, ref_PAs=ref_PAs,
+                                                            aligned_center=aligned_center,
+                                                            section_inds=section_inds_arr,
+                                                            min_num_models=fixed_refs,
+                                                            )
 
-    DISKOBJ.update_disk(freeform_image)
-    freeform_fm = DISKOBJ.fm_parallelized()[0]
+    # confirmed shape of model_images_prepped (84, 50176)
+    freeform_fm = fm_jaxed(aligned_images,
+                           global_models_prepped,
+                           ref_models_stacked, ref_psfs_stacked,
+                           klmodes_stacked, evals, evecs_stacked,
+                           PAs, aligned_center)
+    freeform_fm_full = insert_section_into_full_image(freeform_fm, image_dim, section_inds_arr)
 
-    # reduced data have already been naned outside of the minimization
-    # zone, so we don't need to do it also for model_fm
-    mse = jnp.mean((disk_image - freeform_fm) ** 2)
+    
+
+    mse = jnp.mean((disk_image - freeform_fm_full) ** 2)
+
 
 
     return mse
@@ -166,7 +214,9 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
     # For SPHERE We load and crop the PSF and the parangs
     # For GPI, we load the raw data, emasure hte PSF from sat spots and
     # collaspe the data
-    filelist = sorted(glob.glob(f'{datadir}/*parang*.fits'))
+    filelist = sorted(glob.glob(f'{datadir}/*parang*.fits'), key=parang_sort)
+
+
     if len(filelist) == 0:
         raise ValueError(f"Could not find files in the dir: {datadir}")
     frames = []
@@ -293,11 +343,13 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
     first_time = params_mcmc_yaml["FIRST_TIME"]
     datadir = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'])
     klipdir = os.path.join(datadir, 'klip_fm_files')
-    image_size = round(aligned_center[0] * 2), round(aligned_center[1] * 2)
+    image_size = round(aligned_center[0]) * 2, round(aligned_center[1]) * 2
    # Initialize freeform image parameters (random pixel values)
     rng = jax.random.PRNGKey(42)
     freeform_model_here = jax.random.normal(rng, image_size)  # Trainable parameters
-    model_convolved_here = convolve_model(freeform_model_here, psf)
+    model_convolved_jax = convolve_model(freeform_model_here, psf)
+    model_convolved_here = np.asarray(jax.device_get(model_convolved_jax))
+    print(type(model_convolved_here))
     # Disable print for pyklip
     if quietklip:
         sys.stdout = open(os.devnull, 'w')
@@ -307,7 +359,7 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
         diskobj = DiskFM(dataset.input.shape,
                             numbasis,
                             dataset,
-                            np.asarray(model_convolved_here),
+                            model_convolved_here,
                             basis_filename=os.path.join(
                                 klipdir, file_prefix + '_klbasis.h5'),
                             save_basis=True,
@@ -350,9 +402,10 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
     return diskobj, reduced_data
 
 # --- JIT-Compiled Gradient Computation ---
-loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
+# loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
+loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, psf, num_steps=500, lr=0.1):
+def optimize_model(target_image, psf, basis_data, num_steps=5, lr=0.1):
     
     dimension = target_image.shape
     jax_target_image = jnp.array(target_image)
@@ -366,9 +419,36 @@ def optimize_model(target_image, psf, num_steps=500, lr=0.1):
 
     loss_history = []
 
+    basis_data_unpacked = unpack_basis_data(basis_data)
+
+    # num_input_images = int(jax.device_get(basis_data["klparam_dict"]["nfiles"]))
+    aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
+    section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
+    klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
+    evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
+    # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
+    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes)
+    # evecs have been unpacked, stacked, and ready to be BATCHED!
+    # input_img_nums = basis_data_unpacked["input_img_nums"]
+    # These are the images used for the basis for every image in the dataset.
+    ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
+    ref_PAs = basis_data_unpacked["ref_PAs"]
+    fixed_refs = basis_data_unpacked["fixed_refs"]
+    # ref_psfs shape (N_images, max_N_refs, N_pixels)
+    # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
+    # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
+    position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
+    aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
+                                basis_data["klparam_dict"]["aligned_center_y"]])))
+    # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
+
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, jax_target_image, psf)
+        loss, grads = loss_and_grad(image_params, jax_target_image, psf,
+                                    aligned_image_data, ref_psfs,
+                                    position_angles, ref_PAs, fixed_refs,
+                                    aligned_center, section_inds,
+                                    klmodes, evals, evecs, dimension)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -411,6 +491,7 @@ if __name__ == "__main__":
     PIXSCALE_INS = params_mcmc_yaml['PIXSCALE_INS']
     ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
     FIRST_TIME = params_mcmc_yaml["FIRST_TIME"]
+    BASIS_FILE = f"{KLIPDIR}/{FILE_PREFIX}_klbasis.h5"
 
     dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml,
                                                 quietklip=True)
@@ -436,19 +517,27 @@ if __name__ == "__main__":
                                     psf=JAX_PSF,
                                     psflib=psflib,
                                     quietklip=True)
-        exit()
+        print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
+        sys.exit(0)
     else:
-        DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
-                                    params_mcmc_yaml,
-                                    psf=JAX_PSF,
-                                    psflib=psflib,
-                                    quietklip=True)
+        # Read in the basis data
+        fm_dict = load_kl_basis(BASIS_FILE)
+        # fm_dict contains 
+        # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
+        # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
+        REDUCED_DATA = reduced_data = fits.getdata(os.path.join(KLIPDIR,
+                                                FILE_PREFIX + '-klipped-KLmodes-all.fits'))[0]
+        # DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
+        #                             params_mcmc_yaml,
+        #                             psf=JAX_PSF,
+        #                             psflib=psflib,
+        #                             quietklip=True)
     
     # mask the disk image
     TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK
     
     optimized_model, loss_history = optimize_model(target_image=TARGET_IMAGE,
-                                                   psf=JAX_PSF,
+                                                   psf=JAX_PSF, basis_data=fm_dict
                                                    )
 
     # --- Visualization ---

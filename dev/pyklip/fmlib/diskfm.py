@@ -8,9 +8,7 @@ import ctypes
 import pickle
 import h5py
 
-import jax
-import jax.numpy as jnp
-from functools import partial
+
 
 import numpy as np
 import scipy.ndimage as ndimage
@@ -820,7 +818,7 @@ class DiskFM(NoFM):
         # we run self.fm_parallelize.
         self.save_basis = False
 
-    @partial(jax.jit, static_argnums=0)
+    # @partial(jax.jit, static_argnums=0)
     def fm_parallelized(self):
         """
         Functions like fm.klip_dataset, but it uses previously measured KL modes,

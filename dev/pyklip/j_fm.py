@@ -517,7 +517,7 @@ def calculate_fm(delta_KL_nospec, original_KL, numbasis, sci, model_sci, inputfl
 
 
 def calculate_fm_singleNumbasis(delta_KL_nospec, original_KL, numbasis, sci, model_sci, inputflux = None):
-    r"""
+    """
     Same function as calculate_fm() but faster when numbasis has only one element. It doesn't do the mutliplication with
     the triangular matrix.
 
@@ -975,7 +975,7 @@ def replace_nan_with_median(image):
 
 
 
-def _save_rotated_section(input_shape, sector, sector_ind, output_img, output_img_numstacked, angle, radstart, radend, phistart, phiend, padding,IOWA, img_center, flipx=True,
+def _save_rotated_section(input_shape, sector, sector_ind, output_img, angle, radstart, radend, phistart, phiend, padding,IOWA, img_center, flipx=True,
                           new_center=None):
     """
     Rotate and save sector in output image at desired ranges
@@ -1128,11 +1128,6 @@ def _save_rotated_section(input_shape, sector, sector_ind, output_img, output_im
     output_img_reshape_sum = output_img_reshape.at[rot_sector_validpix_2d].set(output_img_sum) 
     output_img_flat = jnp.reshape(output_img_reshape_sum, [outputs_shape[1] * outputs_shape[2]])
 
-    # Increment the numstack counter if it is not None
-    if output_img_numstacked is not None:
-        output_img_numstacked.shape = [outputs_shape[1], outputs_shape[2]]
-        output_img_numstacked_incr = output_img_numstacked.at[rot_sector_validpix_2d].set(output_img_numstacked + 1)
-        output_img_numstacked.shape = [outputs_shape[1] *  outputs_shape[2]]
 
     return output_img_flat
 

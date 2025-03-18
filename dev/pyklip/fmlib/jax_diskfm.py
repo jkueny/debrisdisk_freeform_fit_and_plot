@@ -190,9 +190,10 @@ class JDFM(NoFM):
 
         # This is either a multi WL 3D model in a multi-wl 3D data
         # or a single WL 3D model in a single-wl 2D data, we do nothing
-        self.model_disk = model_disk
-
-        all_model_disks = jnp.tile(model_disk, self.inputs_shape)
+        self.model_disk = model_disk #size e.x. (224, 224)
+        # inputs_shape ex. size (84, 224, 224)
+        all_model_disks = jnp.tile(model_disk, (self.inputs_shape[0],1,1))
+        # new shape all_model_disks expect (N_images, xdim, ydim)
 
         centers = jnp.array([self.aligned_center] * self.inputs_shape[0])
         # flipx_toggles = jnp.array([True] * self.inputs_shape[0])
@@ -329,6 +330,7 @@ class JDFM(NoFM):
         # calculate postklip_psf using delta_KL
         # calculate_fm returns the disk model with oversub and selfsub artifacts
         # as well as just the KLIP oversub and selfsub vectors, in that order
+        # We expect postkllip_psf to have shape (1, Npix) after the model_sci[None,:] return in this func
         postklip_psf, _, _ = jfm.calculate_fm(delta_KL,
                                              klmodes,
                                              numbasis,
@@ -339,22 +341,21 @@ class JDFM(NoFM):
         # write forward modelled disk to fmout (as output)
         # need to derotate the image in this step
 
-        for thisnumbasisindex in range(np.size(numbasis)):
-            output_img = jfm._save_rotated_section(input_img_shape,
-                                     postklip_psf[thisnumbasisindex],
-                                     section_ind,
-                                     fmout[input_img_num, :, :,
-                                           thisnumbasisindex],
-                                     None,
-                                     parang,
-                                     radstart,
-                                     radend,
-                                     phistart,
-                                     phiend,
-                                     padding,
-                                     IOWA,
-                                     ref_center,
-                                     flipx=flipx)
+        output_img = jfm._save_rotated_section(input_img_shape,
+                                    postklip_psf,
+                                    section_ind,
+                                    fmout[input_img_num, :, :,
+                                        thisnumbasisindex], #TODO do away with this argument
+                                    parang,
+                                    radstart,
+                                    radend,
+                                    phistart,
+                                    phiend,
+                                    padding,
+                                    IOWA,
+                                    ref_center,
+                                    flipx=flipx)
+        
         return output_img
         # # comment out for now, JKK 03/12/2025
         # # We save the KL basis and params for this image and section in a dictionnaries
@@ -661,6 +662,7 @@ class JDFM(NoFM):
         mode = None
 
 
+
         for key in self.dict_keys:  # loop pver the sections/images
 
             img_num = self.input_img_num_dict[key]
@@ -704,7 +706,7 @@ class JDFM(NoFM):
 
         # If false then this is a collapsed-spec mode or pol mode: collapsed
         # across all files
-        fmout_return = np.nanmean(fmout_np, axis=1)
+        fmout_return = jnp.nanmean(fmout_np, axis=1)
 
         return fmout_return
     def __tree_flatten__(self):
