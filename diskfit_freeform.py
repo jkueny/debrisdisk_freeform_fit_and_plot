@@ -69,6 +69,7 @@ from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 import jax
 import jax.numpy as jnp
+import jax.profiler
 from jax.scipy.signal import convolve2d
 import optax
 
@@ -76,6 +77,26 @@ import optax
 update_disk_jit = jax.jit(update_disk, static_argnames=["aligned_center",
                                                         "min_num_models",])
 # fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
+
+
+def initialize_freeform_model_reduced():
+    """Initialize freeform model parameters for the unmasked region."""
+    rng = jax.random.PRNGKey(42)
+    # Instead of full image dimensions, only initialize num_free parameters.
+    free_params = jax.random.normal(rng, (NUM_FREE,))
+
+    return free_params
+
+def reconstruct_full_image(free_params, full_shape):
+    """
+    Given the free parameters (for the unmasked region) and the full image shape,
+    create a full image (flattened) where the free parameters are inserted at the positions
+    indicated by mask_indices and zeros elsewhere.
+    """
+    total_pixels = np.prod(full_shape)
+    full_flat = jnp.zeros(total_pixels)
+    full_flat = full_flat.at[MASK_INDICES].set(free_params)
+    return full_flat.reshape(full_shape)
 
 def parang_sort(filename):
         """Extracts the float value between '2x2bin_' and '_parang'."""
@@ -114,7 +135,7 @@ def insert_section_into_full_image(flat_section, full_shape, section_inds):
     # Ensure section_inds is a 1D index array.
     section_inds = jnp.ravel(jnp.array(section_inds))
     # Create a blank full image flattened.
-    total_pixels = np.prod(full_shape)
+    total_pixels = np.prod(full_shape) # Ex. 50176
     full_image_flat = jnp.zeros(total_pixels)
     # Use .at to update the flattened array.
     full_image_flat = full_image_flat.at[section_inds].set(flat_section)
@@ -148,9 +169,11 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     
     # Ensure that the model pixel values range [0,1]
-    freeform_model = jax.nn.sigmoid(mod_pix_params)
+    full_model_image = reconstruct_full_image(mod_pix_params, image_dim)
+    # freeform_model = jax.nn.sigmoid(mod_pix_params)
+    # freeform_model = jax.nn.sigmoid(full_model_image)
 
-    freeform_image = convolve_model(freeform_model, psf)
+    freeform_image = convolve_model(full_model_image, psf)
 
     global_models_prepped, ref_models_stacked = update_disk_jit(model_disk=freeform_image,
                                                             PAs=PAs, ref_PAs=ref_PAs,
@@ -164,14 +187,15 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                            global_models_prepped,
                            ref_models_stacked, ref_psfs_stacked,
                            klmodes_stacked, evals, evecs_stacked,
-                           PAs, aligned_center)
+                           PAs)
     freeform_fm_full = insert_section_into_full_image(freeform_fm, image_dim, section_inds_arr)
 
-    
+    freeform_fm_interest = jnp.where(MASK, freeform_fm_full, jnp.nan)
+    disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
 
-    mse = jnp.mean((disk_image - freeform_fm_full) ** 2)
+    mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
 
-
+    jax.debug.print("print(mse) -> {x}", x=mse)
 
     return mse
 
@@ -405,13 +429,14 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, psf, basis_data, num_steps=5, lr=0.1):
+def optimize_model(target_image, model_init, psf, basis_data, num_steps=10, lr=0.5):
     
     dimension = target_image.shape
     jax_target_image = jnp.array(target_image)
 
     # Initialize the initial image of random pixels
-    image_params = initialize_freeform_model(dimension)
+    image_params = model_init
+    # image_params = initialize_freeform_model_reduced()
 
     # Set up the optimizer
     optimizer = optax.adam(lr)
@@ -442,6 +467,8 @@ def optimize_model(target_image, psf, basis_data, num_steps=5, lr=0.1):
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
+    jax.profiler.start_trace("/tmp/tensorboard")
+
     @jax.jit
     def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf,
@@ -457,10 +484,13 @@ def optimize_model(target_image, psf, basis_data, num_steps=5, lr=0.1):
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        if step_idx % 50 == 0:
+        if step_idx % 10 == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+
+    jax.profiler.stop_trace()
     
-    optimized_model = jax.nn.sigmoid(image_params)
+    # optimized_model = jax.nn.sigmoid(image_params)
+    optimized_model = image_params
     return optimized_model, loss_history
 
 if __name__ == "__main__":
@@ -525,7 +555,7 @@ if __name__ == "__main__":
         # fm_dict contains 
         # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
         # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
-        REDUCED_DATA = reduced_data = fits.getdata(os.path.join(KLIPDIR,
+        REDUCED_DATA = fits.getdata(os.path.join(KLIPDIR,
                                                 FILE_PREFIX + '-klipped-KLmodes-all.fits'))[0]
         # DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
         #                             params_mcmc_yaml,
@@ -534,20 +564,37 @@ if __name__ == "__main__":
         #                             quietklip=True)
     
     # mask the disk image
-    TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK
-    
+    TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK# * 1e4
+    # print(INIT_MODEL_FLAT.shape)
+
+    MASK = jnp.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
+    NUM_FREE = MASK_INDICES.shape[0]
+
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
+    STARTING_DISK *= WHEREMASK2GENERATEDISK
+    INIT_MODEL = jnp.array(STARTING_DISK)
+    INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
+    INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
+    # print(INIT_MODEL_INTEREST.shape)
+
+    # plt.imshow(TARGET_IMAGE,origin="lower")
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=TARGET_IMAGE,
+                                                   model_init=INIT_MODEL_INTEREST,
                                                    psf=JAX_PSF, basis_data=fm_dict
                                                    )
-
+    optimized_model_image = reconstruct_full_image(optimized_model, TARGET_IMAGE.shape)
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
-    ax[0].imshow(np.array(optimized_model), cmap='inferno')
+    ax[0].imshow(np.asarray(TARGET_IMAGE), cmap='inferno')
     ax[0].set_title("Target Image (Ground Truth)")
     ax[0].axis("off")
 
-    ax[1].imshow(np.array(optimized_model), cmap='inferno')
+    ax[1].imshow(np.array(optimized_model_image), cmap='inferno')
     ax[1].set_title("Optimized Freeform Model")
     ax[1].axis("off")
 

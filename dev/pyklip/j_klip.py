@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-import jax
+from jax.scipy.ndimage import map_coordinates
 
 from functools import partial
 
@@ -26,32 +26,41 @@ def bilinear_interpolate(image, i_coords, j_coords):
     wd = (i_coords - i0) * (j_coords - j0)
     return wa * Ia + wb * Ib + wc * Ic + wd * Id
 
-def rotate_image(image: jnp.ndarray, angle_deg: float, center: tuple, flip_x: bool = True) -> jnp.ndarray:
+def rotate_image(image: jnp.ndarray, angle_deg: float) -> jnp.ndarray:
     """
-    Rotate a 2D image (JAX array) by a given angle about a specified center.
-    
+    Rotate a 2D image by a given angle (in degrees, CCW positive) about a specified center,
+    using a fully differentiable procedure based on map_coordinates for bilinear interpolation.
+
     Args:
-        image: 2D jnp.array representing the image.
-        angle_deg: Angle in degrees (CCW positive) by which to rotate.
-        center: Tuple (cy, cx) representing the center of rotation.
-        flip_x: If True, apply a horizontal flip after rotation.
-        
+        image: 2D JAX array representing the image.
+        angle_deg: Rotation angle in degrees (counter-clockwise positive).
+        center: Tuple (cy, cx) representing the center of rotation (row, col).
+
     Returns:
-        A 2D jnp.array of the rotated (and optionally flipped) image.
+        A rotated 2D JAX array.
     """
     H, W = image.shape
-    cy, cx = center
+    cy, cx = (image.shape[0] - 1) / 2, (image.shape[1] - 1) / 2,
+
+    # Create coordinate grid for the output image.
     i, j = jnp.meshgrid(jnp.arange(H), jnp.arange(W), indexing="ij")
     i = i.astype(jnp.float32)
     j = j.astype(jnp.float32)
+
+    # Shift coordinates so that the rotation center is at the origin.
     i_centered = i - cy
     j_centered = j - cx
+
+    # Convert the rotation angle to radians and compute the inverse rotation.
     theta = -jnp.deg2rad(angle_deg)
     cos_theta = jnp.cos(theta)
     sin_theta = jnp.sin(theta)
+
+    # Compute the input coordinates corresponding to each output pixel via inverse rotation.
     j_in = j_centered * cos_theta - i_centered * sin_theta + cx
     i_in = j_centered * sin_theta + i_centered * cos_theta + cy
-    rotated = bilinear_interpolate(image, i_in, j_in)
-    if flip_x:
-        rotated = jnp.flip(rotated, axis=1)
+
+    # Use map_coordinates for bilinear interpolation (order=1), which is differentiable.
+    rotated = map_coordinates(image, [i_in, j_in], order=1, mode='constant', cval=0.0)
+
     return rotated

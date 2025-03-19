@@ -1,64 +1,51 @@
 import numpy as np
 import jax
+from jax.scipy.ndimage import map_coordinates
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-# --- Amended rotate_image() Function with Optional Flip ---
-def bilinear_interpolate(image, i_coords, j_coords):
-    """
-    Bilinear interpolation on a 2D image.
-    """
-    H, W = image.shape
-    i0 = jnp.floor(i_coords).astype(jnp.int32)
-    j0 = jnp.floor(j_coords).astype(jnp.int32)
-    i1 = i0 + 1
-    j1 = jnp.clip(j0 + 1, 0, W - 1)
-    i0 = jnp.clip(i0, 0, H - 1)
-    i1 = jnp.clip(i1, 0, H - 1)
-    j0 = jnp.clip(j0, 0, W - 1)
-    j1 = jnp.clip(j1, 0, W - 1)
-    Ia = image[i0, j0]
-    Ib = image[i0, j1]
-    Ic = image[i1, j0]
-    Id = image[i1, j1]
-    wa = (i1 - i_coords) * (j1 - j_coords)
-    wb = (i1 - i_coords) * (j_coords - j0)
-    wc = (i_coords - i0) * (j1 - j_coords)
-    wd = (i_coords - i0) * (j_coords - j0)
-    return wa * Ia + wb * Ib + wc * Ic + wd * Id
 
-def rotate_image(image: jnp.ndarray, angle_deg: float, center: tuple, flip_x: bool = True) -> jnp.ndarray:
+def rotate_image(image: jnp.ndarray, angle_deg: float) -> jnp.ndarray:
     """
-    Rotate a 2D image (JAX array) by a given angle about a specified center.
-    
+    Rotate a 2D image by a given angle (in degrees, CCW positive) about a specified center,
+    using a fully differentiable procedure based on map_coordinates for bilinear interpolation.
+
     Args:
-        image: 2D jnp.array representing the image.
-        angle_deg: Angle in degrees (CCW positive) by which to rotate.
-        center: Tuple (cy, cx) representing the center of rotation.
-        flip_x: If True, apply a horizontal flip after rotation.
-        
+        image: 2D JAX array representing the image.
+        angle_deg: Rotation angle in degrees (counter-clockwise positive).
+        center: Tuple (cy, cx) representing the center of rotation (row, col).
+
     Returns:
-        A 2D jnp.array of the rotated (and optionally flipped) image.
+        A rotated 2D JAX array.
     """
     H, W = image.shape
-    cy, cx = center
+    cy, cx = (image.shape[0] - 1) / 2, (image.shape[1] - 1) / 2,
+
+    # Create coordinate grid for the output image.
     i, j = jnp.meshgrid(jnp.arange(H), jnp.arange(W), indexing="ij")
     i = i.astype(jnp.float32)
     j = j.astype(jnp.float32)
+
+    # Shift coordinates so that the rotation center is at the origin.
     i_centered = i - cy
     j_centered = j - cx
+
+    # Convert the rotation angle to radians and compute the inverse rotation.
     theta = -jnp.deg2rad(angle_deg)
     cos_theta = jnp.cos(theta)
     sin_theta = jnp.sin(theta)
+
+    # Compute the input coordinates corresponding to each output pixel via inverse rotation.
     j_in = j_centered * cos_theta - i_centered * sin_theta + cx
     i_in = j_centered * sin_theta + i_centered * cos_theta + cy
-    rotated = bilinear_interpolate(image, i_in, j_in)
-    if flip_x:
-        rotated = jnp.flip(rotated, axis=1)
+
+    # Use map_coordinates for bilinear interpolation (order=1), which is differentiable.
+    rotated = map_coordinates(image, [i_in, j_in], order=1, mode='constant', cval=0.0)
+
     return rotated
 
 # --- Vectorized Rotation/Derotation Procedure ---
-def vectorized_rotate_and_derotate(image, angles, center, flip_x: bool = True):
+def vectorized_rotate_and_derotate(image, angles):
     """
     Copy the model image N times, rotate each by a given angle, then derotate each 
     (using the inverse rotation) and mean-stack the derotated images.
@@ -72,14 +59,16 @@ def vectorized_rotate_and_derotate(image, angles, center, flip_x: bool = True):
     Returns:
         A tuple (rotated_images, derotated_images, mean_image).
     """
-    rotated_images = jax.vmap(lambda ang: rotate_image(image, ang, center, flip_x=flip_x))(angles)
-    rotated_images_corrected = jnp.flip(rotated_images, axis=2)
-    derotated_images = jax.vmap(lambda ang, im: rotate_image(im, -ang, center, flip_x=False))(angles, rotated_images_corrected)
+    rotated_images = jax.vmap(lambda ang: rotate_image(image, ang))(angles)
+    jax.debug.print("print(rotate_images.shape) -> {x}", x=rotated_images.shape)
+    rotated_images_flip1 = jnp.flip(rotated_images, axis=2)
+    rotated_images_flip2 = jnp.flip(rotated_images_flip1, axis=2)
+    derotated_images = jax.vmap(lambda ang, im: rotate_image(im, -ang))(angles, rotated_images_flip2)
     mean_image = jnp.mean(derotated_images, axis=0)
     return rotated_images, derotated_images, mean_image
 
 # --- JIT-Compile the Vectorized Procedure ---
-jit_vectorized_rotate_and_derotate = jax.jit(vectorized_rotate_and_derotate, static_argnames=('flip_x',))
+jit_vectorized_rotate_and_derotate = jax.jit(vectorized_rotate_and_derotate)
 
 # --- Create a Composite Test Image with NaNs outside the ROI ---
 img_shape = (128, 128)
@@ -114,10 +103,10 @@ angles = jnp.linspace(start_angle, end_angle, num=120)
 # --- Run the JIT-Compiled Vectorized Rotation/Derotation Procedure ---
 # We set flip_x=False here to obtain a pure rotation/derotation inverse.
 rotated_images, derotated_images, mean_image = jit_vectorized_rotate_and_derotate(
-    test_image_jax, angles, center, flip_x=True)
+    test_image_jax, angles)
 
 # --- Visualization ---
-plt.figure(figsize=(14, 10))
+plt.figure(figsize=(8, 5))
 
 plt.subplot(2, 3, 1)
 plt.imshow(np.array(test_image_jax), cmap='inferno')

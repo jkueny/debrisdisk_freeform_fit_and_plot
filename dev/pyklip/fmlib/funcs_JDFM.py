@@ -1,6 +1,6 @@
 """Make the DiskFM procedure purely functional for JAX.
 """
-from cv2 import flip
+import sys
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -271,13 +271,14 @@ def update_disk(model_disk, PAs, ref_PAs, aligned_center, section_inds, min_num_
     # Tile the model_disk to get one copy per global image.
     global_disks = jnp.tile(model_disk, (N_global, 1, 1))
     # Rotate each copy by its corresponding global PA.
-    global_rot = jax.vmap(rotate_image, in_axes=(0, 0, None))(global_disks, PAs, aligned_center)
+    global_rot = jax.vmap(rotate_image)(global_disks, PAs)
 
+    global_rot_flipx = jnp.flip(global_rot, axis=2)
     # Helper: apply section indices.
     def apply_section(img, inds):
         return img[inds].reshape(inds.shape[1])
     # Flatten each sectioned image.
-    global_rot_flat = global_rot.reshape((N_global, -1))
+    global_rot_flat = global_rot_flipx.reshape((N_global, -1))
     # Apply sectioning to each global rotated disk.
     global_rot_section_flat = jax.vmap(apply_section, in_axes=(0, None))(global_rot_flat, section_inds)
     
@@ -288,7 +289,7 @@ def update_disk(model_disk, PAs, ref_PAs, aligned_center, section_inds, min_num_
         ref_angles = ref_PAs[i]
         # Rotate model_disk for each reference angle.
         # Note: We rotate the same model_disk for each reference PA.
-        ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle, aligned_center))(ref_angles)
+        ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle))(ref_angles)
         # ref_rot has shape (L, height, width), where L = len(ref_angles).
         # Now, apply the section for global image i.
         # Flatten each sectioned reference model.
@@ -303,6 +304,7 @@ def update_disk(model_disk, PAs, ref_PAs, aligned_center, section_inds, min_num_
 
     return global_rot_section_flat, ref_rotated
 
+# @jax.jit
 def calculate_fm(delta_KL, original_KL, sci, model_sci):
     """
     Same function as calculate_fm() but faster when numbasis has only one element. It doesn't do the mutliplication with
@@ -389,7 +391,8 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
 
     return model_sci[None,:] - klipped_oversub - klipped_selfsub, klipped_oversub, klipped_selfsub
 
-def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref, return_perturb_covar=False):
+# @jax.jit
+def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
 
@@ -422,14 +425,16 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref, return_perturb_
     #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
 
     evals_tiled = jnp.tile(evals,(max_basis,1))
-    jnp.fill_diagonal(evals_tiled,np.nan, inplace=False)
+    evals_nan_diag = jnp.fill_diagonal(evals_tiled, jnp.nan, inplace=False)
+    # print(evals_tiled)
+    # sys.exit()
     evals_sqrt = jnp.sqrt(evals)
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
-    beta_tmp = 1./(evals_tiled.transpose()- evals_tiled)
+    beta_tmp = 1./(evals_nan_diag.transpose()- evals_nan_diag)
     #print(evals)
     beta_tmp = beta_tmp.at[np.diag_indices(np.size(evals))].set(-0.5/evals)
-    beta = evals_ratio*beta_tmp
+    beta = evals_ratio*beta_tmp #no NaNs confirmed JKK 03/18/2025
 
     C_partial = models_meansub_nonan.dot(refs_meansub_nonan.transpose())
     C = C_partial+C_partial.transpose()
@@ -439,13 +444,11 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref, return_perturb_
 
     delta_KL = (beta*alpha).dot(original_KL)+(evalse_inv_sqrt[:,None]*evecs.transpose()).dot(models_mean_sub)
 
-    if return_perturb_covar:
-        return delta_KL, C
-    else:
-        return delta_KL
+
+    return delta_KL
 
 def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
-                         klmodes, evals, evecs, parang, aligned_center):
+                         klmodes, evals, evecs, parang):
     """ 
     Compute the forward model for one disk model image.
 
@@ -487,7 +490,8 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
     # Ex. shape for delta_KL (2, 39112)
     delta_KL = perturb_KLmodes(evals, evecs, klmodes,
                                     refs_data, model_disk_refs,
-                                    return_perturb_covar=False)
+                                    # return_perturb_covar=False,
+                                    )
     # Calculate the post-KLIP PSF using your forward modeling routine.
     postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,
                                       sci_data, model_disk_sci)
@@ -496,7 +500,7 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
     # Save the rotated section.
     derotated_output = rotate_image(postklip_psf_corrected,
                                     -parang,
-                                    aligned_center, flip_x=False
+                                    # flip_x=False
                                     )
     return derotated_output
 
@@ -504,7 +508,7 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
              ref_psfs_stacked, klmodes_stacked,
              evals_arr, evecs_stacked, 
             #  section_ind_arr, input_img_nums, input_img_shape,
-             PAs, aligned_center):
+             PAs):
     """Do the forward modeling procedure using JAX's vmap() framework.
 
 
@@ -559,16 +563,29 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
     # Here, we set in_axes=0 for each per-section parameter.
 
     # Define a partial function that fixes the static parameters.
-    fm_single = partial(fm_from_eigen_single,
-                        aligned_center=aligned_center,
-                        )
-    fm_outputs = jax.vmap(fm_single,
-                          in_axes=(0, 0, 0, 0, 0, 0, 0, 0) 
+    # fm_single = partial(fm_from_eigen_single,
+    #                     aligned_center=aligned_center,
+    #                     )
+
+    # fm_outputs = jax.vmap(fm_from_eigen_single,
+    #                       in_axes=(0, 0, 0, 0, 0, 0, 0, 0)
+    #                       )(aligned_images, ref_psfs_stacked,
+    #                         model_disks,ref_models_stacked,
+    #                         klmodes_stacked, evals_arr, evecs_stacked,
+    #                         PAs)
+    fm_outputs = jax.vmap(fm_from_eigen_single
                           )(aligned_images, ref_psfs_stacked,
                             model_disks,ref_models_stacked,
                             klmodes_stacked, evals_arr, evecs_stacked,
                             PAs)
+    jax.debug.print("print(fm_outputs.shape) -> {x}", x=fm_outputs.shape)
+    # fm_outputs = fm_from_eigen_single(aligned_images, ref_psfs_stacked,
+    #                         model_disks,ref_models_stacked,
+    #                         klmodes_stacked, evals_arr, evecs_stacked,
+    #                         PAs)
     fm_outputs_squeezed = jnp.squeeze(fm_outputs)
     fm_out = jnp.nanmean(fm_outputs_squeezed,axis=0)
+
+    jax.debug.print("print(fm_out.shape; after nanmean) -> {x}", x=fm_out.shape)
 
     return fm_out

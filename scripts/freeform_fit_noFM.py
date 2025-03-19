@@ -43,6 +43,7 @@ import math as mt
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import convolve2d
+from jax.scipy.ndimage import map_coordinates
 import optax
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,7 +54,90 @@ from scipy.signal import convolve
 # from scipy.signal import fftconvolve
 from astropy.wcs import FITSFixedWarning
 
-import yaml
+# import yaml
+
+def initialize_freeform_model_reduced():
+    """Initialize freeform model parameters for the unmasked region."""
+    rng = jax.random.PRNGKey(42)
+    # Instead of full image dimensions, only initialize num_free parameters.
+    free_params = jax.random.normal(rng, (NUM_FREE,))
+
+    return free_params
+
+def reconstruct_full_image(free_params, full_shape):
+    """
+    Given the free parameters (for the unmasked region) and the full image shape,
+    create a full image (flattened) where the free parameters are inserted at the positions
+    indicated by mask_indices and zeros elsewhere.
+    """
+    total_pixels = np.prod(full_shape)
+    full_flat = jnp.zeros(total_pixels)
+    full_flat = full_flat.at[MASK_INDICES].set(free_params)
+    return full_flat.reshape(full_shape)
+
+def insert_section_into_full_image(flat_section, full_shape, section_inds):
+    """
+    Given:
+      - flat_section: a 1D JAX array of length N_pixels_section (the forward-modeled section)
+      - full_shape: tuple (height, width) for the full image (e.g. (224, 224))
+      - section_inds: a JAX array or tuple of indices that select the section in the full image.
+                     In your case, section_inds has shape (1, N_pixels_section), so we'll flatten it.
+    
+    This function flattens a blank full image, updates it at the given 1D indices with the values from flat_section,
+    and then reshapes it back to full_shape.
+    
+    Returns:
+      A full image (JAX array) of shape full_shape with the section inserted.
+    """
+    # Ensure section_inds is a 1D index array.
+    section_inds = jnp.ravel(jnp.array(section_inds))
+    # Create a blank full image flattened.
+    total_pixels = np.prod(full_shape) # Ex. 50176
+    full_image_flat = jnp.zeros(total_pixels)
+    # Use .at to update the flattened array.
+    full_image_flat = full_image_flat.at[section_inds].set(flat_section)
+    # Reshape back to full_shape.
+    full_image = full_image_flat.reshape(full_shape)
+    return full_image
+
+def rotate_image(image: jnp.ndarray, angle_deg: float) -> jnp.ndarray:
+    """
+    Rotate a 2D image by a given angle (in degrees, CCW positive) about a specified center,
+    using a fully differentiable procedure based on map_coordinates for bilinear interpolation.
+
+    Args:
+        image: 2D JAX array representing the image.
+        angle_deg: Rotation angle in degrees (counter-clockwise positive).
+        center: Tuple (cy, cx) representing the center of rotation (row, col).
+
+    Returns:
+        A rotated 2D JAX array.
+    """
+    H, W = image.shape
+    cy, cx = (image.shape[0] - 1) / 2, (image.shape[1] - 1) / 2,
+
+    # Create coordinate grid for the output image.
+    i, j = jnp.meshgrid(jnp.arange(H), jnp.arange(W), indexing="ij")
+    i = i.astype(jnp.float32)
+    j = j.astype(jnp.float32)
+
+    # Shift coordinates so that the rotation center is at the origin.
+    i_centered = i - cy
+    j_centered = j - cx
+
+    # Convert the rotation angle to radians and compute the inverse rotation.
+    theta = -jnp.deg2rad(angle_deg)
+    cos_theta = jnp.cos(theta)
+    sin_theta = jnp.sin(theta)
+
+    # Compute the input coordinates corresponding to each output pixel via inverse rotation.
+    j_in = j_centered * cos_theta - i_centered * sin_theta + cx
+    i_in = j_centered * sin_theta + i_centered * cos_theta + cy
+
+    # Use map_coordinates for bilinear interpolation (order=1), which is differentiable.
+    rotated = map_coordinates(image, [i_in, j_in], order=1, mode='constant', cval=0.0)
+
+    return rotated
 
 def convolve_model(input_model, psf):
     # psf = jnp.asarray(psf)
@@ -69,23 +153,30 @@ def convolve_model(input_model, psf):
     return model_convolved
 
 # --- Loss Function ---
-def loss_function(image_params, psf, target_image):
+def loss_function(image_params, psf, target_image, parang):
     """Computes MSE loss between forward-modeled image and target."""
-    freeform_image = jax.nn.sigmoid(image_params)  # Ensure values stay within [0,1]
-    modeled_image = convolve_model(freeform_image, psf)
+    # freeform_image = jax.nn.sigmoid(image_params)  # Ensure values stay within [0,1]
+    freeform_image = insert_section_into_full_image(image_params, psf.shape, MASK_INDICES)
+    convolved_image = convolve_model(freeform_image, psf)
+    mod_img_rot = rotate_image(convolved_image, parang)
+    rot_flipx = jnp.flip(mod_img_rot, axis=1)
+    rot_unflip = jnp.flip(rot_flipx, axis=1)
+    modeled_image = rotate_image(rot_unflip, -parang)
+
     return jnp.mean((modeled_image - target_image) ** 2)
 
 # --- JIT-Compiled Gradient Computation ---
 loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 
 # --- Optimization Routine ---
-def optimize_image(target_image, psf, num_steps=100, lr=0.1):
+def optimize_image(target_image, psf, parang=90, num_steps=100, lr=0.1):
     """Optimizes a pixel-wise freeform model to match the target image."""
     size = target_image.shape[0]
     
-    # Initialize freeform image parameters (random pixel values)
-    rng = jax.random.PRNGKey(42)
-    image_params = jax.random.normal(rng, (size, size))  # Trainable parameters
+    # # Initialize freeform image parameters (random pixel values)
+    # rng = jax.random.PRNGKey(42)
+    # image_params = jax.random.normal(rng, (size, size))  # Trainable parameters
+    image_params = initialize_freeform_model_reduced()
 
     # Optimizer setup
     optimizer = optax.adam(lr)
@@ -95,7 +186,7 @@ def optimize_image(target_image, psf, num_steps=100, lr=0.1):
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, psf, target_image)
+        loss, grads = loss_and_grad(image_params, psf, target_image, parang)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -108,21 +199,29 @@ def optimize_image(target_image, psf, num_steps=100, lr=0.1):
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # Convert optimized parameters to final freeform image
-    optimized_image = jax.nn.sigmoid(image_params)  # Normalize to [0,1]
+    # optimized_image = jax.nn.sigmoid(image_params)  # Normalize to [0,1]
+    optimized_image = insert_section_into_full_image(image_params, psf.shape, MASK_INDICES)  # Normalize to [0,1]
     return optimized_image, loss_history
 
 # --- Run the Simulation ---
+MASK2GENERATEDISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_mask2generatedisk.fits")
+MASK = jnp.array(MASK2GENERATEDISK)
+MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
+NUM_FREE = MASK_INDICES.shape[0]
 # Read in the target image
 target_image = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/norm_lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel_Conv.fits")
-target_image = target_image / (np.max(target_image) * 2) #normalized
+target_image = target_image #/ (np.max(target_image) * 2) #normalized
+target_image *= MASK2GENERATEDISK
 size = target_image.shape[0]
 jax_target_image = jnp.array(target_image)
 # Read in the instr PSF
 psf = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/norm_lite_psflib/klip_fm_files/camsci2_z_20230309_10_instrPSF.fits")
-psf = psf / np.sum(psf) #normalize
+# psf = psf / np.sum(psf) #normalize
 jax_psf = jnp.array(psf)
 
-optimized_image, loss_history = optimize_image(jax_target_image, jax_psf, num_steps=500)
+optimized_image, loss_history = optimize_image(jax_target_image,
+                                               jax_psf,
+                                               num_steps=400)
 
 # --- Visualization ---
 

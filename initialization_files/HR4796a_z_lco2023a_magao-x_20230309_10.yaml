@@ -28,8 +28,8 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 # The images where the disk is on the satspots are autonatically remove to measure the PSF
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-# BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib  # name of folder where are the data (from basedir)
-BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/norm_lite_psflib  # name of folder where are the data (from basedir)
+BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib  # name of folder where are the data (from basedir)
+# BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/norm_lite_psflib  # name of folder where are the data (from basedir)
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
