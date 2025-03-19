@@ -180,7 +180,7 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
 
     evals_tiled = jnp.tile(evals,(max_basis,1))
-    evals_nan_diag = jnp.fill_diagonal(evals_tiled, jnp.nan, inplace=False)
+    evals_nan_diag = jnp.fill_diagonal(evals_tiled, 1., inplace=False)
     # print(evals_tiled)
     # sys.exit()
     evals_sqrt = jnp.sqrt(evals)

@@ -11,6 +11,8 @@ from functools import partial
 from dev.pyklip.j_klip import rotate_image
 from utils.klip_basis import build_batched_ref_images
 
+
+
 def _get_section_indicies(input_shape, img_center, IOWA, flipx=False):
     """
     Gets the pixels (via numpy.where) that correspond to this section
@@ -348,17 +350,17 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
     N_pix = np.size(sci)
 
     # remove means and nans from science image
-    sci_mean_sub = sci - jnp.nanmean(sci)
-    sci_meansub_nonan = jnp.nan_to_num(sci_mean_sub, nan=0.0)
-    sci_mean_sub_rows = jnp.reshape(sci_meansub_nonan,(1,N_pix))
+    sci_mean_sub = sci - jnp.mean(sci)
+    # sci_meansub_nonan = jnp.nan_to_num(sci_mean_sub, nan=0.0)
+    sci_mean_sub_rows = jnp.reshape(sci_mean_sub,(1,N_pix))
 
 
     # science PSF models, ready for FM
     # /!\ JB: If subtracting the mean. It should be done here. not in klip_math since we don't use model_sci there.
     model_sci_mean_sub = model_sci # should be subtracting off the mean?
 
-    model_sci_meansub_nonans = jnp.nan_to_num(model_sci_mean_sub, nan=0.0)
-    model_sci_mean_sub_rows = np.reshape(model_sci_meansub_nonans,(1,N_pix))
+    # model_sci_meansub_nonans = jnp.nan_to_num(model_sci_mean_sub, nan=0.0)
+    model_sci_mean_sub_rows = np.reshape(model_sci_mean_sub,(1,N_pix))
 
 
     # Forward model the PSF
@@ -412,31 +414,32 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
     max_basis = original_KL.shape[0]
     N_ref = refs.shape[0]
+    eps = 1e-6
     # N_pix = original_KL.shape[1]
 
-    refs_mean_sub = refs - jnp.nanmean(refs, axis=1, keepdims=True)
+    refs_mean_sub = refs - jnp.mean(refs, axis=1, keepdims=True)
 
-    refs_meansub_nonan = jnp.nan_to_num(refs_mean_sub, nan=0.0) 
+    # refs_meansub_nonan = jnp.nan_to_num(refs_mean_sub, nan=0.0) 
 
     models_mean_sub = models_ref # - np.nanmean(models_ref, axis=1)[:,None] should this be the case?
     # models_mean_sub[np.where(np.isnan(models_mean_sub))] = 0
-    models_meansub_nonan = jnp.nan_to_num(models_mean_sub, nan=0.0)
+    # models_meansub_nonan = jnp.nan_to_num(models_mean_sub, nan=0.0)
 
     #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
 
     evals_tiled = jnp.tile(evals,(max_basis,1))
-    evals_nan_diag = jnp.fill_diagonal(evals_tiled, jnp.nan, inplace=False)
+    evals_nan_diag = jnp.fill_diagonal(evals_tiled, 1., inplace=False)
     # print(evals_tiled)
     # sys.exit()
-    evals_sqrt = jnp.sqrt(evals)
+    evals_sqrt = jnp.sqrt(evals) + eps
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
-    beta_tmp = 1./(evals_nan_diag.transpose()- evals_nan_diag)
+    beta_tmp = 1./((evals_nan_diag.transpose()- evals_nan_diag) + eps)
     #print(evals)
     beta_tmp = beta_tmp.at[np.diag_indices(np.size(evals))].set(-0.5/evals)
     beta = evals_ratio*beta_tmp #no NaNs confirmed JKK 03/18/2025
 
-    C_partial = models_meansub_nonan.dot(refs_meansub_nonan.transpose())
+    C_partial = models_mean_sub.dot(refs_mean_sub.transpose())
     C = C_partial+C_partial.transpose()
     #C =  models_mean_sub.dot(refs_mean_sub.transpose())+refs_mean_sub.dot(models_mean_sub.transpose())
     alpha_tmp = jnp.dot(evecs.transpose(), C)
@@ -498,11 +501,11 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
 
     postklip_psf_corrected = jnp.flip(postklip_psf, axis=1)
     # Save the rotated section.
-    derotated_output = rotate_image(postklip_psf_corrected,
-                                    -parang,
-                                    # flip_x=False
-                                    )
-    return derotated_output
+    # derotated_output = rotate_image(postklip_psf_corrected,
+    #                                 -parang,
+    #                                 # flip_x=False
+    #                                 )
+    return postklip_psf_corrected
 
 def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
              ref_psfs_stacked, klmodes_stacked,
@@ -573,19 +576,19 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
     #                         model_disks,ref_models_stacked,
     #                         klmodes_stacked, evals_arr, evecs_stacked,
     #                         PAs)
-    fm_outputs = jax.vmap(fm_from_eigen_single
+    postklip_psfs = jax.vmap(fm_from_eigen_single
                           )(aligned_images, ref_psfs_stacked,
                             model_disks,ref_models_stacked,
                             klmodes_stacked, evals_arr, evecs_stacked,
                             PAs)
-    jax.debug.print("print(fm_outputs.shape) -> {x}", x=fm_outputs.shape)
+    # jax.debug.print("print(postklip_psfs.shape) -> {x}", x=postklip_psfs.shape)
     # fm_outputs = fm_from_eigen_single(aligned_images, ref_psfs_stacked,
     #                         model_disks,ref_models_stacked,
     #                         klmodes_stacked, evals_arr, evecs_stacked,
     #                         PAs)
-    fm_outputs_squeezed = jnp.squeeze(fm_outputs)
-    fm_out = jnp.nanmean(fm_outputs_squeezed,axis=0)
+    # fm_outputs_squeezed = jnp.squeeze(fm_outputs)
+    # fm_out = jnp.nanmean(fm_outputs_squeezed,axis=0)
 
-    jax.debug.print("print(fm_out.shape; after nanmean) -> {x}", x=fm_out.shape)
+    # jax.debug.print("print(fm_out.shape; after nanmean) -> {x}", x=fm_out.shape)
 
-    return fm_out
+    return postklip_psfs

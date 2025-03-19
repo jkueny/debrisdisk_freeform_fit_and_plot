@@ -34,6 +34,7 @@ default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name o
 import glob
 import re
 
+import time
 
 
 # # because this error was coming up
@@ -42,7 +43,6 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 from datetime import datetime
 
-import math as mt
 import numpy as np
 
 import astropy.io.fits as fits
@@ -59,6 +59,7 @@ from dev.pyklip.instruments.Instrument import GenericData
 from dev.pyklip.fmlib.jax_diskfm import JDFM
 from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_jaxed
 from dev.pyklip.fmlib.diskfm import DiskFM
+from dev.pyklip.j_klip import rotate_image
 import dev.pyklip.fm as fm
 
 
@@ -74,9 +75,25 @@ from jax.scipy.signal import convolve2d
 import optax
 
 
+
+# jax.config.update("jax_enable_x64", True)
+
 update_disk_jit = jax.jit(update_disk, static_argnames=["aligned_center",
                                                         "min_num_models",])
 # fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
+
+def mass_derotation(flat_postklip_psfs, PAs, image_dim, section_inds):
+    print(f"image_dim -> {image_dim}")
+    squeezed_postklip_psfs = jnp.squeeze(flat_postklip_psfs)
+    postklip_psf_images = jax.vmap(insert_section_into_full_image,
+                                   in_axes=(0, None, None))(squeezed_postklip_psfs,
+                                                                   image_dim,
+                                                                   section_inds)
+    # print(f"postklip_psf_images.shape -> {postklip_psf_images.shape}")
+    derotated_postklip_psfs = jax.vmap(rotate_image)(postklip_psf_images,
+                                                     PAs)
+    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=1)
+    return corrected_postklip_psfs
 
 
 def initialize_freeform_model_reduced():
@@ -183,19 +200,25 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                                                             )
 
     # confirmed shape of model_images_prepped (84, 50176)
-    freeform_fm = fm_jaxed(aligned_images,
+    flat_postklip_psfs = fm_jaxed(aligned_images,
                            global_models_prepped,
                            ref_models_stacked, ref_psfs_stacked,
                            klmodes_stacked, evals, evecs_stacked,
                            PAs)
-    freeform_fm_full = insert_section_into_full_image(freeform_fm, image_dim, section_inds_arr)
+    derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
+                                              image_dim,section_inds_arr)
 
-    freeform_fm_interest = jnp.where(MASK, freeform_fm_full, jnp.nan)
-    disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
+    freeform_fm_full = jnp.mean(derotated_postklip_psfs, axis=0)
+    freeform_fm_flat = jnp.reshape(freeform_fm_full, psf.shape[0] * psf.shape[1])
+    freeform_fm_interest = freeform_fm_flat[MASK_INDICES]
 
-    mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
+    # freeform_fm_interest = jnp.where(MASK, freeform_fm_full, jnp.nan)
+    # disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
 
-    jax.debug.print("print(mse) -> {x}", x=mse)
+    # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
+    mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
+
+    # jax.debug.print("print(mse) -> {x}", x=mse)
 
     return mse
 
@@ -429,14 +452,14 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, model_init, psf, basis_data, num_steps=10, lr=0.5):
+def optimize_model(target_image, psf, basis_data, num_steps=5, lr=0.1):
     
-    dimension = target_image.shape
+    dimension = psf.shape
     jax_target_image = jnp.array(target_image)
 
     # Initialize the initial image of random pixels
-    image_params = model_init
-    # image_params = initialize_freeform_model_reduced()
+    # image_params = model_init
+    image_params = initialize_freeform_model_reduced()
 
     # Set up the optimizer
     optimizer = optax.adam(lr)
@@ -467,7 +490,9 @@ def optimize_model(target_image, model_init, psf, basis_data, num_steps=10, lr=0
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
-    jax.profiler.start_trace("/tmp/tensorboard")
+    # jax.profiler.start_trace("/tmp/tensorboard")
+    # jax.config.update("jax_debug_nans", True)
+    time_now = time.time()
 
     @jax.jit
     def step(image_params, opt_state):
@@ -487,7 +512,8 @@ def optimize_model(target_image, model_init, psf, basis_data, num_steps=10, lr=0
         if step_idx % 10 == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
-    jax.profiler.stop_trace()
+    # jax.profiler.stop_trace()
+    print(f"This run took {(time.time() - time_now):.6f} seconds.")
     
     # optimized_model = jax.nn.sigmoid(image_params)
     optimized_model = image_params
@@ -534,7 +560,7 @@ if __name__ == "__main__":
     # load PSF
     psf = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
     JAX_PSF = jnp.array(psf)
-    JAX_PSF /= jnp.sum(JAX_PSF)
+    # JAX_PSF /= jnp.sum(JAX_PSF)
 
     # measure the size of images DIMENSION and make it global
     DIMENSION = round(ALIGNED_CENTER[0]) * 2
@@ -565,36 +591,40 @@ if __name__ == "__main__":
     
     # mask the disk image
     TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK# * 1e4
+    TARGET_IMAGE[TARGET_IMAGE != TARGET_IMAGE] = 0.
     # print(INIT_MODEL_FLAT.shape)
 
     MASK = jnp.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
-    STARTING_DISK *= WHEREMASK2GENERATEDISK
-    INIT_MODEL = jnp.array(STARTING_DISK)
-    INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
-    INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
+    # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
+    # STARTING_DISK *= WHEREMASK2GENERATEDISK
+    # INIT_MODEL = jnp.array(STARTING_DISK)
+    # INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
+    # INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
+    TARGET_IMAGE_FLAT = TARGET_IMAGE.reshape(TARGET_IMAGE.shape[0] * TARGET_IMAGE.shape[1])
+    TARGET_MODEL_INTEREST = TARGET_IMAGE_FLAT[MASK_INDICES]
     # print(INIT_MODEL_INTEREST.shape)
 
     # plt.imshow(TARGET_IMAGE,origin="lower")
     # plt.colorbar()
     # plt.show()
     # sys.exit()
-    optimized_model, loss_history = optimize_model(target_image=TARGET_IMAGE,
-                                                   model_init=INIT_MODEL_INTEREST,
+    optimized_model, loss_history = optimize_model(target_image=TARGET_MODEL_INTEREST,
+                                                #    model_init=INIT_MODEL_INTEREST,
                                                    psf=JAX_PSF, basis_data=fm_dict
                                                    )
     optimized_model_image = reconstruct_full_image(optimized_model, TARGET_IMAGE.shape)
+    fits.writeto("init_full_run.fits", np.asarray(optimized_model_image), overwrite=True)
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
-    ax[0].imshow(np.asarray(TARGET_IMAGE), cmap='inferno')
+    ax[0].imshow(np.asarray(TARGET_IMAGE), cmap='inferno', origin="lower")
     ax[0].set_title("Target Image (Ground Truth)")
     ax[0].axis("off")
 
-    ax[1].imshow(np.array(optimized_model_image), cmap='inferno')
+    ax[1].imshow(np.array(optimized_model_image), cmap='inferno', origin="lower")
     ax[1].set_title("Optimized Freeform Model")
     ax[1].axis("off")
 
