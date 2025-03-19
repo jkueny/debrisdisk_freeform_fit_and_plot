@@ -238,7 +238,7 @@ def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0.0):
     else:
         return arr
 
-def update_disk(model_disk, PAs, ref_PAs, aligned_center, section_inds, min_num_models):
+def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models):
     """
     Takes a 2D model disk and produces two outputs:
     
@@ -450,8 +450,9 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
     return delta_KL
 
+# @jax.jit
 def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
-                         klmodes, evals, evecs, parang):
+                         klmodes, evals, evecs,):
     """ 
     Compute the forward model for one disk model image.
 
@@ -580,7 +581,7 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
                           )(aligned_images, ref_psfs_stacked,
                             model_disks,ref_models_stacked,
                             klmodes_stacked, evals_arr, evecs_stacked,
-                            PAs)
+                            )
     # jax.debug.print("print(postklip_psfs.shape) -> {x}", x=postklip_psfs.shape)
     # fm_outputs = fm_from_eigen_single(aligned_images, ref_psfs_stacked,
     #                         model_disks,ref_models_stacked,

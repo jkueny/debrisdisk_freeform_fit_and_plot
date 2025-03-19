@@ -57,7 +57,7 @@ import yaml
 from dev.pyklip.instruments.Instrument import GenericData
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
-from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_jaxed
+from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_single
 from dev.pyklip.fmlib.diskfm import DiskFM
 from dev.pyklip.j_klip import rotate_image
 import dev.pyklip.fm as fm
@@ -78,8 +78,8 @@ import optax
 
 # jax.config.update("jax_enable_x64", True)
 
-update_disk_jit = jax.jit(update_disk, static_argnames=["aligned_center",
-                                                        "min_num_models",])
+# update_disk_jit = jax.jit(update_disk, static_argnames=[
+#                                                         "min_num_models",])
 # fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
 
 def mass_derotation(flat_postklip_psfs, PAs, image_dim, section_inds):
@@ -192,19 +192,24 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     freeform_image = convolve_model(full_model_image, psf)
 
-    global_models_prepped, ref_models_stacked = update_disk_jit(model_disk=freeform_image,
+    global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
                                                             PAs=PAs, ref_PAs=ref_PAs,
-                                                            aligned_center=aligned_center,
+                                                            # aligned_center=aligned_center,
                                                             section_inds=section_inds_arr,
                                                             min_num_models=fixed_refs,
                                                             )
 
     # confirmed shape of model_images_prepped (84, 50176)
-    flat_postklip_psfs = fm_jaxed(aligned_images,
-                           global_models_prepped,
-                           ref_models_stacked, ref_psfs_stacked,
-                           klmodes_stacked, evals, evecs_stacked,
-                           PAs)
+    # flat_postklip_psfs = fm_jaxed(aligned_images,
+    #                        global_models_prepped,
+    #                        ref_models_stacked, ref_psfs_stacked,
+    #                        klmodes_stacked, evals, evecs_stacked,
+    #                        PAs)
+    flat_postklip_psfs = jax.vmap(fm_from_eigen_single
+                          )(aligned_images, ref_psfs_stacked,
+                            global_models_prepped,ref_models_stacked,
+                            klmodes_stacked, evals, evecs_stacked,
+                            )
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
                                               image_dim,section_inds_arr)
 
@@ -452,7 +457,7 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, psf, basis_data, num_steps=5, lr=0.1):
+def optimize_model(target_image, psf, basis_data, num_steps=500, lr=0.1):
     
     dimension = psf.shape
     jax_target_image = jnp.array(target_image)
@@ -560,7 +565,7 @@ if __name__ == "__main__":
     # load PSF
     psf = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
     JAX_PSF = jnp.array(psf)
-    # JAX_PSF /= jnp.sum(JAX_PSF)
+    JAX_PSF /= jnp.sum(JAX_PSF)
 
     # measure the size of images DIMENSION and make it global
     DIMENSION = round(ALIGNED_CENTER[0]) * 2
@@ -624,7 +629,7 @@ if __name__ == "__main__":
     ax[0].set_title("Target Image (Ground Truth)")
     ax[0].axis("off")
 
-    ax[1].imshow(np.array(optimized_model_image), cmap='inferno', origin="lower")
+    ax[1].imshow(np.array(optimized_model_image), cmap='viridis', origin="lower")
     ax[1].set_title("Optimized Freeform Model")
     ax[1].axis("off")
 
@@ -632,5 +637,6 @@ if __name__ == "__main__":
     ax[2].set_title("Loss Over Time")
     ax[2].set_xlabel("Iteration")
     ax[2].set_ylabel("MSE Loss")
+    ax[2].grid()
 
     plt.show()
