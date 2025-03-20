@@ -11,216 +11,47 @@ from functools import partial
 from dev.pyklip.j_klip import rotate_image
 from utils.klip_basis import build_batched_ref_images
 
+def mass_derotation(flat_postklip_psfs, PAs, total_pixels, section_inds):
+    # print(f"image_dim -> {image_dim}")
+    image_dim = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
+    squeezed_postklip_psfs = jnp.squeeze(flat_postklip_psfs)
+    postklip_psf_images = jax.vmap(insert_section_into_full_image,
+                                   in_axes=(0, None, None))(squeezed_postklip_psfs,
+                                                                   image_dim,
+                                                                   section_inds)
+    # print(f"postklip_psf_images.shape -> {postklip_psf_images.shape}")
+    derotated_postklip_psfs = jax.vmap(rotate_image)(postklip_psf_images,
+                                                     PAs)
+    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=1)
+    return corrected_postklip_psfs
 
 
-def _get_section_indicies(input_shape, img_center, IOWA, flipx=False):
+
+def insert_section_into_full_image(flat_section, full_shape, section_inds):
     """
-    Gets the pixels (via numpy.where) that correspond to this section
-
-    Args:
-        input_shape: shape of the image [ysize, xsize] [pixels]
-        img_center: [x,y] image center [pxiels]
-        radstart: minimum radial distance of sector [pixels]
-        radend: maximum radial distance of sector [pixels]
-        phistart: minimum azimuthal coordinate of sector [radians]
-        phiend: maximum azimuthal coordinate of sector [radians]
-        padding: number of pixels to pad to the sector [pixels]
-        parang: how much to rotate phi due to field rotation [IN DEGREES]
-        IOWA: tuple (IWA,OWA) where IWA = Inner working angle and OWA = Outer working angle both in pixels.
-                It defines the separation interva in which klip will be run.
-
+    Given:
+      - flat_section: a 1D JAX array of length N_pixels_section (the forward-modeled section)
+      - full_shape: tuple (height, width) for the full image (e.g. (224, 224))
+      - section_inds: a JAX array or tuple of indices that select the section in the full image.
+                     In your case, section_inds has shape (1, N_pixels_section), so we'll flatten it.
+    
+    This function flattens a blank full image, updates it at the given 1D indices with the values from flat_section,
+    and then reshapes it back to full_shape.
+    
     Returns:
-        sector_ind: the pixel coordinates that corespond to this sector
+      A full image (JAX array) of shape full_shape with the section inserted.
     """
-    IWA,OWA = IOWA
+    # Ensure section_inds is a 1D index array.
+    section_inds = jnp.ravel(jnp.array(section_inds))
+    # Create a blank full image flattened.
+    total_pixels = np.prod(full_shape) # Ex. 50176
+    full_image_flat = jnp.zeros(total_pixels)
+    # Use .at to update the flattened array.
+    full_image_flat = full_image_flat.at[section_inds].set(flat_section)
+    # Reshape back to full_shape.
+    full_image = full_image_flat.reshape(full_shape)
+    return full_image
 
-    # create a coordinate system.
-    x, y = np.meshgrid(np.arange(input_shape[1] * 1.0), np.arange(input_shape[0] * 1.0))
-    if flipx:
-        x = img_center[0] - (x - img_center[0])        
-    r = np.sqrt((x - img_center[0])**2 + (y - img_center[1])**2)
-
-    radstart = np.asarray([IWA])
-    radend = np.asarray([OWA])
-
-    # normal case where there's no 2 pi wrap
-    section_ind = np.where((r >= radstart) & (r < radend))
-
-
-    return section_ind
-
-def get_nan_indices(arr):
-    """
-    Return the indices of NaNs in arr.
-    If no NaNs are found, returns an empty array with a statically-known shape.
-    """
-    has_nan = jnp.any(jnp.isnan(arr))
-    
-    def true_fn(_):
-        # When NaNs exist, get indices.
-        # jnp.nonzero returns a tuple; here we assume arr is 1D (adjust as needed)
-        idx = jnp.nonzero(jnp.isnan(arr))[0]
-        return idx
-
-    def false_fn(_):
-        # When no NaNs exist, return an empty array with shape (0,)
-        return jnp.empty((0,), dtype=jnp.int32)
-
-    return lax.cond(has_nan, true_fn, false_fn, operand=None)
-
-def nanmedian(x):
-    """
-    Compute the median of non-NaN values in a JAX array x.
-    
-    Strategy:
-      1. Flatten x.
-      2. Build a mask for valid (non-NaN) entries.
-      3. Replace NaNs with a large value (jnp.inf) so that they sort to the end.
-      4. Sort the flattened array.
-      5. Count the valid entries.
-      6. Use lax.cond to select the median value from the valid portion.
-    """
-    flat = x.ravel()
-    valid_mask = ~jnp.isnan(flat)
-    # Replace NaNs with +infinity so that valid numbers sort first.
-    flat_filled = jnp.where(valid_mask, flat, jnp.inf)
-    sorted_flat = jnp.sort(flat_filled)
-    valid_count = jnp.sum(valid_mask)
-
-    # Use lax.cond to conditionally select the median.
-    median_value = lax.cond(
-        valid_count > 0,
-        # True branch: extract the median using jnp.take and squeeze to force a scalar.
-        lambda cnt: jnp.squeeze(jnp.take(sorted_flat, cnt // 2)),
-        # False branch: if no valid elements exist, return 0.0 (or another fallback).
-        lambda _: 0.0,
-        operand=valid_count
-    )
-    return median_value
-
-# @jax.jit
-def replace_nan_with_median(image):
-    """
-    Returns a new image where all NaN pixels are replaced with the median of the non-NaN pixels.
-    """
-    med_val = nanmedian(image)
-    return jnp.where(jnp.isnan(image), med_val, image)
-
-def derotate_section(input_shape, sector, sector_ind, angle, IOWA, img_center, flipx=True):
-    """
-    Rotate sector in output image at desired ranges
-
-    Args:
-        input_shape: shape of input_image
-        sector: data in the sector to save to output_img
-        sector_ind: index into input img (corresponding to input_shape) for the original sector
-        angle: angle that the sector needs to rotate (I forget the convention right now)
-
-        IOWA: tuple (IWA,OWA) where IWA = Inner working angle and OWA = Outer working angle both in pixels.
-                It defines the separation interva in which klip will be run.
-        img_center: center of image in input image coordinate
-
-        flipx: if true, flip the x coordinate to switch coordinate handiness
-
-    """
-    # convert angle to radians
-    angle_rad = jnp.radians(angle)
-
-
-    # create the coordinate system of the image to manipulate for the transform
-    dims = input_shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=np.float32), jnp.arange(dims[0], dtype=np.float32))
-
-
-    # flip x if needed to get East left of North
-    if flipx is True:
-        x = img_center[0] - (x - img_center[0])
-
-    # do rotation. CW rotation formula to get a CCW of the image
-    xp = (x-img_center[0])*jnp.cos(angle_rad) + (y-img_center[1])*jnp.sin(angle_rad) + img_center[0]
-    yp = -(x-img_center[0])*jnp.sin(angle_rad) + (y-img_center[1])*jnp.cos(angle_rad) + img_center[1]
-
-    rot_sector_pix = _get_section_indicies(input_shape, img_center, IOWA, flipx=True)
-
-
-    # do NaN detection by defining any pixel in the new coordiante system (xp, yp) as a nan
-    # if any one of the neighboring pixels in the original image is a nan
-    # e.g. (xp, yp) = (120.1, 200.1) is nan if either (120, 200), (121, 200), (120, 201), (121, 201)
-    # is a nan
-    dims = input_shape
-    blank_input = jnp.zeros(dims[1] * dims[0])
-    set_as_sector_flat = blank_input.at[sector_ind].set(sector)
-    set_as_sector_2D = jnp.reshape(set_as_sector_flat, [dims[0], dims[1]])
-
-    # floor and ceil to handle sub-pixel values
-    xp_floor = jnp.clip(jnp.floor(xp).astype(int), 0, xp.shape[1]-1)[rot_sector_pix]
-    xp_flat_floor = jnp.ravel(xp_floor)
-    xp_ceil = jnp.clip(jnp.ceil(xp).astype(int), 0, xp.shape[1]-1)[rot_sector_pix]
-    xp_flat_ceil = jnp.ravel(xp_ceil)
-    yp_floor = jnp.clip(jnp.floor(yp).astype(int), 0, yp.shape[0]-1)[rot_sector_pix]
-    yp_flat_floor = jnp.ravel(yp_floor)
-    yp_ceil = jnp.clip(jnp.ceil(yp).astype(int), 0, yp.shape[0]-1)[rot_sector_pix]
-    yp_flat_ceil = jnp.ravel(yp_ceil)
-    # rotnans = jnp.where(jnp.isnan(set_as_sector_2D[yp_flat_floor, xp_flat_floor]) | 
-    #                    jnp.isnan(set_as_sector_2D[yp_flat_floor, xp_flat_ceil]) |
-    #                    jnp.isnan(set_as_sector_2D[yp_flat_ceil, xp_flat_floor]) |
-    #                    jnp.isnan(set_as_sector_2D[yp_flat_ceil, xp_flat_ceil]))
-    
-    # Compute the combined NaN mask from the four neighboring pixels.
-
-    max_size = int(xp_flat_floor.shape[0])  # this should be a Python integer
-    nan_mask = (
-        jnp.isnan(set_as_sector_2D[yp_flat_floor, xp_flat_floor]) |
-        jnp.isnan(set_as_sector_2D[yp_flat_floor, xp_flat_ceil])  |
-        jnp.isnan(set_as_sector_2D[yp_flat_ceil,   xp_flat_floor]) |
-        jnp.isnan(set_as_sector_2D[yp_flat_ceil,   xp_flat_ceil])
-        )
-    # Define a helper function that returns the indices (with fixed size) where nan_mask is True.
-    def get_nan_indices(nan_mask, max_size):
-        # Here we use jnp.nonzero with a static size.
-        # If there are fewer than max_size indices, the remainder will be filled with fill_value (-1).
-        indices = jnp.nonzero(nan_mask, size=max_size, fill_value=-1)[0]
-        return indices
-
-    # Define branch functions for lax.cond.
-    def branch_with_nans(_):
-        return get_nan_indices(nan_mask, max_size)
-
-    def branch_without_nans(_):
-        # Return an empty array with shape (max_size,) and a fill value (e.g. -1)
-        return jnp.full((max_size,), -1, dtype=jnp.int32)
-
-    # Use lax.cond to choose the correct branch.
-    rotnans = lax.cond(jnp.any(nan_mask),
-                    branch_with_nans,
-                    branch_without_nans,
-                    operand=None)
-    # resample image based on new coordinates, set nan values as median
-    # nanpix = jnp.isnan(set_as_sector_2D)
-    # medval = np.median(blank_input[np.where(~np.isnan(blank_input))])
-    # medval = jnp.median(set_as_sector_2D[~nanpix])
-    # medval = nanmedian(set_as_sector_2D)
-    input_copy = jnp.copy(set_as_sector_2D)
-    input_copy_nonan = replace_nan_with_median(input_copy)
-    rot_sector = map_coordinates(input_copy_nonan,
-                                         [yp[rot_sector_pix], xp[rot_sector_pix]],
-                                         order=0, cval=np.nan)
-    # rot_sector = klip.bilinear_interpolate(input_copy, yp[rot_sector_pix], xp[rot_sector_pix])
-
-    # mask nans
-    rot_sector_nans = rot_sector.at[rotnans].set(np.nan)
-    # sector_validpix = np.where(~np.isnan(rot_sector))
-    sector_validpix = ~jnp.isnan(rot_sector_nans)
-
-    # need to define only where the non nan pixels are, so we can store those in the output image
-    blank_output = jnp.zeros([dims[0], dims[1]]) * np.nan
-    blank_output_valid = blank_output.at[rot_sector_pix].set(rot_sector)
-    blank_output_valid_reshape = jnp.reshape(blank_output_valid, (dims[0], dims[1]))
-    rot_sector_validpix_2D = jnp.where(~jnp.isnan(blank_output_valid_reshape))
-    # rot_sector_validpix_2d = np.isnan(blank_output)
-
-
-    return rot_sector_validpix_2D
 
 def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0.0):
     """
@@ -306,7 +137,7 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models):
 
     return global_rot_section_flat, ref_rotated
 
-# @jax.jit
+@jax.jit
 def calculate_fm(delta_KL, original_KL, sci, model_sci):
     """
     Same function as calculate_fm() but faster when numbasis has only one element. It doesn't do the mutliplication with
@@ -393,7 +224,7 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
 
     return model_sci[None,:] - klipped_oversub - klipped_selfsub, klipped_oversub, klipped_selfsub
 
-# @jax.jit
+@jax.jit
 def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
@@ -450,7 +281,7 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
     return delta_KL
 
-# @jax.jit
+@jax.jit
 def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
                          klmodes, evals, evecs,):
     """ 
@@ -507,89 +338,3 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
     #                                 # flip_x=False
     #                                 )
     return postklip_psf_corrected
-
-def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
-             ref_psfs_stacked, klmodes_stacked,
-             evals_arr, evecs_stacked, 
-            #  section_ind_arr, input_img_nums, input_img_shape,
-             PAs):
-    """Do the forward modeling procedure using JAX's vmap() framework.
-
-
-    TODO Do we need the section indices array anymore? Right now,
-    I don't think that we do. Investigate. It's been deleted.
-    Also look at input_img_nums, numbasis, input_image_shape...
-
-
-    Args:
-        model_disks (JAX array): Flattened disk model images.
-        Shape: (N_images, image_height * image_width)
-        
-        aligned_imgs (JAX array): Image data set, flattened.
-        Shape: (N_images, image_height * image_width)
-        
-        klmodes_arr (dict): Karhunen-Loeve modes made from the
-        science PSF images. Nested dict.
-        
-        evals_arr (dict): Eigenvalues from the KL-transform. Nested dict.
-        
-        evecs_arr (dict): Eigenvectors from the KL transform. Nested dict.
-        section_ind_arr (dict): Array indices corresponding to the region
-        of interest in every image. Nested dict.
-        
-        PAs (JAX array): Position angles of the disk in each of the aligned
-        images. Shape (N_images)
-        
-        input_img_nums (dict): Values are the literal integer number in the 
-        image sequence. Keys are the section IDs explained above. This could
-        be used to index the nested dictionaries?
-        
-        input_img_shape (tuple): Shape of each unflattened input image in
-        aligned_imgs. Ex. (224,224)
-        
-        IOWA (tuple): Inner and outer-working angle in pixels for each
-        image in aligned_imgs. Basically inner- and outer- radius of
-        the circular software mask w.r.t. the image center. Ex. (10,112)
-        
-        aligned_center (tuple): Center of each image in aligned_imgs. Should
-        be the same for all images.
-        
-        numbasis (int): Number of KL modes for each image in aligned_imgs.
-        Corresponds to the rows dimension of each set of KL modes since they
-        are passed in flattened.
-
-    Returns:
-        _type_: _description_
-    """    
-    # Use vmap to vectorize fm_single over the first axis of all per-section arrays.
-    # In this example, we assume that all per-section arrays have their first dimension equal to the number of sections.
-    # For input_img_nums and PAs, ensure they are passed appropriately (e.g., one value per section).
-    # Here, we set in_axes=0 for each per-section parameter.
-
-    # Define a partial function that fixes the static parameters.
-    # fm_single = partial(fm_from_eigen_single,
-    #                     aligned_center=aligned_center,
-    #                     )
-
-    # fm_outputs = jax.vmap(fm_from_eigen_single,
-    #                       in_axes=(0, 0, 0, 0, 0, 0, 0, 0)
-    #                       )(aligned_images, ref_psfs_stacked,
-    #                         model_disks,ref_models_stacked,
-    #                         klmodes_stacked, evals_arr, evecs_stacked,
-    #                         PAs)
-    postklip_psfs = jax.vmap(fm_from_eigen_single
-                          )(aligned_images, ref_psfs_stacked,
-                            model_disks,ref_models_stacked,
-                            klmodes_stacked, evals_arr, evecs_stacked,
-                            )
-    # jax.debug.print("print(postklip_psfs.shape) -> {x}", x=postklip_psfs.shape)
-    # fm_outputs = fm_from_eigen_single(aligned_images, ref_psfs_stacked,
-    #                         model_disks,ref_models_stacked,
-    #                         klmodes_stacked, evals_arr, evecs_stacked,
-    #                         PAs)
-    # fm_outputs_squeezed = jnp.squeeze(fm_outputs)
-    # fm_out = jnp.nanmean(fm_outputs_squeezed,axis=0)
-
-    # jax.debug.print("print(fm_out.shape; after nanmean) -> {x}", x=fm_out.shape)
-
-    return postklip_psfs

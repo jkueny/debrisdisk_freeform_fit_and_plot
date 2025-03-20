@@ -21,6 +21,7 @@ import sys
 import argparse
 
 
+
 basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
 # your data (using OS environnement variable allow to use same code on
 # different computer without changing this).
@@ -38,11 +39,10 @@ import time
 
 
 # # because this error was coming up
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
+# os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 
-from datetime import datetime
-
+from functools import partial
 import numpy as np
 
 import astropy.io.fits as fits
@@ -57,7 +57,9 @@ import yaml
 from dev.pyklip.instruments.Instrument import GenericData
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
-from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_single
+from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_single, \
+                                        insert_section_into_full_image, \
+                                        mass_derotation
 from dev.pyklip.fmlib.diskfm import DiskFM
 from dev.pyklip.j_klip import rotate_image
 import dev.pyklip.fm as fm
@@ -69,6 +71,7 @@ from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 
 import jax
+from jax import lax
 import jax.numpy as jnp
 import jax.profiler
 from jax.scipy.signal import convolve2d
@@ -78,23 +81,25 @@ import optax
 
 # jax.config.update("jax_enable_x64", True)
 
-# update_disk_jit = jax.jit(update_disk, static_argnames=[
-#                                                         "min_num_models",])
+update_disk_jit = jax.jit(update_disk, static_argnames=["min_num_models",])
+# reconstruct_full_image_jax = jax.jit(reconstruct_full_image,
+#                                      static_argnames=["total_pixels"],
+#                                      )
+# insert_section_jaxed = jax.jit(insert_section_into_full_image,
+#                                static_argnames=["full_shape","section_inds"])
 # fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
 
-def mass_derotation(flat_postklip_psfs, PAs, image_dim, section_inds):
-    print(f"image_dim -> {image_dim}")
-    squeezed_postklip_psfs = jnp.squeeze(flat_postklip_psfs)
-    postklip_psf_images = jax.vmap(insert_section_into_full_image,
-                                   in_axes=(0, None, None))(squeezed_postklip_psfs,
-                                                                   image_dim,
-                                                                   section_inds)
-    # print(f"postklip_psf_images.shape -> {postklip_psf_images.shape}")
-    derotated_postklip_psfs = jax.vmap(rotate_image)(postklip_psf_images,
-                                                     PAs)
-    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=1)
-    return corrected_postklip_psfs
 
+def reconstruct_full_image(free_params, total_pixels):
+    """
+    Given the free parameters (for the unmasked region) and the full image shape,
+    create a full image (flattened) where the free parameters are inserted at the positions
+    indicated by mask_indices and zeros elsewhere.
+    """
+    full_shape = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
+    full_flat = jnp.zeros(total_pixels)
+    full_flat = full_flat.at[MASK_INDICES].set(free_params)
+    return full_flat.reshape(full_shape)
 
 def initialize_freeform_model_reduced():
     """Initialize freeform model parameters for the unmasked region."""
@@ -104,16 +109,6 @@ def initialize_freeform_model_reduced():
 
     return free_params
 
-def reconstruct_full_image(free_params, full_shape):
-    """
-    Given the free parameters (for the unmasked region) and the full image shape,
-    create a full image (flattened) where the free parameters are inserted at the positions
-    indicated by mask_indices and zeros elsewhere.
-    """
-    total_pixels = np.prod(full_shape)
-    full_flat = jnp.zeros(total_pixels)
-    full_flat = full_flat.at[MASK_INDICES].set(free_params)
-    return full_flat.reshape(full_shape)
 
 def parang_sort(filename):
         """Extracts the float value between '2x2bin_' and '_parang'."""
@@ -122,6 +117,7 @@ def parang_sort(filename):
             return float(match.group(1))  # Convert extracted string to float
         return float('inf')  # Assign an arbitrary large value if no match is found
 
+@jax.jit
 def convolve_model(input_model, psf):
     # psf = jnp.asarray(psf)
     assert psf.shape[0] == psf.shape[1], "Instr. PSF image is not square. How can this be?!"
@@ -135,35 +131,53 @@ def convolve_model(input_model, psf):
     
     return model_convolved
 
-def insert_section_into_full_image(flat_section, full_shape, section_inds):
+@jax.jit
+def convolve_model_lax(input_model, psf):
     """
-    Given:
-      - flat_section: a 1D JAX array of length N_pixels_section (the forward-modeled section)
-      - full_shape: tuple (height, width) for the full image (e.g. (224, 224))
-      - section_inds: a JAX array or tuple of indices that select the section in the full image.
-                     In your case, section_inds has shape (1, N_pixels_section), so we'll flatten it.
-    
-    This function flattens a blank full image, updates it at the given 1D indices with the values from flat_section,
-    and then reshapes it back to full_shape.
-    
-    Returns:
-      A full image (JAX array) of shape full_shape with the section inserted.
-    """
-    # Ensure section_inds is a 1D index array.
-    section_inds = jnp.ravel(jnp.array(section_inds))
-    # Create a blank full image flattened.
-    total_pixels = np.prod(full_shape) # Ex. 50176
-    full_image_flat = jnp.zeros(total_pixels)
-    # Use .at to update the flattened array.
-    full_image_flat = full_image_flat.at[section_inds].set(flat_section)
-    # Reshape back to full_shape.
-    full_image = full_image_flat.reshape(full_shape)
-    return full_image
+    Convolve a 2D input image with a 2D PSF using lax.conv_general_dilated,
+    mimicking the behavior of jax.scipy.signal.convolve2d(mode="same").
 
+    Args:
+        input_model: 2D array of shape (H, W).
+        psf: 2D array of shape (kH, kW). Should be square; if not, adjust accordingly.
+
+    Returns:
+        2D convolved image of shape (H, W).
+    """
+    # Ensure PSF is square.
+    assert psf.shape[0] == psf.shape[1], "PSF must be square."
+
+    # Expand dimensions: add a batch dimension and a channel dimension.
+    # New shape: (1, H, W, 1)
+    input_model_exp = input_model[None, ..., None]
+
+    # To perform true convolution (not cross-correlation), flip the kernel along both axes.
+    psf_flipped = jnp.flip(psf, axis=(0, 1))
+    # Expand kernel dimensions: shape (kH, kW, in_channels, out_channels)
+    psf_kernel = psf_flipped[..., None, None]
+
+    # Call the convolution primitive with stride 1 and 'SAME' padding.
+    # Using dimension_numbers 'NHWC' for inputs and outputs, and 'HWIO' for the kernel.
+    convolved = lax.conv_general_dilated(
+        input_model_exp,
+        psf_kernel,
+        window_strides=(1, 1),
+        padding="SAME",
+        dimension_numbers=('NHWC', 'HWIO', 'NHWC')
+    )
+
+    # Squeeze out the added batch and channel dimensions.
+    return jnp.squeeze(convolved, axis=(0, 3))
+
+# @jax.jit(static_argnames=["full_shape", "section_inds"])
+
+
+@partial(jax.jit, static_argnames=["fixed_refs","aligned_center",
+                                   "total_pixels"])
 def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                   ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked, 
-                  image_dim):
+                  total_pixels):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
         convolve by the PSF (psf is global)
@@ -186,11 +200,12 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     
     # Ensure that the model pixel values range [0,1]
-    full_model_image = reconstruct_full_image(mod_pix_params, image_dim)
+    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels)
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
     # freeform_model = jax.nn.sigmoid(full_model_image)
 
-    freeform_image = convolve_model(full_model_image, psf)
+    # freeform_image = convolve_model(full_model_image, psf)
+    freeform_image = convolve_model_lax(full_model_image, psf)
 
     global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
                                                             PAs=PAs, ref_PAs=ref_PAs,
@@ -211,7 +226,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                             klmodes_stacked, evals, evecs_stacked,
                             )
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
-                                              image_dim,section_inds_arr)
+                                              total_pixels,section_inds_arr)
 
     freeform_fm_full = jnp.mean(derotated_postklip_psfs, axis=0)
     freeform_fm_flat = jnp.reshape(freeform_fm_full, psf.shape[0] * psf.shape[1])
@@ -457,14 +472,15 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, psf, basis_data, num_steps=500, lr=0.1):
+def optimize_model(target_image, model_init,
+                   psf, basis_data, total_pixels, num_steps=3, lr=0.5):
     
-    dimension = psf.shape
+    # dimension = img_dim
     jax_target_image = jnp.array(target_image)
 
     # Initialize the initial image of random pixels
-    # image_params = model_init
-    image_params = initialize_freeform_model_reduced()
+    image_params = model_init
+    # image_params = initialize_freeform_model_reduced()
 
     # Set up the optimizer
     optimizer = optax.adam(lr)
@@ -495,9 +511,9 @@ def optimize_model(target_image, psf, basis_data, num_steps=500, lr=0.1):
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
-    # jax.profiler.start_trace("/tmp/tensorboard")
-    # jax.config.update("jax_debug_nans", True)
     time_now = time.time()
+    jax.profiler.start_trace("/tmp/tensorboard")
+    # jax.config.update("jax_debug_nans", True)
 
     @jax.jit
     def step(image_params, opt_state):
@@ -505,7 +521,7 @@ def optimize_model(target_image, psf, basis_data, num_steps=500, lr=0.1):
                                     aligned_image_data, ref_psfs,
                                     position_angles, ref_PAs, fixed_refs,
                                     aligned_center, section_inds,
-                                    klmodes, evals, evecs, dimension)
+                                    klmodes, evals, evecs, total_pixels)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -517,7 +533,7 @@ def optimize_model(target_image, psf, basis_data, num_steps=500, lr=0.1):
         if step_idx % 10 == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
-    # jax.profiler.stop_trace()
+    jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
     
     # optimized_model = jax.nn.sigmoid(image_params)
@@ -595,7 +611,9 @@ if __name__ == "__main__":
         #                             quietklip=True)
     
     # mask the disk image
-    TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK# * 1e4
+    TARGET_IMAGE = np.asarray(REDUCED_DATA * WHEREMASK2GENERATEDISK)# * 1e4
+    TOTAL_PIXELS = np.prod(TARGET_IMAGE.shape)
+    # print(TOTAL_PIXELS)
     TARGET_IMAGE[TARGET_IMAGE != TARGET_IMAGE] = 0.
     # print(INIT_MODEL_FLAT.shape)
 
@@ -604,10 +622,11 @@ if __name__ == "__main__":
     NUM_FREE = MASK_INDICES.shape[0]
 
     # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
-    # STARTING_DISK *= WHEREMASK2GENERATEDISK
-    # INIT_MODEL = jnp.array(STARTING_DISK)
-    # INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
-    # INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/freeform_run_500iters_initdiskmodel.fits")
+    STARTING_DISK *= WHEREMASK2GENERATEDISK
+    INIT_MODEL = jnp.array(STARTING_DISK)
+    INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
+    INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
     TARGET_IMAGE_FLAT = TARGET_IMAGE.reshape(TARGET_IMAGE.shape[0] * TARGET_IMAGE.shape[1])
     TARGET_MODEL_INTEREST = TARGET_IMAGE_FLAT[MASK_INDICES]
     # print(INIT_MODEL_INTEREST.shape)
@@ -617,11 +636,12 @@ if __name__ == "__main__":
     # plt.show()
     # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=TARGET_MODEL_INTEREST,
-                                                #    model_init=INIT_MODEL_INTEREST,
-                                                   psf=JAX_PSF, basis_data=fm_dict
+                                                   model_init=INIT_MODEL_INTEREST,
+                                                   psf=JAX_PSF, basis_data=fm_dict,
+                                                   total_pixels=TOTAL_PIXELS
                                                    )
-    optimized_model_image = reconstruct_full_image(optimized_model, TARGET_IMAGE.shape)
-    fits.writeto("init_full_run.fits", np.asarray(optimized_model_image), overwrite=True)
+    optimized_model_image = reconstruct_full_image(optimized_model, TOTAL_PIXELS)
+    fits.writeto("freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 

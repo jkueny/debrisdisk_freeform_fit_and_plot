@@ -56,7 +56,7 @@ import jax.numpy as jnp
 import jax.profiler
 from jax.scipy.signal import convolve2d
 
-update_disk_jit = jax.jit(update_disk, static_argnames=["aligned_center",
+update_disk_jit = jax.jit(update_disk, static_argnames=[
                                                         "min_num_models",])
 
 #### JDFM funcs section for debugging ####
@@ -455,7 +455,7 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
     # arrays. JKK 03/18/2025
     global_models_prepped, ref_models_stacked = update_disk_jit(model_disk=freeform_image,
                                                             PAs=PAs, ref_PAs=ref_PAs,
-                                                            aligned_center=aligned_center,
+                                                            # aligned_center=aligned_center,
                                                             section_inds=section_inds_arr,
                                                             min_num_models=fixed_refs,
                                                             )
@@ -466,6 +466,7 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
     # plt.show()
     # sys.exit()
     # confirmed shape of model_images_prepped (84, 50176)
+    jax.profiler.start_trace("/tmp/tensorboard")
     flat_postklip_psfs = fm_jaxed(aligned_images,
                            global_models_prepped,
                            ref_models_stacked, ref_psfs_stacked,
@@ -475,7 +476,6 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
 
     freeform_fm_full = np.nanmean(derotated_postklip_psfs, axis=0)
 
-    print(f"freeform_fm_full.shape -> {freeform_fm_full.shape}")
 
     return freeform_fm_full
 
@@ -512,6 +512,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
     position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
     aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
+    print(f"freeform_fm_full.shape -> {freeform_fm_full.shape}")
 
     fm_out = do_single_fm(image_params, jax_target_image, psf,
                  aligned_image_data, ref_psfs,
@@ -519,6 +520,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
                  aligned_center, section_inds,
                  klmodes, evals, evecs, dimension)
     
+    jax.profiler.stop_trace()
     return fm_out
 
 if __name__ == "__main__":
@@ -581,7 +583,7 @@ if __name__ == "__main__":
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/freeform_run_500iters_initdiskmodel.fits")
     STARTING_DISK *= WHEREMASK2GENERATEDISK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
