@@ -512,7 +512,7 @@ def optimize_model(target_image, model_init,
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
     time_now = time.time()
-    jax.profiler.start_trace("/tmp/tensorboard")
+    # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
     @jax.jit
@@ -533,7 +533,7 @@ def optimize_model(target_image, model_init,
         if step_idx % 10 == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
-    jax.profiler.stop_trace()
+    # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
     
     # optimized_model = jax.nn.sigmoid(image_params)
