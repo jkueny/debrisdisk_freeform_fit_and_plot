@@ -89,6 +89,36 @@ update_disk_jit = jax.jit(update_disk, static_argnames=["min_num_models",])
 #                                static_argnames=["full_shape","section_inds"])
 # fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
 
+def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
+    """
+    Create a binary annular mask for a 2D array.
+    
+    The pixels whose distance from the center is between inner_radius and outer_radius
+    (inclusive) are set to 1; all other pixels are set to 0.
+    
+    Args:
+        dimensions (tuple): (height, width) of the output mask.
+        inner_radius (float): The inner radius (in pixels).
+        outer_radius (float): The outer radius (in pixels).
+        center (tuple, optional): (row, col) coordinates for the center.
+                                  If None, defaults to the center of the array.
+    
+    Returns:
+        jnp.ndarray: A binary mask with shape `dimensions` (1's inside the annulus, 0's outside).
+    """
+    H, W = dimensions
+    if center is None:
+        center = (H / 2, W / 2)
+    
+    # Create coordinate grid
+    y, x = np.indices((H, W))
+    # Compute the radial distance from the center for each pixel.
+    # Note: center is given as (row, col) and x corresponds to column indices.
+    r = np.sqrt((x - center[1])**2 + (y - center[0])**2)
+    # Create the binary mask: 1 inside the annulus, 0 elsewhere.
+    mask = np.where((r >= inner_radius) & (r <= outer_radius), 1, 0)
+    return mask
+
 
 def reconstruct_full_image(free_params, total_pixels):
     """
@@ -617,13 +647,15 @@ if __name__ == "__main__":
     TARGET_IMAGE[TARGET_IMAGE != TARGET_IMAGE] = 0.
     # print(INIT_MODEL_FLAT.shape)
 
-    MASK = jnp.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    disk_mask = np.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    annular_mask = make_annular_mask(disk_mask.shape, 10, 112)
+    MASK = disk_mask * annular_mask
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
     # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
-    STARTING_DISK *= WHEREMASK2GENERATEDISK
+    STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
     INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
@@ -631,10 +663,10 @@ if __name__ == "__main__":
     TARGET_MODEL_INTEREST = TARGET_IMAGE_FLAT[MASK_INDICES]
     # print(INIT_MODEL_INTEREST.shape)
 
-    # plt.imshow(TARGET_IMAGE,origin="lower")
-    # plt.colorbar()
-    # plt.show()
-    # sys.exit()
+    plt.imshow(STARTING_DISK,origin="lower")
+    plt.colorbar()
+    plt.show()
+    sys.exit()
     optimized_model, loss_history = optimize_model(target_image=TARGET_MODEL_INTEREST,
                                                    model_init=INIT_MODEL_INTEREST,
                                                    psf=JAX_PSF, basis_data=fm_dict,

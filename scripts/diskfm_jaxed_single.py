@@ -59,6 +59,36 @@ from jax.scipy.signal import convolve2d
 update_disk_jit = jax.jit(update_disk, static_argnames=[
                                                         "min_num_models",])
 
+def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
+    """
+    Create a binary annular mask for a 2D array.
+    
+    The pixels whose distance from the center is between inner_radius and outer_radius
+    (inclusive) are set to 1; all other pixels are set to 0.
+    
+    Args:
+        dimensions (tuple): (height, width) of the output mask.
+        inner_radius (float): The inner radius (in pixels).
+        outer_radius (float): The outer radius (in pixels).
+        center (tuple, optional): (row, col) coordinates for the center.
+                                  If None, defaults to the center of the array.
+    
+    Returns:
+        jnp.ndarray: A binary mask with shape `dimensions` (1's inside the annulus, 0's outside).
+    """
+    H, W = dimensions
+    if center is None:
+        center = (H / 2, W / 2)
+    
+    # Create coordinate grid
+    y, x = jnp.indices((H, W))
+    # Compute the radial distance from the center for each pixel.
+    # Note: center is given as (row, col) and x corresponds to column indices.
+    r = jnp.sqrt((x - center[1])**2 + (y - center[0])**2)
+    # Create the binary mask: 1 inside the annulus, 0 elsewhere.
+    mask = jnp.where((r >= inner_radius) & (r <= outer_radius), 1, 0)
+    return mask
+
 #### JDFM funcs section for debugging ####
 def calculate_fm(delta_KL, original_KL, sci, model_sci):
     """
@@ -466,7 +496,7 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
     # plt.show()
     # sys.exit()
     # confirmed shape of model_images_prepped (84, 50176)
-    jax.profiler.start_trace("/tmp/tensorboard")
+    # jax.profiler.start_trace("/tmp/tensorboard")
     flat_postklip_psfs = fm_jaxed(aligned_images,
                            global_models_prepped,
                            ref_models_stacked, ref_psfs_stacked,
@@ -520,7 +550,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
                  aligned_center, section_inds,
                  klmodes, evals, evecs, dimension)
     
-    jax.profiler.stop_trace()
+    # jax.profiler.stop_trace()
     return fm_out
 
 if __name__ == "__main__":
@@ -579,11 +609,13 @@ if __name__ == "__main__":
     TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK# * 1e4
     # print(INIT_MODEL_FLAT.shape)
 
-    MASK = jnp.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    disk_mask = jnp.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    annular_mask = make_annular_mask(disk_mask.shape, 10, 112)
+    MASK = disk_mask * annular_mask
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/freeform_run_3500iter.fits")
+    STARTING_DISK = fits.getdata("freeform_run_10500iter.fits")
     STARTING_DISK *= WHEREMASK2GENERATEDISK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -591,10 +623,10 @@ if __name__ == "__main__":
     MODEL_RECONSTRUCTED = reconstruct_full_image(INIT_MODEL_INTEREST, TARGET_IMAGE.shape)
     # print(INIT_MODEL_INTEREST.shape)
 
-    # plt.imshow(np.asarray(MODEL_RECONSTRUCTED),origin="lower")
-    # plt.colorbar()
-    # plt.show()
-    # sys.exit()
+    plt.imshow(np.asarray(MODEL_RECONSTRUCTED),origin="lower")
+    plt.colorbar()
+    plt.show()
+    sys.exit()
 
     fm_full_image = prep_and_return_fm(target_image=TARGET_IMAGE,
                                        model_init=INIT_MODEL_INTEREST,
