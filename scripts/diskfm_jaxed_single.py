@@ -512,7 +512,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
     position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
     aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
-    print(f"freeform_fm_full.shape -> {freeform_fm_full.shape}")
+    # print(f"freeform_fm_full.shape -> {freeform_fm_full.shape}")
 
     fm_out = do_single_fm(image_params, jax_target_image, psf,
                  aligned_image_data, ref_psfs,
@@ -583,7 +583,7 @@ if __name__ == "__main__":
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/freeform_run_500iters_initdiskmodel.fits")
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/freeform_run_3500iter.fits")
     STARTING_DISK *= WHEREMASK2GENERATEDISK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
