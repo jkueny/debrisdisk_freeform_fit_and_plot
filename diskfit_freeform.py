@@ -622,7 +622,7 @@ if __name__ == "__main__":
     NUM_FREE = MASK_INDICES.shape[0]
 
     # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/freeform_run_500iters_initdiskmodel.fits")
+    STARTING_DISK = fits.getdata("freeform_run_500iters_initdiskmodel.fits")
     STARTING_DISK *= WHEREMASK2GENERATEDISK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
