@@ -530,7 +530,7 @@ def optimize_model(target_image, model_init,
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        if step_idx % 100 == 0:
+        if step_idx % 1000 == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
@@ -622,7 +622,7 @@ if __name__ == "__main__":
     NUM_FREE = MASK_INDICES.shape[0]
 
     # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
-    STARTING_DISK = fits.getdata("freeform_run_500iters_initdiskmodel.fits")
+    STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
     STARTING_DISK *= WHEREMASK2GENERATEDISK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
