@@ -617,8 +617,8 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    # STARTING_DISK = fits.getdata("freeform_run_60500iter.fits")
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
+    STARTING_DISK = fits.getdata("freeform_run_10000iter.fits")
+    # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -631,16 +631,16 @@ if __name__ == "__main__":
     # plt.show()
     # sys.exit()
 
-    COMPARISON_FM = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel_FM.fits")
-    COMPARISON_FM *= MASK
+    # COMPARISON_FM = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel_FM.fits")
+    # COMPARISON_FM *= MASK
     fm_full_image = prep_and_return_fm(target_image=TARGET_IMAGE,
                                        model_init=INIT_MODEL_INTEREST,
                                        psf=JAX_PSF, basis_data=fm_dict
                                 )
     
-    # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
-    # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
-    residuals = np.asarray(COMPARISON_FM - (fm_full_image * MASK))
+    residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    # residuals = np.asarray((fm_full_image * MASK) - TARGET_IMAGE)
+    # residuals = np.asarray(COMPARISON_FM - (fm_full_image * MASK))
     vmin_relax = np.nanmin(np.asarray(REDUCED_DATA)) * 0.3
     vmax_relax = np.nanmax(np.asarray(REDUCED_DATA)) * 0.3
     starting_convolved = convolve_model(INIT_MODEL, JAX_PSF)
@@ -669,8 +669,8 @@ if __name__ == "__main__":
     plt.colorbar(cax10)
     ax[1,0].axis("off")
 
-    # cax11 = ax[1,1].imshow(np.asarray(REDUCED_DATA * MASK), cmap='inferno', origin="lower",
-    cax11 = ax[1,1].imshow(np.asarray(COMPARISON_FM), cmap='inferno', origin="lower",
+    cax11 = ax[1,1].imshow(np.asarray(REDUCED_DATA * MASK), cmap='inferno', origin="lower",
+    # cax11 = ax[1,1].imshow(np.asarray(COMPARISON_FM), cmap='inferno', origin="lower",
                            vmin=round(vmin_relax), vmax=round(vmax_relax))
     ax[1,1].set_title("KLIP Image (Ground Truth)")
     plt.colorbar(cax11)

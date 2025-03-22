@@ -653,8 +653,8 @@ if __name__ == "__main__":
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
-    # STARTING_DISK = fits.getdata("freeform_run_10500iter.fits") #start from the last run
+    # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
+    STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
