@@ -268,7 +268,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
     mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
 
-    # jax.debug.print("print(mse) -> {x}", x=mse)
+    jax.debug.print("print(mse) -> {x}", x=mse)
 
     return mse
 
@@ -503,7 +503,7 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, model_init,
-                   psf, basis_data, total_pixels, num_steps=10000, lr=0.1):
+                   psf, basis_data, total_pixels, num_steps=5, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
@@ -543,7 +543,7 @@ def optimize_model(target_image, model_init,
 
     time_now = time.time()
     # jax.profiler.start_trace("/tmp/tensorboard")
-    # jax.config.update("jax_debug_nans", True)
+    jax.config.update("jax_debug_nans", True)
 
     @jax.jit
     def step(image_params, opt_state):
