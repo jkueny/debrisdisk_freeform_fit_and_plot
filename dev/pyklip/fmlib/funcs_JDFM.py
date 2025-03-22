@@ -21,8 +21,9 @@ def mass_derotation(flat_postklip_psfs, PAs, total_pixels, section_inds):
                                                                    section_inds)
     # print(f"postklip_psf_images.shape -> {postklip_psf_images.shape}")
     derotated_postklip_psfs = jax.vmap(rotate_image)(postklip_psf_images,
-                                                     PAs)
-    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=1)
+                                                     -PAs)
+    # not sure how we get to needing to flip both axes... TODO investigate
+    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=(1,2))
     return corrected_postklip_psfs
 
 
@@ -106,7 +107,8 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models):
     # Rotate each copy by its corresponding global PA.
     global_rot = jax.vmap(rotate_image)(global_disks, PAs)
 
-    global_rot_flipx = jnp.flip(global_rot, axis=2)
+    # global_rot_flipx = jnp.flip(global_rot, axis=2)
+    global_rot_flipx = global_rot
     # Helper: apply section indices.
     def apply_section(img, inds):
         return img[inds].reshape(inds.shape[1])
@@ -245,7 +247,7 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
     max_basis = original_KL.shape[0]
     N_ref = refs.shape[0]
-    eps = 1e-6
+    # eps = 1e-6
     # N_pix = original_KL.shape[1]
 
     refs_mean_sub = refs - jnp.mean(refs, axis=1, keepdims=True)
@@ -259,15 +261,15 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
 
     evals_tiled = jnp.tile(evals,(max_basis,1))
-    evals_nan_diag = jnp.fill_diagonal(evals_tiled, 1., inplace=False)
+    evals_nan_diag = jnp.fill_diagonal(evals_tiled, jnp.nan, inplace=False)
     # print(evals_tiled)
     # sys.exit()
-    evals_sqrt = jnp.sqrt(evals) + eps
+    evals_sqrt = jnp.sqrt(evals) #+ eps
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
-    beta_tmp = 1./((evals_nan_diag.transpose()- evals_nan_diag) + eps)
+    beta_tmp = 1./((evals_nan_diag.transpose()- evals_nan_diag))# + eps)
     #print(evals)
-    beta_tmp = beta_tmp.at[np.diag_indices(np.size(evals))].set(-0.5/evals)
+    beta_tmp_diag_replaced = beta_tmp.at[jnp.diag_indices(jnp.size(evals))].set(-0.5/evals)
     beta = evals_ratio*beta_tmp #no NaNs confirmed JKK 03/18/2025
 
     C_partial = models_mean_sub.dot(refs_mean_sub.transpose())
@@ -331,7 +333,8 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
     postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,
                                       sci_data, model_disk_sci)
 
-    postklip_psf_corrected = jnp.flip(postklip_psf, axis=1)
+    # postklip_psf_corrected = jnp.flip(postklip_psf, axis=1)
+    postklip_psf_corrected = postklip_psf
     # Save the rotated section.
     # derotated_output = rotate_image(postklip_psf_corrected,
     #                                 -parang,

@@ -392,7 +392,7 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
 ####
 
 def mass_derotation(flat_postklip_psfs, PAs, image_dim, section_inds):
-    print(f"image_dim -> {image_dim}")
+    # print(f"image_dim -> {image_dim}")
     squeezed_postklip_psfs = jnp.squeeze(flat_postklip_psfs)
     postklip_psf_images = jax.vmap(insert_section_into_full_image,
                                    in_axes=(0, None, None))(squeezed_postklip_psfs,
@@ -400,8 +400,9 @@ def mass_derotation(flat_postklip_psfs, PAs, image_dim, section_inds):
                                                                    section_inds)
     print(f"postklip_psf_images.shape -> {postklip_psf_images.shape}")
     derotated_postklip_psfs = jax.vmap(rotate_image)(postklip_psf_images,
-                                                     PAs)
-    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=1)
+                                                     -PAs)
+    corrected_postklip_psfs = jnp.flip(derotated_postklip_psfs, axis=(1,2))
+    # corrected_postklip_psfs = derotated_postklip_psfs
     return corrected_postklip_psfs
 
 def initialize_freeform_model_reduced():
@@ -616,7 +617,8 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    STARTING_DISK = fits.getdata("freeform_run_10500iter.fits")
+    # STARTING_DISK = fits.getdata("freeform_run_60500iter.fits")
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -629,12 +631,16 @@ if __name__ == "__main__":
     # plt.show()
     # sys.exit()
 
+    COMPARISON_FM = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel_FM.fits")
+    COMPARISON_FM *= MASK
     fm_full_image = prep_and_return_fm(target_image=TARGET_IMAGE,
                                        model_init=INIT_MODEL_INTEREST,
                                        psf=JAX_PSF, basis_data=fm_dict
                                 )
     
-    residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    residuals = np.asarray(COMPARISON_FM - (fm_full_image * MASK))
     vmin_relax = np.nanmin(np.asarray(REDUCED_DATA)) * 0.3
     vmax_relax = np.nanmax(np.asarray(REDUCED_DATA)) * 0.3
     starting_convolved = convolve_model(INIT_MODEL, JAX_PSF)
@@ -652,7 +658,8 @@ if __name__ == "__main__":
     plt.colorbar(cax01)
     ax[0,1].axis("off")
 
-    cax02 = ax[0,2].imshow(np.asarray(residuals), cmap='magma', origin="lower")
+    cax02 = ax[0,2].imshow(np.asarray(residuals), cmap='magma', origin="lower",
+                            vmin=round(vmin_relax), vmax=round(vmax_relax))
     ax[0,2].set_title("Residuals")
     plt.colorbar(cax02)
     ax[0,2].axis("off")
@@ -662,7 +669,8 @@ if __name__ == "__main__":
     plt.colorbar(cax10)
     ax[1,0].axis("off")
 
-    cax11 = ax[1,1].imshow(np.asarray(REDUCED_DATA * MASK), cmap='inferno', origin="lower",
+    # cax11 = ax[1,1].imshow(np.asarray(REDUCED_DATA * MASK), cmap='inferno', origin="lower",
+    cax11 = ax[1,1].imshow(np.asarray(COMPARISON_FM), cmap='inferno', origin="lower",
                            vmin=round(vmin_relax), vmax=round(vmax_relax))
     ax[1,1].set_title("KLIP Image (Ground Truth)")
     plt.colorbar(cax11)
