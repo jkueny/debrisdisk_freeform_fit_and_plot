@@ -663,10 +663,10 @@ if __name__ == "__main__":
     TARGET_MODEL_INTEREST = TARGET_IMAGE_FLAT[MASK_INDICES]
     # print(INIT_MODEL_INTEREST.shape)
 
-    plt.imshow(STARTING_DISK,origin="lower")
-    plt.colorbar()
-    plt.show()
-    sys.exit()
+    # plt.imshow(STARTING_DISK,origin="lower")
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=TARGET_MODEL_INTEREST,
                                                    model_init=INIT_MODEL_INTEREST,
                                                    psf=JAX_PSF, basis_data=fm_dict,
