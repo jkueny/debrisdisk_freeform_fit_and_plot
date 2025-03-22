@@ -81,12 +81,12 @@ def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
         center = (H / 2, W / 2)
     
     # Create coordinate grid
-    y, x = jnp.indices((H, W))
+    y, x = np.indices((H, W))
     # Compute the radial distance from the center for each pixel.
     # Note: center is given as (row, col) and x corresponds to column indices.
-    r = jnp.sqrt((x - center[1])**2 + (y - center[0])**2)
+    r = np.sqrt((x - center[1])**2 + (y - center[0])**2)
     # Create the binary mask: 1 inside the annulus, 0 elsewhere.
-    mask = jnp.where((r >= inner_radius) & (r <= outer_radius), 1, 0)
+    mask = np.where((r >= inner_radius) & (r <= outer_radius), 1, 0)
     return mask
 
 #### JDFM funcs section for debugging ####
@@ -606,43 +606,73 @@ if __name__ == "__main__":
                                             FILE_PREFIX + '-klipped-KLmodes-all.fits'))[0]
 
     # mask the disk image
-    TARGET_IMAGE = REDUCED_DATA * WHEREMASK2GENERATEDISK# * 1e4
     # print(INIT_MODEL_FLAT.shape)
 
-    disk_mask = jnp.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    disk_mask = np.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
     annular_mask = make_annular_mask(disk_mask.shape, 10, 112)
     MASK = disk_mask * annular_mask
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
+    TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
+
     STARTING_DISK = fits.getdata("freeform_run_10500iter.fits")
-    STARTING_DISK *= WHEREMASK2GENERATEDISK
+    STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
     INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
     MODEL_RECONSTRUCTED = reconstruct_full_image(INIT_MODEL_INTEREST, TARGET_IMAGE.shape)
     # print(INIT_MODEL_INTEREST.shape)
 
-    plt.imshow(np.asarray(MODEL_RECONSTRUCTED),origin="lower")
-    plt.colorbar()
-    plt.show()
-    sys.exit()
+    # plt.imshow(np.asarray(MODEL_RECONSTRUCTED),origin="lower")
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit()
 
     fm_full_image = prep_and_return_fm(target_image=TARGET_IMAGE,
                                        model_init=INIT_MODEL_INTEREST,
                                        psf=JAX_PSF, basis_data=fm_dict
                                 )
+    
+    residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    vmin_relax = np.nanmin(np.asarray(REDUCED_DATA)) * 0.3
+    vmax_relax = np.nanmax(np.asarray(REDUCED_DATA)) * 0.3
+    starting_convolved = convolve_model(INIT_MODEL, JAX_PSF)
     # fm_full_image = reconstruct_full_image(fm_init, TARGET_IMAGE.shape)
     # --- Visualization ---
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    fig, ax = plt.subplots(2, 3, figsize=(12, 6))
 
-    ax[0].imshow(np.asarray(TARGET_IMAGE), cmap='inferno', origin="lower")
-    ax[0].set_title("Target Image (Ground Truth)")
-    ax[0].axis("off")
+    cax00 = ax[0,0].imshow(np.asarray(STARTING_DISK), cmap='viridis', origin="lower")
+    ax[0,0].set_title("Otimized Freeform Model")
+    plt.colorbar(cax00)
+    ax[0,0].axis("off")
 
-    ax[1].imshow(np.array(fm_full_image), cmap='inferno', origin="lower")
-    ax[1].set_title("Optimized Freeform Model")
-    ax[1].axis("off")
+    cax01 = ax[0,1].imshow(np.asarray(fm_full_image * MASK), cmap='inferno', origin="lower")
+    ax[0,1].set_title("Freeform FM")
+    plt.colorbar(cax01)
+    ax[0,1].axis("off")
 
+    cax02 = ax[0,2].imshow(np.asarray(residuals), cmap='magma', origin="lower")
+    ax[0,2].set_title("Residuals")
+    plt.colorbar(cax02)
+    ax[0,2].axis("off")
 
+    cax10 = ax[1,0].imshow(np.asarray(starting_convolved), cmap='viridis', origin="lower")
+    ax[1,0].set_title("Freeform Model Convolved")
+    plt.colorbar(cax10)
+    ax[1,0].axis("off")
+
+    cax11 = ax[1,1].imshow(np.asarray(REDUCED_DATA * MASK), cmap='inferno', origin="lower",
+                           vmin=round(vmin_relax), vmax=round(vmax_relax))
+    ax[1,1].set_title("KLIP Image (Ground Truth)")
+    plt.colorbar(cax11)
+    ax[1,1].axis("off")
+
+    cax12 = ax[1,2].imshow(np.array(residuals), cmap='magma', origin="lower",
+                           vmin=round(vmin_relax * 0.5), vmax=round(vmax_relax * 0.5))
+    ax[1,2].set_title("Residuals (duplicate)")
+    plt.colorbar(cax12)
+    ax[1,2].axis("off")
+
+    plt.tight_layout()
     plt.show()

@@ -673,7 +673,7 @@ if __name__ == "__main__":
                                                    total_pixels=TOTAL_PIXELS
                                                    )
     optimized_model_image = reconstruct_full_image(optimized_model, TOTAL_PIXELS)
-    fits.writeto("freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
+    fits.writeto("freeform_run_10500iter.fits", np.asarray(optimized_model_image), overwrite=True)
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
