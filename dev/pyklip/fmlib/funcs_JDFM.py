@@ -1,15 +1,12 @@
 """Make the DiskFM procedure purely functional for JAX.
 """
-import sys
 import numpy as np
 import jax
 import jax.numpy as jnp
 from jax.scipy.ndimage import map_coordinates
 import jax.lax as lax
-from functools import partial
 
 from dev.pyklip.j_klip import rotate_image
-from utils.klip_basis import build_batched_ref_images
 
 def mass_derotation(flat_postklip_psfs, PAs, total_pixels, section_inds):
     # print(f"image_dim -> {image_dim}")
@@ -146,7 +143,7 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
     the triangular matrix.
 
     Calculate what the PSF looks up post-KLIP using knowledge of the input PSF, assumed spectrum of the science target,
-    and the partially calculated KL modes (\Delta Z_k^\lambda in Laurent's paper). If inputflux is None,
+    and the partially calculated KL modes (Delta Z_k^\lambda in Laurent's paper). If inputflux is None,
     the spectral dependence has already been folded into delta_KL_nospec (treat it as delta_KL).
 
     Note: if inputflux is None and delta_KL_nospec has three dimensions (ie delta_KL_nospec was calculated using

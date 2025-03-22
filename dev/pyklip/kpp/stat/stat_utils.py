@@ -466,7 +466,7 @@ def get_cdf_model(data,interupt_plot = False,pure_gauss=False):
     """
     Calculate a model CDF for some data.
 
-    /!\ This function is for some reason still a work in progress. JB could never decide what the best option was.
+    / ! \ This function is for some reason still a work in progress. JB could never decide what the best option was.
     But it should work even if the code is a mess.
 
     Args:
@@ -489,7 +489,7 @@ def get_pdf_model(data,interupt_plot = False,pure_gauss = False):
     """
     Calculate a model PDF for some data.
 
-    /!\ This function is for some reason still a work in progress. JB could never decide what the best option was.
+    / ! \ This function is for some reason still a work in progress. JB could never decide what the best option was.
     But it should work even if the code is a mess.
 
     Args:
