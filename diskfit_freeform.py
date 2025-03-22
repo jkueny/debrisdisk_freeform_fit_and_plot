@@ -654,7 +654,7 @@ if __name__ == "__main__":
     NUM_FREE = MASK_INDICES.shape[0]
 
     # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
-    STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
+    STARTING_DISK = fits.getdata("freeform_run_10500iter.fits") #start from the last run
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -673,7 +673,7 @@ if __name__ == "__main__":
                                                    total_pixels=TOTAL_PIXELS
                                                    )
     optimized_model_image = reconstruct_full_image(optimized_model, TOTAL_PIXELS)
-    fits.writeto("freeform_run_10500iter.fits", np.asarray(optimized_model_image), overwrite=True)
+    fits.writeto("freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
