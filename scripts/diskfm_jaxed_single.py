@@ -618,8 +618,8 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    # STARTING_DISK = fits.getdata("freeform_run_50000iter.fits")
-    STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
+    STARTING_DISK = fits.getdata("freeform_run_10kiter.fits")
+    # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -639,7 +639,7 @@ if __name__ == "__main__":
                                        psf=JAX_PSF, basis_data=fm_dict
                                 )
     
-    fm_rolled = jnp.roll(fm_full_image, 1, (0,1))
+    fm_rolled = jnp.roll(fm_full_image, -1, (0,1))
     # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
     residuals = np.asarray(TARGET_IMAGE - (fm_rolled * MASK))
     # residuals = np.asarray((fm_full_image * MASK) - TARGET_IMAGE)
