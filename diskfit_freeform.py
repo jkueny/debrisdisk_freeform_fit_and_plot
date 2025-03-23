@@ -503,7 +503,7 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, model_init,
-                   psf, basis_data, total_pixels, num_steps=40000, lr=0.1):
+                   psf, basis_data, total_pixels, num_steps=10000, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
@@ -653,8 +653,8 @@ if __name__ == "__main__":
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
-    STARTING_DISK = fits.getdata("freeform_run_10000iter.fits") #start from the last run
+    STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
+    # STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])

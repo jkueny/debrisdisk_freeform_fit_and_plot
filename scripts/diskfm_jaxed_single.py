@@ -505,7 +505,7 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
                            PAs)
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,image_dim,section_inds)
 
-    freeform_fm_full = np.nanmean(derotated_postklip_psfs, axis=0)
+    freeform_fm_full = np.mean(derotated_postklip_psfs, axis=0)
 
 
     return freeform_fm_full
@@ -543,6 +543,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
     position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
     aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
+    # print(aligned_center)
     # print(f"freeform_fm_full.shape -> {freeform_fm_full.shape}")
 
     fm_out = do_single_fm(image_params, jax_target_image, psf,
@@ -617,8 +618,8 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    STARTING_DISK = fits.getdata("freeform_run_10000iter.fits")
-    # STARTING_DISK = fits.getdata("/Users/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib/klip_fm_files/camsci2_z_20230309_10_FirstModel.fits")
+    # STARTING_DISK = fits.getdata("freeform_run_50000iter.fits")
+    STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -638,7 +639,9 @@ if __name__ == "__main__":
                                        psf=JAX_PSF, basis_data=fm_dict
                                 )
     
-    residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    fm_rolled = jnp.roll(fm_full_image, 1, (0,1))
+    # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
+    residuals = np.asarray(TARGET_IMAGE - (fm_rolled * MASK))
     # residuals = np.asarray((fm_full_image * MASK) - TARGET_IMAGE)
     # residuals = np.asarray(COMPARISON_FM - (fm_full_image * MASK))
     vmin_relax = np.nanmin(np.asarray(REDUCED_DATA)) * 0.3
@@ -677,8 +680,8 @@ if __name__ == "__main__":
     ax[1,1].axis("off")
 
     cax12 = ax[1,2].imshow(np.array(residuals), cmap='magma', origin="lower",
-                           vmin=round(vmin_relax * 0.5), vmax=round(vmax_relax * 0.5))
-    ax[1,2].set_title("Residuals (duplicate)")
+                           vmin=round(vmin_relax * 0.25), vmax=round(vmax_relax * 0.25))
+    ax[1,2].set_title("Residuals (hard stretch)")
     plt.colorbar(cax12)
     ax[1,2].axis("off")
 
