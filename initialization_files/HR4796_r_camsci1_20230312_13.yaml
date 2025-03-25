@@ -1,12 +1,12 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: True
+FIRST_TIME: False
 FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 3 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 13 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 7 # pixels
@@ -111,8 +111,8 @@ CONV_FACTOR: 1.112939359925286e-08 # Jy / Ang.
 
 
 # MASKING PARAMETERS
-MASK_IN_SCALING: 4 #bigger means shrink the inner bound
-MASK_OUT_SCALING: 4 #bigger means expand the outer bound
+MASK_IN_SCALING: 5 #bigger means shrink the inner bound
+MASK_OUT_SCALING: 5 #bigger means expand the outer bound
 MASK_SPECKLES: 6 #central circle mask
 MASK_MINOR: 55 #OWA to isolate minor axis
 MASK_DX: 0
