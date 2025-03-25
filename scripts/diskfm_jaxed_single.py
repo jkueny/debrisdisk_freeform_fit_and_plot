@@ -618,7 +618,7 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    STARTING_DISK = fits.getdata("freeform_run_10kiter.fits")
+    STARTING_DISK = fits.getdata("freeform_run_50kiter.fits")
     # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)

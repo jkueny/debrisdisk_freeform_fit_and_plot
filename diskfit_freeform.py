@@ -235,7 +235,8 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     # freeform_model = jax.nn.sigmoid(full_model_image)
 
     # freeform_image = convolve_model(full_model_image, psf)
-    freeform_image = convolve_model_lax(full_model_image, psf)
+    # freeform_image = convolve_model_lax(full_model_image, psf)
+    freeform_image = full_model_image
 
     global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
                                                             PAs=PAs, ref_PAs=ref_PAs,
@@ -503,7 +504,7 @@ def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=Tru
 loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, model_init,
-                   psf, basis_data, total_pixels, num_steps=40000, lr=0.1):
+                   psf, basis_data, total_pixels, num_steps, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
@@ -571,20 +572,27 @@ def optimize_model(target_image, model_init,
     return optimized_model, loss_history
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='run diskFM MCMC')
+    parser = argparse.ArgumentParser(description='run diskierFM autodiff')
     parser.add_argument('-p',
                         '--param_file',
                         required=False,
                         help='parameter file name')
+    parser.add_argument('-i',
+                        '--iterations',
+                        type=int,
+                        required=True,
+                        help='Num. iterations')
     args = parser.parse_args()
     if args.param_file is None: #grab param file if no command line input, JKK
-        str_yalm = f'initialization_files/{default_parameter_file}'
+        str_yaml = f'initialization_files/{default_parameter_file}'
     else:
-        str_yalm = args.param_file
+        str_yaml = args.param_file
+        str_yaml_prefix = str_yaml.split("/")[-1]
+        save_to_dir = str_yaml_prefix.split(".")[0]
 
-    print("Read " + str_yalm + " parameter file")
+    print("Read " + str_yaml + " parameter file")
     # open the parameter file
-    yaml_path_file = os.path.join(os.getcwd(), str_yalm)
+    yaml_path_file = os.path.join(os.getcwd(), str_yaml)
     with open(yaml_path_file, 'r') as yaml_file:
         params_mcmc_yaml = yaml.safe_load(yaml_file)
     # Grab the info from the yaml file
@@ -653,8 +661,8 @@ if __name__ == "__main__":
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
-    STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
+    STARTING_DISK = fits.getdata(f"starting_models/{FILE_PREFIX}_FirstModel.fits")
+    # STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
     INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
@@ -670,10 +678,12 @@ if __name__ == "__main__":
     optimized_model, loss_history = optimize_model(target_image=TARGET_MODEL_INTEREST,
                                                    model_init=INIT_MODEL_INTEREST,
                                                    psf=JAX_PSF, basis_data=fm_dict,
-                                                   total_pixels=TOTAL_PIXELS
+                                                   total_pixels=TOTAL_PIXELS,
+                                                   num_steps=args.iterations,
                                                    )
     optimized_model_image = reconstruct_full_image(optimized_model, TOTAL_PIXELS)
-    fits.writeto("freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
+    os.makedirs(save_to_dir, exist_ok=True)
+    fits.writeto(f"{save_to_dir}/freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
     # --- Visualization ---
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
 
