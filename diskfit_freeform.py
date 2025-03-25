@@ -577,11 +577,16 @@ if __name__ == "__main__":
                         '--param_file',
                         required=False,
                         help='parameter file name')
-    parser.add_argument('-i',
+    parser.add_argument(
                         '--iterations',
                         type=int,
                         required=True,
                         help='Num. iterations')
+    parser.add_argument(
+                        '--initial_model',
+                        type=str,
+                        required=True,
+                        help='Path to starting model fits file')
     args = parser.parse_args()
     if args.param_file is None: #grab param file if no command line input, JKK
         str_yaml = f'initialization_files/{default_parameter_file}'
@@ -661,7 +666,7 @@ if __name__ == "__main__":
     MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
     NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata(f"starting_models/{FILE_PREFIX}_FirstModel.fits")
+    STARTING_DISK = fits.getdata(args.initial_model)
     # STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
