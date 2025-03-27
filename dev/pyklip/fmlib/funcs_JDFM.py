@@ -136,7 +136,7 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models):
 
     return global_rot_section_flat, ref_rotated
 
-@jax.jit
+# @jax.jit
 def calculate_fm(delta_KL, original_KL, sci, model_sci):
     """
     Same function as calculate_fm() but faster when numbasis has only one element. It doesn't do the mutliplication with
@@ -223,7 +223,7 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
 
     return model_sci[None,:] - klipped_oversub - klipped_selfsub, klipped_oversub, klipped_selfsub
 
-@jax.jit
+# @jax.jit
 def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
@@ -279,7 +279,7 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
     return delta_KL
 
-@jax.jit
+# @jax.jit
 def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
                          klmodes, evals, evecs,):
     """ 

@@ -45,17 +45,86 @@ from numba.core.errors import NumbaWarning
 
 # from anadisk_model.anadisk_sum_mask import phase_function_spline, generate_disk
 
-from utils.disk_models import gen_disk_dxdy_1g, fastgen_disk_dxdy_2g, fastgen_disk_dxdy_3g
-from utils.disk_models import mod_gen_disk_dxdy_1g, fastmodgen_disk_dxdy_2g, fastmodgen_disk_dxdy_3g
+from utils.disk_models import fastgen_disk_dxdy_custom, fastmodgen_disk_custom
+
+from utils.spf_models import calculate_hg_spf, \
+                        fit_fourier_to_hg_spf, fit_legendre_to_hg_spf, \
+                        legendre_reconstruction, bessel_reconstruction, \
+                        fit_bessel_to_hg_spf
 
 # from kowalsky import kowalsky
 
 import modelfit_physical_to_freeform
+from modelfit_physical_to_freeform import arr_free_params
 
 # plt.switch_backend('agg')
 
 # There is a conflict when I import
 # matplotlib with pyklip if I don't use this line
+
+def plot_ml_custom_spf(coeffs,scplotrange, scattangs, dcterm, errupper, errlower):
+    scattering_angles = scattangs
+    # print(coeffs)
+    if basis == "bessel":
+        bestfit_coefficients = np.append(np.asarray(dcterm),np.asarray(coeffs))
+        # bestfit_coefficients = coeffs
+        spf = bessel_reconstruction(x_tofit,select_basis,*bestfit_coefficients)
+        # Sampling coefficients
+        n_samples = 5000
+        sampled_coeffs = sample_pd_asymmetric(bestfit_coefficients, errlower, errupper, n_samples)
+        # Generate model curves for all sampled coefficients
+        model_curves = []
+        for scfs in sampled_coeffs:
+            # Compute percentiles for uncertainty bands
+            model_curves.append(bessel_reconstruction(x_tofit, select_basis, *scfs))
+        model_curves = np.asarray(model_curves)
+        err_lower_bound = np.percentile(model_curves, 16, axis=0)
+        median_curve = np.percentile(model_curves, 50, axis=0)
+        err_upper_bound = np.percentile(model_curves, 84, axis=0)
+    elif basis == "legendre":
+        bestfit_coefficients = coeffs
+        spf = legendre_reconstruction(scattering_angles, *bestfit_coefficients)
+        err_upper_bound = legendre_reconstruction(scattering_angles, *errupper)
+        err_lower_bound = legendre_reconstruction(scattering_angles, *errlower)
+    print(f"Best coeffs: {bestfit_coefficients}")
+    print(f"Penalty incurred: {-lambda_reg * np.sum(bestfit_coefficients**2)}")
+    spf_90 = spf[np.argmin(np.abs(scattering_angles - 90))]
+    low_err_90 = err_lower_bound[np.argmin(np.abs(scattering_angles - 90))]
+    upp_err_90 = err_upper_bound[np.argmin(np.abs(scattering_angles - 90))]
+    # spf /= spf_90
+    spf -= (spf_90 - 1)
+    err_lower_bound -= (low_err_90 - 1)
+    err_upper_bound -= (upp_err_90 - 1)
+    angs_of_interest = np.where((scattering_angles < scplotrange[1]) & (scattering_angles > scplotrange[0]))
+    # Visualization
+    plt.figure(figsize=(14, 7))
+    plt.subplot(2, 1, 1)
+    # plt.plot(scattering_angles, spf, 'r-', label='Best fit SPF via Legendre basis')
+    plt.plot(scattering_angles[angs_of_interest], spf[angs_of_interest], 'r-', label=f'Best fit SPF via {basis} basis')
+    plt.fill_between(scattering_angles[angs_of_interest], err_lower_bound[angs_of_interest], err_upper_bound[angs_of_interest],
+                     alpha=0.4, color="red")
+    plt.plot(scattering_angles[angs_of_interest], spf_tofit[angs_of_interest], "b-", label="Best-fit HG SPF")
+    plt.title(f'SPF and Fitted Model, order: {len(coeffs)}')
+    plt.xlabel('Scattering angle [deg]')
+    plt.ylabel('SPF')
+    plt.grid()
+    # plt.yscale('log')
+    plt.legend()
+
+    # Fitted Fourier coefficients
+    plt.subplot(2, 1, 2)
+    # print(coeffs)
+    # coeffs = bestfit_coefficients[1:]  # Exclude the constant term for the coefficient plot
+    plt.bar(range(len(bestfit_coefficients)), np.abs(bestfit_coefficients), 
+            tick_label=[f"{i}" for i in range(len(bestfit_coefficients))])
+    plt.title('Magnitude of Fitted Coefficients')
+    plt.xlabel('Coefficient Index')
+    plt.ylabel('Magnitude')
+
+    plt.tight_layout()
+    plt.grid()
+    plt.savefig(f'{mcmcresultdir}/bestfit_spf_custom.png')
+    plt.close()
 
 
 def chains_to_params(chain, flatten=False):
@@ -124,7 +193,15 @@ def offset_2_RA_dec(dx, dy, inclination, principal_angle, distance_star):
 
 ########################################################
 def make_chain_plot(params_mcmc_yaml):
-    """ make_chain_plot reading the .h5 file from emcee
+    """ make_chain_plot reading the .h5 file from zeus
+
+    It is structured:
+    Group: "mcmc"/
+    Dsets: "accepted", "chain", "log_prob"
+
+    Query chains like:
+
+    chains = hf["mcmc"]["chains"]
 
     Args:
         params_mcmc_yaml: dic, all the parameters of the MCMC and klip
@@ -139,6 +216,7 @@ def make_chain_plot(params_mcmc_yaml):
     quality_plot = params_mcmc_yaml['QUALITY_PLOT']
     labels = params_mcmc_yaml['LABELS']
     names = params_mcmc_yaml['NAMES']
+    disk_model = params_mcmc_yaml["DISK_MODEL"]
 
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
 
@@ -162,18 +240,15 @@ def make_chain_plot(params_mcmc_yaml):
     wheremin0 = np.array(wheremin).flatten()[0]
     theta_ml = chain_flat[wheremin0, :]
     # print(log_prob_samples_flat)
-    # tau = reader.get_autocorr_time(tol=0)
-    tau = autocorr.integrated_time(chain[:,:,:], tol=5)
+    tau = reader.get_autocorr_time(tol=0)
     if burnin > reader.iteration - 1:
         raise ValueError(
             "the burnin cannot be larger than the # of iterations")
     print("")
     print("")
     print(name_h5)
-    print("# of iteration in the backend chain initially: {0}".format(
-        reader.iteration))
-    # print("Max Tau times 50: {0}".format(50 * np.max(tau)))
-    print("Max Tau times 50: {0}".format(50 * np.min(tau)))
+    print(f"# of iteration in the backend chain initially: {reader.iteration}")
+    print("Max Tau times 50: {0}".format(50 * np.max(tau)))
     print("")
 
     print("Maximum Likelyhood: {0}".format(np.nanmax(log_prob_samples_flat)))
@@ -181,32 +256,64 @@ def make_chain_plot(params_mcmc_yaml):
     print("burn-in: {0}".format(burnin))
     print("chain shape: {0}".format(chain.shape))
 
-    print('Best-fit model params...')
-    for i in range(len(theta_ml)):
-        if names[i] == 'R1':
-            print(f'R1: {np.exp(theta_ml[i])}')
-        elif names[i] == 'R2':
-            print(f'R2: {np.exp(theta_ml[i])}')
-        elif names[i] == 'Norm':
-            print(f'Norm: {np.exp(theta_ml[i])}')
-        else:
-            print(f'{names[i]}: {theta_ml[i]}')
-
     n_dim_mcmc = chain.shape[2]
     nwalkers = chain.shape[1]
 
+    if basis == "legendre" or basis == "bessel":
+        n_dim_geo = int(len(free_params))
+        _, axspf = plt.subplots(n_dim_mcmc - n_dim_geo,
+                        sharex=True,
+                        figsize=(6.4 * quality_plot, 4.8 * quality_plot))
+        coeff_idx = 1
+        for i in range(n_dim_geo, n_dim_mcmc):
+                # print(i)
+                axspf[i - n_dim_geo].axvline(x=burnin, color='black', linewidth=1.5 * quality_plot)
+                axspf[i - n_dim_geo].tick_params(axis='y', labelsize=4 * quality_plot)
+                axspf[i - n_dim_geo].set_ylabel(f'a{coeff_idx}', fontsize=5 * quality_plot)
+
+                for j in range(nwalkers):
+                    axspf[i - n_dim_geo].plot(np.abs(chain[:, j, i]), linewidth=quality_plot)
+                coeff_idx += 1
+
+        axspf[n_dim_mcmc - n_dim_geo - 1].tick_params(axis='x', labelsize=6 * quality_plot)
+        axspf[n_dim_mcmc - n_dim_geo - 1].set_xlabel('Iterations', fontsize=10 * quality_plot)
+
+        plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_chains_coeffs.jpg'))
+        plt.close()
+    if disk_model == "original":
+        for i in range(n_dim_geo):
+            if names[i] == 'R1':
+                print(f'R1: {np.exp(theta_ml[i])}')
+            elif names[i] == 'R2':
+                print(f'R2: {np.exp(theta_ml[i])}')
+            elif names[i] == 'Norm':
+                print(f'Norm: {np.exp(theta_ml[i])}')
+            elif names[i] == 'rscale':
+                print(f'rscale: {np.exp(theta_ml[i])}')
+            else:
+                print(f'{names[i]}: {theta_ml[i]}')
+    elif disk_model == "modified":
+        for i in range(n_dim_geo):
+            if names[i] == 'RC':
+                print(f'RC: {np.exp(theta_ml[i])}')
+            elif names[i] == 'Norm':
+                print(f'Norm: {np.exp(theta_ml[i])}')
+            elif names[i] == 'rscale':
+                print(f'rscale: {np.exp(theta_ml[i])}')
+            else:
+                print(f'{names[i]}: {theta_ml[i]}')
+    print("From make_chain_plot(), theta_ml...")
+    print(theta_ml)
+
+
     modelfit_physical_to_freeform.SPF_MODEL = params_mcmc_yaml[
         'SPF_MODEL']  #Type of description for the SPF
-    modelfit_physical_to_freeform.DISK_MODEL = params_mcmc_yaml[
-        'DISK_MODEL']  #Type of description for the SPF
-
     chain = chains_to_params(chain)
 
-    _, axarr = plt.subplots(n_dim_mcmc,
+    _, axarr = plt.subplots(n_dim_geo,
                             sharex=True,
                             figsize=(6.4 * quality_plot, 4.8 * quality_plot))
-
-    for i in range(n_dim_mcmc):
+    for i in range(n_dim_geo):
         axarr[i].set_ylabel(labels[names[i]], fontsize=5 * quality_plot)
         axarr[i].tick_params(axis='y', labelsize=4 * quality_plot)
 
@@ -215,11 +322,30 @@ def make_chain_plot(params_mcmc_yaml):
 
         axarr[i].axvline(x=burnin, color='black', linewidth=1.5 * quality_plot)
 
-    axarr[n_dim_mcmc - 1].tick_params(axis='x', labelsize=6 * quality_plot)
-    axarr[n_dim_mcmc - 1].set_xlabel('Iterations', fontsize=10 * quality_plot)
+    axarr[n_dim_geo - 1].tick_params(axis='x', labelsize=6 * quality_plot)
+    axarr[n_dim_geo - 1].set_xlabel('Iterations', fontsize=10 * quality_plot)
 
     plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_chains.jpg'))
     plt.close()
+
+def sample_pd_asymmetric(coeffs, lower_sigma, upper_sigma, nsamples):
+    samples = []
+    for coeff, lower, upper in zip(coeffs, lower_sigma, upper_sigma):
+        # Determine sign of the coefficient
+        sign = np.sign(coeff)
+        abs_coeff = abs(coeff)
+        abs_lower = np.abs(lower)
+        abs_upper = np.abs(upper)
+        
+        # Generate samples for the absolute value
+        sample = np.random.normal(abs_coeff, abs_lower, nsamples)  # Default lower spread
+        mask = np.random.rand(nsamples) > 0.5  # Flip a coin
+        sample[mask] = np.random.normal(abs_coeff, abs_upper, np.sum(mask))  # Replace with upper spread
+        
+        # Restore the sign
+        sample *= sign
+        samples.append(sample)
+    return np.array(samples, dtype=float).T
 
 
 ########################################################
@@ -249,15 +375,16 @@ def make_corner_plot(params_mcmc_yaml):
     band_name = params_mcmc_yaml['BAND_NAME']
     modelfit_physical_to_freeform.SPF_MODEL = params_mcmc_yaml[
         'SPF_MODEL']  #Type of description for the SPF
-    modelfit_physical_to_freeform.DISK_MODEL = params_mcmc_yaml[
-        'DISK_MODEL']  #Type of description for the SPF
 
     reader = backends.HDFBackend(os.path.join(mcmcresultdir, name_h5 + '.h5'))
 
     chain = reader.get_chain(discard=burnin, thin=thin)
     chain_flat = chains_to_params(chain, flatten=True)
     n_dim_mcmc = chain_flat.shape[1]
-
+    if spf_model == "adp":
+        n_dim_geo = int(len(free_params)) + 1
+    else:
+        n_dim_geo = int(len(free_params))
     for j in range(n_dim_mcmc):
         chain4thatparam = chain_flat[:, j]
         wherenotnan = np.where(~np.isnan(chain4thatparam))
@@ -286,77 +413,15 @@ def make_corner_plot(params_mcmc_yaml):
 
     #### Check truths = bests parameters
 
-    if 'Fake' in file_prefix:
-        shouldweplotalldatapoints = True
-    else:
-        shouldweplotalldatapoints = False
+    shouldweplotalldatapoints = False
 
-    labels_hash = [labels[names[i]] for i in range(n_dim_mcmc)]
-    fig = corner.corner(chain_flat,
+    labels_hash = [labels[names[i]] for i in range(n_dim_geo)]
+    fig = corner.corner(chain_flat[:,:n_dim_geo],
                         labels=labels_hash,
                         quantiles=quants,
                         show_titles=True,
                         plot_datapoints=shouldweplotalldatapoints,
                         verbose=False)
-
-    if 'Fake' in file_prefix:
-        initial_values = [
-            params_mcmc_yaml['r1_init'], params_mcmc_yaml['r2_init'],
-            params_mcmc_yaml['beta_init'], params_mcmc_yaml['inc_init'],
-            params_mcmc_yaml['pa_init'], params_mcmc_yaml['dx_init'],
-            params_mcmc_yaml['dy_init'], params_mcmc_yaml['N_init'],
-            params_mcmc_yaml['g1_init'], params_mcmc_yaml['g2_init'],
-            params_mcmc_yaml['alpha1_init']
-        ]
-        # initial_values = [
-        #     params_mcmc_yaml['r1_init'], params_mcmc_yaml['r2_init'],
-        #     params_mcmc_yaml['beta_init'], params_mcmc_yaml['beta_out_init'],
-        #     params_mcmc_yaml['inc_init'],
-        #     params_mcmc_yaml['pa_init'], params_mcmc_yaml['dx_init'],
-        #     params_mcmc_yaml['dy_init'], params_mcmc_yaml['N_init']
-        # ]
-
-        green_line = mlines.Line2D([], [],
-                                   color='red',
-                                   label='True injected values')
-        plt.legend(handles=[green_line],
-                   loc='center right',
-                   bbox_to_anchor=(0.5, 8),
-                   fontsize=30)
-
-        # log_prob_samples_flat = reader.get_log_prob(discard=burnin,
-        #                                             flat=True,
-        #                                             thin=thin)
-        # wheremin = np.where(
-        #     log_prob_samples_flat == np.max(log_prob_samples_flat))
-        # wheremin0 = np.array(wheremin).flatten()[0]
-
-        # red_line = mlines.Line2D([], [],
-        #                         color='red',
-        #                         label='Maximum likelyhood values')
-        # plt.legend(handles=[green_line, red_line],
-        #         loc='upper right',
-        #         bbox_to_anchor=(-1, 10),
-        #         fontsize=30)
-
-        # Extract the axes
-        axes = np.array(fig.axes).reshape((n_dim_mcmc, n_dim_mcmc))
-
-        # Loop over the diagonal
-        for i in range(n_dim_mcmc):
-            ax = axes[i, i]
-            ax.axvline(initial_values[i], color="r")
-            # ax.axvline(samples[wheremin0, i], color="r")
-
-        # Loop over the histograms
-        for yi in range(n_dim_mcmc):
-            for xi in range(yi):
-                ax = axes[yi, xi]
-                ax.axvline(initial_values[xi], color="r")
-                ax.axhline(initial_values[yi], color="r")
-
-                # ax.axvline(samples[wheremin0, xi], color="r")
-                # ax.axhline(samples[wheremin0, yi], color="r")
 
     fig.subplots_adjust(hspace=0)
     fig.subplots_adjust(wspace=0)
@@ -392,6 +457,50 @@ def make_corner_plot(params_mcmc_yaml):
 
     plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_pdfs.pdf'))
     plt.close()
+
+    if basis == "bessel" or basis == "legendre":
+        labels_coeffs = [f'a{j}' for j in range(1,n_dim_mcmc - n_dim_geo + 1)]
+        fig_spf = corner.corner(chain_flat[:,n_dim_geo:n_dim_mcmc],
+                            labels=labels_coeffs,
+                            quantiles=quants,
+                            show_titles=True,
+                            plot_datapoints=shouldweplotalldatapoints,
+                            verbose=False)
+    
+        fig_spf.subplots_adjust(hspace=0)
+        fig_spf.subplots_adjust(wspace=0)
+
+        fig_spf.gca().annotate(band_name,
+                        xy=(0.55, 0.99),
+                        xycoords="figure fraction",
+                        xytext=(-20, -10),
+                        textcoords="offset points",
+                        ha="center",
+                        va="top",
+                        fontsize=44)
+
+        fig_spf.gca().annotate("{0:,} iterations (+ {1:,} burn-in)".format(
+            reader.iteration - burnin, burnin),
+                        xy=(0.55, 0.95),
+                        xycoords="figure fraction",
+                        xytext=(-20, -10),
+                        textcoords="offset points",
+                        ha="center",
+                        va="top",
+                        fontsize=44)
+
+        fig_spf.gca().annotate("with {0:,} walkers: {1:,} models".format(
+            nwalkers, reader.iteration * nwalkers),
+                        xy=(0.55, 0.91),
+                        xycoords="figure fraction",
+                        xytext=(-20, -10),
+                        textcoords="offset points",
+                        ha="center",
+                        va="top",
+                        fontsize=44)
+
+        plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_pdfs_coeffs.pdf'))
+        plt.close()
 
 
 ########################################################
@@ -575,7 +684,7 @@ def create_header(params_mcmc_yaml):
 
 
 ########################################################
-def best_model_plot(params_mcmc_yaml, hdr, ff_image, savedir):
+def best_model_plot(params_mcmc_yaml, ff_image):
     """ Make the best models plot and save fits of
         BestModel
         BestModel_Conv
@@ -590,16 +699,15 @@ def best_model_plot(params_mcmc_yaml, hdr, ff_image, savedir):
     Returns:
         None
     """
-
+    # mcmcresultdir = save_to
     # I am going to plot the model, I need to define some of the
     # global variables to do so
 
     # global ALIGNED_CENTER, PIXSCALE_INS, DISTANCE_STAR, WHEREMASK2GENERATEDISK, DIMENSION, SPF_MODEL
-
-    datadir = str_yaml
-    mcmcresultdir = f"{savedir}/results_MCMC"
+    freeform_image = fits.getdata(ff_image)
+    pixscale = params_mcmc_yaml['PIXSCALE_INS']
     modelfit_physical_to_freeform.DISTANCE_STAR = params_mcmc_yaml['DISTANCE_STAR']
-    modelfit_physical_to_freeform.PIXSCALE_INS = params_mcmc_yaml['PIXSCALE_INS']
+    modelfit_physical_to_freeform.PIXSCALE_INS = pixscale
 
     quality_plot = params_mcmc_yaml['QUALITY_PLOT']
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
@@ -607,17 +715,57 @@ def best_model_plot(params_mcmc_yaml, hdr, ff_image, savedir):
     name_h5 = file_prefix + '_backend_file_mcmc'
 
     numbasis = [params_mcmc_yaml['KLMODE_NUMBER']]
+    sm_scatt_ang = params_mcmc_yaml['DISK_MIN_SC_ANG']
+    lg_scatt_ang = params_mcmc_yaml['DISK_MAX_SC_ANG']
+    noise_scaling = params_mcmc_yaml['NOISE_MULTIPLICATION_FACTOR']
+    sigma = params_mcmc_yaml['sigma']
+    counts_to_Jy = params_mcmc_yaml["CONV_FACTOR"]
+    conv_factor_SB = counts_to_Jy * 1e3 / pixscale**2
 
     modelfit_physical_to_freeform.ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
     modelfit_physical_to_freeform.SPF_MODEL = params_mcmc_yaml[
         'SPF_MODEL']  #Type of description for the SPF
-    modelfit_physical_to_freeform.DISK_MODEL = params_mcmc_yaml[
-        'DISK_MODEL']  #Type of description for the SPF
 
     thin = params_mcmc_yaml['THIN']
     burnin = params_mcmc_yaml['BURNIN']
+    aligned_center = params_mcmc_yaml['ALIGNED_CENTER']
+    iwa = params_mcmc_yaml['IWA']
+    distance_star = params_mcmc_yaml["DISTANCE_STAR"]
+
+    dimension = round(aligned_center[0]) * 2
+
+    max_fov = dimension / 2. * pixscale  #maximum radial distance in AU from the center to the edge
+    n_pts = int(np.floor(dimension / 1))
+    xsize = max_fov * distance_star  #maximum radial distance in AU from the center to the edge
+
+    # print(f'max_fov: {max_fov}; xsize: {xsize}')
+
+    #The coordinate system here [x,y,z] is defined :
+    # +ve x is the line of sight
+    # +ve y is going right from the center
+    # +ve z is going up from the center
+
+    # y = np.linspace(0,xsize,num=npts/2)
+    y = np.linspace(-xsize, xsize, num=n_pts)
+    z = np.linspace(-xsize, xsize, num=n_pts)
+
+    modelfit_physical_to_freeform.Y_MODEL = y
+    modelfit_physical_to_freeform.Z_MODEL = z
+    modelfit_physical_to_freeform.n_pts = n_pts
+
+    # Read in the HG SPF params for comparison plots later
+    g1 = params_mcmc_yaml["g1_init"]
+    g2 = params_mcmc_yaml["g2_init"]
+    alpha1 = params_mcmc_yaml["alpha1_init"]
+    g3 = params_mcmc_yaml["g3_init"]
+    alpha2 = params_mcmc_yaml["alpha2_init"]
+
+    # Read in the current realistic SPF file for comparison later
+    phasefunction_file = f"{basedir}/{params_mcmc_yaml['SPF_FILE']}/phase_function.txt"
+    plaw_aexp = params_mcmc_yaml["aexp_init"]
 
     reader = backends.HDFBackend(os.path.join(mcmcresultdir, name_h5 + '.h5'))
+    chain = reader.get_chain(discard=0)
     chain_flat = reader.get_chain(discard=burnin, thin=thin, flat=True)
     log_prob_samples_flat = reader.get_log_prob(discard=burnin,
                                                 flat=True,
@@ -626,43 +774,82 @@ def best_model_plot(params_mcmc_yaml, hdr, ff_image, savedir):
     wheremin = np.where(
         log_prob_samples_flat == np.nanmax(log_prob_samples_flat))
     wheremin0 = np.array(wheremin).flatten()[0]
-    theta_ml = chain_flat[wheremin0, :]
+    n_dim_mcmc = chain.shape[2]
+    n_dim_geo = int(len(free_params))
+    params_ml = chain_flat[wheremin0, :]
+    # theta_ml = params_ml[]
 
-    # print(theta_ml)
+    # dc_offset = coeffs_init[0]
+    # plot_ml_spf(dc_offset,coeffs_ml,(sm_scatt_ang,lg_scatt_ang))
+    if basis == "legendre" or basis == "bessel":
+        if sigma == 1:
+            quants = (0.159, 0.841)
+        if sigma == 2:
+            quants = (0.023, 0.977)
+        if sigma == 3:
+            quants = (0.001, 0.999)
+        coeffs_ml = params_ml[n_dim_geo:]
+        # dc_offset = coeffs_ml[0]
+        dc_offset = dc
+        upper_coeffs_errs = []
+        lower_coeffs_errs = []
+        for i in range(len(coeffs_ml)):
+            errs_on_coeffs = corner.quantile(chain_flat[:,n_dim_geo + i],
+                                             quants)
+            lower_coeffs_errs.append(errs_on_coeffs[0])
+            upper_coeffs_errs.append(errs_on_coeffs[1])
+        print(f"Upper coeff error: {upper_coeffs_errs}")
+        print(f"Lower coeff error: {lower_coeffs_errs}")
+        np.save(f"{mcmcresultdir}/coeffs_ml",
+                np.asarray(coeffs_ml))
+        np.save(f"{mcmcresultdir}/upper_err_coeffs_ml",
+                np.asarray(upper_coeffs_errs))
+        np.save(f"{mcmcresultdir}/lower_err_coeffs_ml",
+                np.asarray(lower_coeffs_errs))
+        plot_ml_custom_spf(coeffs_ml,
+                           (sm_scatt_ang,lg_scatt_ang),
+                           sc_angs,
+                           dc_offset,
+                           errupper=upper_coeffs_errs,
+                           errlower=lower_coeffs_errs)
+        modelfit_physical_to_freeform.COEFFS_INIT = coeffs_init_all
+        # plot_all_ml_spfs(g1=g1, g2=g2, alpha1=alpha1,
+        #                  coeffs=coeffs_ml,scplotrange=(sm_scatt_ang,lg_scatt_ang),
+        #                  dcterm=dc_offset, errlower=lower_coeffs_errs, errupper=upper_coeffs_errs,
+        #                  plaw_index=plaw_aexp, adpspf_file=phasefunction_file)
+        
 
-
-    psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
-    psf /= np.sum(psf)
 
     mask2generatedisk = fits.getdata(
         os.path.join(klipdir, file_prefix + '_mask2generatedisk.fits'))
-    mask2minimize = fits.getdata(
-        os.path.join(klipdir, file_prefix + '_mask2minimize.fits'))
 
     mask2generatedisk[np.where(mask2generatedisk == 0.)] = np.nan
     modelfit_physical_to_freeform.MASK2GENERATEDISK = (mask2generatedisk !=
                                            mask2generatedisk)
-
     instrument = params_mcmc_yaml['INSTRUMENT']
 
     # load the data
-    freeform_image = fits.getdata(ff_image)
-    modelfit_physical_to_freeform.DIMENSION = freeform_image.shape[1]
+    reduced_data = fits.getdata(
+        os.path.join(klipdir, file_prefix + '-klipped-KLmodes-all.fits'))[
+            0]  ### we take only the first KL mode
+    modelfit_physical_to_freeform.DIMENSION = reduced_data.shape[1]
+    # modelfit_physical_to_freeform.ORTHO_BASIS = select_basis
 
     # load the noise
     noise = fits.getdata(os.path.join(klipdir,
-                                      file_prefix + '_noisemap.fits'))
-    noise = noise.reshape(freeform_image.shape)
-    noise[noise == 0.] = np.nan
-
-    disk_ml = modelfit_physical_to_freeform.call_gen_disk(theta_ml)
+                                      file_prefix + '_noisemap.fits')) / noise_scaling
+    # params_ml = np.append(theta_init[:-4],theta_ml)
+    # params_ml = np.append(params_ml,theta_ml)
+    # print(params_ml)
+    disk_ml, _ = modelfit_physical_to_freeform.call_gen_disk(params_ml)
+    print(f"Total disk flux: {np.sum(disk_ml) * conv_factor_SB / 1e3} mJy")
 
     fits.writeto(os.path.join(mcmcresultdir, name_h5 + '_BestModel.fits'),
                  disk_ml,
-                 header=hdr,
+                #  header=hdr,
                  overwrite=True)
 
-    # # find the position of the pericenter in the model
+    # find the position of the pericenter in the model
     # argpe = hdr['ARGPE_MC']
     # pa = hdr['PA_MC']
 
@@ -684,69 +871,91 @@ def best_model_plot(params_mcmc_yaml, hdr, ff_image, savedir):
 
     fits.writeto(os.path.join(mcmcresultdir, name_h5 + '_BestModel_Conv.fits'),
                  disk_ml_convolved,
-                 header=hdr,
+                #  header=hdr,
                  overwrite=True)
+    
 
 
+    mask_speckle_region = np.ones((reduced_data.shape[0], reduced_data.shape[1]))
+    x = np.arange(reduced_data.shape[0], dtype=float)[None,:] - aligned_center[0]
+    y = np.arange(reduced_data.shape[1], dtype=float)[:,None] - aligned_center[1]
+    rho2d = np.sqrt(x**2 + y**2)
+    mask_speckle_region[np.where(rho2d < iwa)] = 0.
+    disk_ml_convolved *= mask_speckle_region
 
     #Measure the residuals
     residuals = freeform_image - disk_ml_convolved
     snr_residuals = (freeform_image - disk_ml_convolved) / noise
 
-    residuals_tosave = residuals.copy()
-    residuals_tosave[residuals_tosave < 0] = 0.
 
-    fits.writeto(os.path.join(mcmcresultdir, name_h5 + '_BestModel_Res.fits'),
-                 residuals_tosave,
-                 header=hdr,
-                 overwrite=True)
-    #Set the colormap
-    vmin = params_mcmc_yaml["VSCALING_MIN"] * np.min(freeform_image)
-    vmax = params_mcmc_yaml["VSCALING_MAX"] * np.max(freeform_image)
-
-
-    # disk_ml_FM *= mask2minimize
-    # reduced_data *= mask2minimize
-    # residuals *= mask2minimize
-    # snr_residuals *= mask2minimize
     # dim_crop_image = int(4 * params_mcmc_yaml['OWA'] // 2) + 1
     dim_crop_image = round(1.75*params_mcmc_yaml['OWA']) + 1
 
     disk_ml_crop = crop_center_odd(disk_ml, dim_crop_image)
+    # disk_ml_crop *= conv_factor_SB
+    freeform_image_crop = crop_center_odd(freeform_image, dim_crop_image)
     disk_ml_convolved_crop = crop_center_odd(disk_ml_convolved, dim_crop_image)
-    # reduced_data_crop = crop_center_odd(reduced_data, dim_crop_image)
-    ff_image_crop = crop_center_odd(freeform_image, dim_crop_image)
+    # disk_ml_convolved_crop *= conv_factor_SB
+    reduced_data_crop = crop_center_odd(reduced_data, dim_crop_image)
+    # reduced_data_crop *= conv_factor_SB
     residuals_crop = crop_center_odd(residuals, dim_crop_image)
-    # snr_residuals_crop = crop_center_odd(snr_residuals, dim_crop_image)
+    # residuals_crop *= conv_factor_SB
+    snr_residuals_crop = crop_center_odd(snr_residuals, dim_crop_image)
 
-    # plt.imshow(disk_ml_convolved_crop + 0.1)
-    # plt.show()
-    # exit()
+    #Set the colormap
+    vmin = params_mcmc_yaml["VSCALING_MIN"] * np.min(disk_ml_convolved)
+    vmax = params_mcmc_yaml["VSCALING_MAX"] * np.max(disk_ml_convolved)
+
     fig, ax = plt.subplots(2,2, figsize=(8,8))
+
+
     #The model
     cax00 = ax[0,0].imshow(disk_ml_crop,
                      origin='lower',
-                    #  vmin=int(np.round(vmin)),
-                    #  vmax=int(np.round(vmax)),
+                    #  vmin=vmin,
+                    #  vmax=vmax,
                      cmap='viridis')
-    ax[0,0].set_title("Best model")
+
+    ax[0,0].set_title("Best Model")
     cbar = fig.colorbar(cax00, fraction=0.046, pad=0.04)
-    # cbar.ax.tick_params(labelsize=caracsize * 3 / 4.)
     plt.axis('off')
 
     #The residuals
     cax01 = ax[0,1].imshow(residuals_crop,
                      origin='lower',
-                     vmin=int(np.round(vmin)) * 0.25,
-                     vmax=int(np.round(vmax)) * 0.25,
-                    #  vmax=round(vmax),
+                     vmin=vmin,
+                     vmax=vmax,
                      cmap='viridis')
-    ax[0,1].set_title("Residuals")
 
+    ax[0,1].set_title("Residuals")
     cbar = fig.colorbar(cax01, fraction=0.046, pad=0.04)
     plt.axis('off')
 
+    #The model convolved
+    cax10 = ax[1,0].imshow(disk_ml_convolved_crop,
+                     origin='lower',
+                    #  vmin=vmin,
+                    #  vmax=vmax,
+                     cmap='viridis')
+
+    ax[1,0].set_title("Best Model Convolved")
+    cbar = fig.colorbar(cax10, fraction=0.046, pad=0.04)
+    plt.axis('off')
+
+    #The freeform image
+    cax11 = ax[1,1].imshow(freeform_image_crop,
+                     origin='lower',
+                     vmin=vmin,
+                     vmax=vmax,
+                     cmap='viridis')
+    ax[1,1].set_title("Optimized Freeform Image")
+
+    # make the colobar ticks integer only for gpi
+    cbar = fig.colorbar(cax11, fraction=0.046, pad=0.04)
+    plt.axis('off')
+
     # #The SNR of the residuals
+    # ax1 = fig.add_subplot(236)
     # cax = plt.imshow(snr_residuals_crop,
     #                  origin='lower',
     #                  vmin=-2,
@@ -755,56 +964,14 @@ def best_model_plot(params_mcmc_yaml, hdr, ff_image, savedir):
     # ax1.set_title("SNR Residuals", fontsize=caracsize, pad=caracsize / 3.)
     # cbar = fig.colorbar(cax, ticks=[-1, 0, 1, 2, 3, 4, 5], fraction=0.046, pad=0.04)
     # cbar.ax.tick_params(labelsize=caracsize * 3 / 4.)
-    # cbar.ax.set_yticklabels(['-1','0', '1', '2', '3','4','5'])
+    # cbar.ax.set_yticklabels(['-1', '0', '1', '2', '3', '4', '5'])
     # plt.axis('off')
 
-    # The model convolved
-    cax10 = ax[1,0].imshow(disk_ml_convolved_crop,
-                     origin='lower',
-                    #  vmin=0,
-                    #  vmax=vmax_model,
-                     cmap='plasma')
-    ax[1,0].set_title("Best Model Convolved")
-    cbar = fig.colorbar(cax10, fraction=0.046, pad=0.04)
+    
 
-    # pos_argperi = plt.Circle(
-    #     (x_peri_true + dim_crop_image // 2, y_peri_true + dim_crop_image // 2),
-    #     3,
-    #     color='g',
-    #     alpha=0.8)
-    # pos_star = plt.Circle((dim_crop_image // 2, dim_crop_image // 2),
-    #                       2,
-    #                       color='r',
-    #                       alpha=0.8)
-    # ax1.add_artist(pos_argperi)
-    # ax1.add_artist(pos_star)
-    plt.axis('off')
-
-    # rect = Rectangle((9.5, 9.5),
-    #                  psf.shape[0],
-    #                  psf.shape[1],
-    #                  edgecolor='white',
-    #                  facecolor='none',
-    #                  linewidth=2)
-
-    # disk_ml_convolved_crop[10:10 + psf.shape[0],
-    #                        10:10 + psf.shape[1]] = 2 * vmax * psf
-
-    # The freeform image
-    cax11 = plt.imshow(ff_image_crop,
-                     origin='lower',
-                    #  vmin=int(np.round(vmin)),
-                    #  vmax=int(np.round(vmax * 2)),
-                     cmap='viridis')
-    # ax1.add_patch(rect)
-
-    ax[1,1].set_title("Optimized Freeform Image")
-    cbar = fig.colorbar(cax11, fraction=0.046, pad=0.04)
-    plt.axis('off')
-
+    
 
     fig.suptitle(band_name + ': Best Model and Residuals',
-                #  fontsize=5 / 4. * caracsize,
                  y=0.985)
 
     fig.tight_layout()
@@ -856,8 +1023,78 @@ if __name__ == '__main__':
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
     name_h5 = file_prefix + '_backend_file_mcmc'
 
+    rprofsub = params_mcmc_yaml['RPROFSUB']
+    sm_angle = params_mcmc_yaml['MIN_SCATT_ANG']
+    lg_angle = params_mcmc_yaml['MAX_SCATT_ANG']
+    n_modes = params_mcmc_yaml['N_BASIS']
+    basis = params_mcmc_yaml["SPF_BASIS"]
+    spf_model = params_mcmc_yaml['SPF_MODEL']
+    disk_model = params_mcmc_yaml["DISK_MODEL"]
+    lambda_reg = params_mcmc_yaml["LAMBDA_REG"]
+
+    psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
+    psf /= np.sum(psf)
+
+
     if not os.path.isfile(os.path.join(mcmcresultdir, name_h5 + '.h5')):
         raise ValueError("the mcmc h5 file does not exist")
+    
+    free_params = arr_free_params(params_mcmc_yaml)
+    modelfit_physical_to_freeform.FREE_PARAMS = free_params
+    # scattering_angles_deg = np.arange(sm_angle,lg_angle,1)
+    sc_angs = np.linspace(sm_angle,lg_angle,(lg_angle - sm_angle) * 10)
+    x_tofit = np.linspace(0,10,len(sc_angs))
+    modelfit_physical_to_freeform.X_TOFIT = x_tofit
+    sc_angs_rad = np.deg2rad(sc_angs)
+    modelfit_physical_to_freeform.SC_ANGS_RAD = sc_angs_rad
+    theta_init = modelfit_physical_to_freeform.from_param_to_theta_init(params_mcmc_yaml)
+    spf_tofit = calculate_hg_spf(g1=theta_init[-3],
+                                 g2=theta_init[-2],
+                                 alpha1=theta_init[-1],
+                                #  scattangs=scattering_angles_deg)
+                                 scattangs=sc_angs)
+    modelfit_physical_to_freeform.THETA_INIT = theta_init[:-3]
+    # COEFFS_INIT = fit_fourier_to_hg_spf(klipdir,g1=THETA_INIT[-4],g2=THETA_INIT[-3],alpha1=THETA_INIT[-2])
+    xrange_max = params_mcmc_yaml["XRANGE_MAX"]
+    if spf_model == "hg_1g" or spf_model == "hg_2g":
+        if basis == "legendre":
+            coeffs_init = fit_legendre_to_hg_spf(klipdir,spf_tofit,sc_angs,nmodes=n_modes)
+            dc = coeffs_init[0]
+        elif basis == "bessel":
+            coeffs_init_leg = fit_legendre_to_hg_spf(klipdir,spf_tofit,sc_angs,nmodes=n_modes)
+            dc = coeffs_init_leg[0]
+            print(f"Legendre 0 fit on the HG SPF: {dc}")
+            coeffs_init, select_basis = fit_bessel_to_hg_spf(klipdir,
+                                                             xrange_max,
+                                                             spf_tofit,
+                                                             sc_angs,
+                                                             nmodes=n_modes,
+                                                             dcoffset=dc)
+            print(f"Init bestfit Bessel coeffs w/o DC: {coeffs_init}")
+            modelfit_physical_to_freeform.SELECT_BASIS = select_basis
+        elif basis == "ortho_bessel":
+            xrange_max = params_mcmc_yaml["XRANGE_MAX"]
+            coeffs_init_leg = fit_legendre_to_hg_spf(klipdir,spf_tofit,sc_angs,nmodes=n_modes)
+            dc = coeffs_init_leg[0]
+            print(f"Legendre 0 fit on the HG SPF: {dc}")
+            coeffs_init, select_basis = fit_bessel_to_hg_spf(klipdir,
+                                                             xrange_max,
+                                                             spf_tofit,
+                                                             sc_angs,
+                                                             nmodes=n_modes,
+                                                             dcoffset=dc,
+                                                             orthogonalize=True)
+            print(f"Init bestfit Bessel coeffs w/o DC: {coeffs_init}")
+            modelfit_physical_to_freeform.SELECT_BASIS = select_basis
+            coeffs_init_all = np.append(dc,coeffs_init)
+            basis = "bessel"
+        modelfit_physical_to_freeform.COEFFS_INIT = coeffs_init_all
+    
+    modelfit_physical_to_freeform.XRANGE_MAX = xrange_max
+    modelfit_physical_to_freeform.N_MODES = n_modes
+    modelfit_physical_to_freeform.BASIS = basis
+    modelfit_physical_to_freeform.DC = dc
+
 
     # Plot the chain values
     make_chain_plot(params_mcmc_yaml)
@@ -872,7 +1109,7 @@ if __name__ == '__main__':
     hdr = create_header(params_mcmc_yaml)
 
     # save the fits, plot the model and residuals
-    best_model_plot(params_mcmc_yaml, hdr, args.image, save_to_dir)
+    best_model_plot(params_mcmc_yaml,  args.image)
 
     # print some of the best parameter values to put in excel/latex easily(not super clean)
     # print_geometry_parameter(params_mcmc_yaml, hdr)

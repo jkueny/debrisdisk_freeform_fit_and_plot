@@ -147,7 +147,7 @@ def parang_sort(filename):
             return float(match.group(1))  # Convert extracted string to float
         return float('inf')  # Assign an arbitrary large value if no match is found
 
-@jax.jit
+# @jax.jit
 def convolve_model(input_model, psf):
     # psf = jnp.asarray(psf)
     assert psf.shape[0] == psf.shape[1], "Instr. PSF image is not square. How can this be?!"
@@ -161,7 +161,7 @@ def convolve_model(input_model, psf):
     
     return model_convolved
 
-@jax.jit
+# @jax.jit
 def convolve_model_lax(input_model, psf):
     """
     Convolve a 2D input image with a 2D PSF using lax.conv_general_dilated,
@@ -251,7 +251,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     #                        ref_models_stacked, ref_psfs_stacked,
     #                        klmodes_stacked, evals, evecs_stacked,
     #                        PAs)
-    flat_postklip_psfs = jax.vmap(fm_from_eigen_single
+    flat_postklip_psfs = jax.pmap(fm_from_eigen_single
                           )(aligned_images, ref_psfs_stacked,
                             global_models_prepped,ref_models_stacked,
                             klmodes_stacked, evals, evecs_stacked,

@@ -1459,7 +1459,7 @@ def fastgen_disk_dxdy_custom(R1, R2, beta, inc, pa, dx, dy, Norm, a_r,
     Returns:
         a 2d model
     """
-    image = np.zeros((npts, npts))
+    image = np.zeros((npts, npts), dtype=np.float32)
 
 
     #Inclination Calculations

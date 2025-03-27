@@ -6,7 +6,7 @@ DISK_MODEL: original # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 2 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 6 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 
 # KLIP params optimized for ctrl region speckles, minor axis, 2x2 binning, 08/04/24 JKK
@@ -53,11 +53,11 @@ DISTANCE_STAR: 72.8   #distance of the disk in pc
 PIXSCALE_INS: 0.012  #picscale of your data
 
 # MCMC PARAMETERS
-NEW_BACKEND: True
+NEW_BACKEND: False
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
-NWALKERS: 188 #Number of walkers (should be at least twice the # parameters)
+NWALKERS: 100 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
-N_ITER_MCMC: 500 #Number of interation
+N_ITER_MCMC: 2000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
 USE_NOISE: True
 # There is no burn-in phase here, the burnin only intervened when reading the data
@@ -69,7 +69,7 @@ rc_init: 77.7 #35.5 #trying 39. for the masks
 alpha_in_init: 12
 alpha_out_init: -12
 beta_init: 12.3
-a_r_init: 0.017
+a_r_init: 0.01
 inc_init: 76.8 #trying 45. init for the mask2minimize
 pa_init: 24.9
 dx_init: -4.2
@@ -85,12 +85,12 @@ r_outer: 110
 
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
 r1_state: 1
-r2_state: 0
+r2_state: 1
 rc_state: 1
 alpha_in_state: 1
 alpha_out_state: 1
 beta_state: 1
-a_r_state: 1
+a_r_state: 0
 inc_state: 1
 pa_state: 1
 dx_state: 1
@@ -153,7 +153,7 @@ SPF_BASIS: ortho_bessel # Fit Fourier series model
 
 MIN_SCATT_ANG: 10 #what's the smallest scattering ang. we want to fit for?
 MAX_SCATT_ANG: 180 #and the largest?
-N_BASIS: 11 # 12 is min acceptable for this HG SPF
+N_BASIS: 12 # 12 is min acceptable for this HG SPF
 LAMBDA_REG: 0.001
 XRANGE_MAX: 10 #max x value to compute the Bessel functions
 
@@ -182,12 +182,12 @@ VSCALING_MAX: 1.0
 # NAME and descirption THAT WILL APPEARS IN THE CORNER PLOTS
 # and printed analysis 
 NAMES:
-# - R1
-# - R2
-- RC
-# - Beta
-- alpha_in
-- alpha_out
+- R1
+- R2
+# - RC
+- Beta
+# - alpha_in
+# - alpha_out
 - a_r
 - inc
 - PA

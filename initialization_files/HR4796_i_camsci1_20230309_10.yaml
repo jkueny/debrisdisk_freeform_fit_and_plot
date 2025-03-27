@@ -80,15 +80,15 @@ r_inner: 65
 r_outer: 110
 
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
-r1_state: 0
+r1_state: 1
 r2_state: 1
 rc_state: 0
 alpha_in_state: 0
 alpha_out_state: 0
 beta_state: 1
 a_r_state: 1
-inc_state: 0
-pa_state: 0
+inc_state: 1
+pa_state: 1
 dx_state: 1
 dy_state: 1
 N_state: 1
@@ -150,8 +150,8 @@ SPF_BASIS: ortho_bessel # Fit Fourier series model
 
 MIN_SCATT_ANG: 10
 MAX_SCATT_ANG: 180
-N_BASIS: 10
-LAMBDA_REG: 0.001
+N_BASIS: 12
+LAMBDA_REG: 0.01
 XRANGE_MAX: 10 #max x value to compute the Bessel functions
 
 # for 1g SPF (N_DIM_MCMC = 9) and more

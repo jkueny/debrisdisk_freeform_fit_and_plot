@@ -33,11 +33,6 @@ default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name o
 # default_parameter_file = 'HR4796_i_smlyot_20230309_10.yaml'  # name of the parameter file
 # you can also call it with the python function argument -p
 
-
-import glob
-import re
-
-import distutils.dir_util
 import warnings
 
 
@@ -50,7 +45,7 @@ from datetime import datetime
 
 import math as mt
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import astropy.io.fits as fits
 # from astropy.convolution import convolve
@@ -65,13 +60,22 @@ from emcee import backends
 
 from numba.core.errors import NumbaWarning
 
+import cProfile
+
 # These programs were not included in the initial download
 # from anadisk_model.anadisk_sum_mask import phase_function_spline, generate_disk #commented 06/04/21 JK
 
 # from disk_models import hg_1g, hg_2g, hg_3g
 
-from utils.disk_models import gen_disk_dxdy_1g, fastgen_disk_dxdy_2g, fastgen_disk_dxdy_3g
-from utils.disk_models import mod_gen_disk_dxdy_1g, fastmodgen_disk_dxdy_2g, fastmodgen_disk_dxdy_3g
+# from utils.disk_models import gen_disk_dxdy_1g, fastgen_disk_dxdy_2g, fastgen_disk_dxdy_3g
+# from utils.disk_models import mod_gen_disk_dxdy_1g, fastmodgen_disk_dxdy_2g, fastmodgen_disk_dxdy_3g
+
+from utils.disk_models import fastgen_disk_dxdy_custom, fastmodgen_disk_custom
+
+from utils.spf_models import calculate_hg_spf, \
+                        fit_fourier_to_hg_spf, fit_legendre_to_hg_spf, \
+                        legendre_reconstruction, bessel_reconstruction, \
+                        fit_bessel_to_hg_spf
 
 
 # recommended by emcee https://emcee.readthedocs.io/en/stable/tutorials/parallel/
@@ -148,35 +152,6 @@ def arr_free_params(params_mcmc_yaml):
     else:
         # free_params.append(False)
         pass
-    if (SPF_MODEL == 'hg_1g') or (SPF_MODEL == 'hg_2g') or (SPF_MODEL == 'hg_3g'):
-        if bool(params_mcmc_yaml['g1_state']):
-            free_params.append('g1')
-        else:
-            # free_params.append(False)
-            pass
-        if (SPF_MODEL == 'hg_2g') or (SPF_MODEL == 'hg_3g'):
-            if bool(params_mcmc_yaml['g2_state']):
-                free_params.append('g2')
-            else:
-                # free_params.append(False)
-                pass
-            if bool(params_mcmc_yaml['alpha1_state']):
-                free_params.append('alpha1')
-            else:
-                # free_params.append(False)
-                pass
-
-            if SPF_MODEL == 'hg_3g':
-                if bool(params_mcmc_yaml['g3_state']):
-                    free_params.append('g3')
-                else:
-                    # free_params.append(False)
-                    pass
-                if bool(params_mcmc_yaml['alpha2_state']):
-                    free_params.append('alpha2')
-                else:
-                    # free_params.append(False)
-                    pass
 
     print(f'Fitting geometrical params: {free_params}')
     return free_params
@@ -189,29 +164,12 @@ def from_theta_to_params(theta):
     '''
     param_disk = {} #disk parameters are put into a dict.
     vector_param = [] #this is for the walker chain plots, free params only
-    param_disk['a_r'] = 0.01  # we fix the aspect ratio
     param_disk['offset'] = 0.  # no vertical offset in KLIP
     fixed_params = 0
 
     param_disk['beta_in'] = -10  # we fix the inner power law
-    if DISK_MODEL == 'modified':
-        all_params = ['rc','alpha_in','alpha_out','inc','PA','dx','dy','Norm']
-        if SPF_MODEL == 'hg_1g':
-            all_params.append('g1')
-        elif SPF_MODEL == 'hg_2g':
-            all_params.append('g1')
-            all_params.append('g2')
-            all_params.append('alpha1')
-        elif SPF_MODEL == 'hg_3g':
-            all_params.append('g1')
-            all_params.append('g2')
-            all_params.append('alpha1')
-            all_params.append('g3')
-            all_params.append('alpha2')
-        param_disk['r1'] = R_INNER
-        param_disk['r2'] = R_OUTER
-        delta_params = len(all_params) - len(FREE_PARAMS)
-
+    if DISK_MODEL.lower() == 'modified':
+        all_params = ['rc','alpha_in','alpha_out','a_r','inc','PA','dx','dy','Norm']
         for ea, p in enumerate(all_params):
             if p in FREE_PARAMS:
                 if p == 'rc':
@@ -226,21 +184,9 @@ def from_theta_to_params(theta):
             else:
                 param_disk[p] = THETA_INIT[ea]
 
-    if DISK_MODEL == 'original':
+
+    elif DISK_MODEL.lower() == 'original':
         all_params = ['r1','r2','beta','a_r','inc','PA','dx','dy','Norm']
-        if SPF_MODEL == 'hg_1g':
-            all_params.append('g1')
-        elif SPF_MODEL == 'hg_2g':
-            all_params.append('g1')
-            all_params.append('g2')
-            all_params.append('alpha1')
-        elif SPF_MODEL == 'hg_3g':
-            all_params.append('g1')
-            all_params.append('g2')
-            all_params.append('alpha1')
-            all_params.append('g3')
-            all_params.append('alpha2')
-        delta_params = len(all_params) - len(FREE_PARAMS)
         for ea, p in enumerate(all_params):
             if p in FREE_PARAMS:
                 if p == 'r1':
@@ -269,6 +215,18 @@ def from_theta_to_params(theta):
                 else:
                     param_disk[p] = THETA_INIT[ea]
 
+    # We don't need the DC offset term bc the SPF gets normalized at 90
+    # param_disk['dc'] = DC
+    if BASIS == "bessel" or BASIS == "legendre":
+        # param_disk['dc'] = theta[len(all_params)] #tack onto the end of the geo params
+        param_disk['dc'] = DC
+        # vector_param.append(param_disk['dc'])
+    param_disk['coeffs'] = theta[-int(N_MODES):] #indexing confirmed
+
+    # print(f"from_theta_to_params: {param_disk['coeffs']}")
+
+    for i in range(len(param_disk['coeffs'])):
+        vector_param.append(param_disk['coeffs'][i])
     return param_disk, vector_param #return the disk parameter dict. and theta vector of parameters
 
 
@@ -293,92 +251,62 @@ def call_gen_disk(theta):
     """
     param_disk, _ = from_theta_to_params(theta)
 
-    R1 = param_disk['r1']
-    R2 = param_disk['r2']
-    beta = param_disk['beta']
-
+    a_r = param_disk['a_r']
     inc = param_disk['inc']
     pa = param_disk['PA']
     dx = param_disk['dx']
     dy = param_disk['dy']
     Norm = param_disk['Norm']
-    if SPF_MODEL == 'hg_1g':
-        g1 = param_disk['g1']
-    elif SPF_MODEL == 'hg_2g':
-        g1 = param_disk['g1']
-        g2 = param_disk['g2']
-        alpha1 = param_disk['alpha1']
-    elif SPF_MODEL == 'hg_3g':
-        g1 = param_disk['g1']
-        g2 = param_disk['g2']
-        alpha1 = param_disk['alpha1']
-        g3 = param_disk['g3']
-        alpha2 = param_disk['alpha2']
+    # Norm = dc
+    # coeffs_all = np.insert(coeffs,0,dc)
+    # coeffs_all = np.append(dc,coeffs)
+    dc = param_disk['dc']
+    coeffs = param_disk['coeffs']
+    if BASIS == "legendre":
+        # sc_angs = np.linspace(0,180,1800)
+        # sc_angs = np.linspace(SM_ANGLE,LG_ANGLE,(LG_ANGLE-SM_ANGLE)*10)
+        # sc_angs_rad = np.deg2rad(sc_angs)
+        coeffs_all = np.append(dc,coeffs) #we fit the DC component for Legendres w/ a penalty
+        # print(f"call_gen_disk: {coeffs_all}")
+        recon_spf = legendre_reconstruction(SC_ANGS_RAD,*coeffs_all)
+    elif BASIS == "bessel":
+        # coeffs -= CSHIFT
+        # sc_angs = np.linspace(0,180,1800)
+        # sc_angs = np.linspace(SM_ANGLE,LG_ANGLE,(LG_ANGLE-SM_ANGLE)*10)
+        # sc_angs_rad = np.deg2rad(sc_angs)
+        coeffs_all = np.append(dc, coeffs) #fitting for the DC offset 01/22/2025
+        # print(coeffs_all)
+        recon_spf = bessel_reconstruction(X_TOFIT, SELECT_BASIS, *coeffs_all)
 
-    a_r = param_disk['a_r']
-    max_fov = DIMENSION / 2. * PIXSCALE_INS  #maximum radial distance in AU from the center to the edge
-    n_pts = int(np.floor(DIMENSION / 1))
-    xsize = max_fov * DISTANCE_STAR  #maximum radial distance in AU from the center to the edge
 
-    #The coordinate system here [x,y,z] is defined :
-    # +ve x is the line of sight
-    # +ve y is going right from the center
-    # +ve z is going up from the center
-
-    # y = np.linspace(0,xsize,num=npts/2)
-    y = np.linspace(-xsize, xsize, num=n_pts)
-    z = np.linspace(-xsize, xsize, num=n_pts)
-
-    if DISK_MODEL == 'modified':
-        beta = 1.
+    if DISK_MODEL == "original":
+        r1 = param_disk['r1']
+        r2 = param_disk['r2']
+        beta = param_disk['beta']
+        model = fastgen_disk_dxdy_custom(r1, r2, beta, inc, pa, dx, dy, Norm, a_r,
+                                scatt_angs=SC_ANGS_RAD,
+                                spf_model=recon_spf,
+                                y_arr=Y_MODEL,
+                                z_arr=Z_MODEL,
+                                npts=n_pts,
+                                mask=MASK2GENERATEDISK)
+    elif DISK_MODEL == "modified":
         rc = param_disk['rc']
         m = param_disk['alpha_in']
         n = param_disk['alpha_out']
+        model = fastmodgen_disk_custom(R1, R2, rc, m, n, inc, pa, dx, dy, Norm, a_r,
+                                scatt_angs=SC_ANGS_RAD,
+                                spf_model=recon_spf,
+                                y_arr=Y_MODEL,
+                                z_arr=Z_MODEL,
+                                npts=n_pts,
+                                mask=MASK2GENERATEDISK)
 
-        if (SPF_MODEL == 'hg_1g'):
-            model = mod_gen_disk_dxdy_1g(dim=DIMENSION,
-                                    param_disk=param_disk,
-                                    mask=MASK2GENERATEDISK,
-                                    pixscale=PIXSCALE_INS,
-                                    distance=DISTANCE_STAR)
-
-        elif SPF_MODEL == 'hg_2g':
-            model = fastmodgen_disk_dxdy_2g(R1, R2, beta, inc, pa, dx, dy, Norm,
-                                     g1, g2, alpha1, a_r, rc, m, n,
-                                     y_arr=y,
-                                     z_arr=z,
-                                     npts=n_pts,
-                                     mask=MASK2GENERATEDISK)
-    elif DISK_MODEL == 'original':
-
-        if (SPF_MODEL == 'hg_1g'):
-            model = gen_disk_dxdy_1g(dim=DIMENSION,
-                                    param_disk=param_disk,
-                                    mask=MASK2GENERATEDISK,
-                                    pixscale=PIXSCALE_INS,
-                                    distance=DISTANCE_STAR)
-
-        elif SPF_MODEL == 'hg_2g':
-            model = fastgen_disk_dxdy_2g(R1, R2, beta, inc, pa, dx, dy, Norm,
-                                     g1, g2, alpha1, a_r,
-                                     y_arr=y,
-                                     z_arr=z,
-                                     npts=n_pts,
-                                     mask=MASK2GENERATEDISK)
-        elif SPF_MODEL == 'hg_3g':
-            model = fastgen_disk_dxdy_3g(R1, R2, beta, inc, pa, dx, dy, Norm,
-                                     g1, g2, alpha1, g3, alpha2, a_r,
-                                     y_arr=y,
-                                     z_arr=z,
-                                     npts=n_pts,
-                                     mask=MASK2GENERATEDISK)
-        
-    # remove the nans to avoid problems when convolving
-    model[model != model] = 0
     # I normalize by value of a_r to avoid degenerascies between a_r and Normalization
-    # model = param_disk['Norm'] * model / param_disk['a_r']
+    # model = param_spf['dc'] * model / param_disk['a_r']
+    # model[model != model] = 0.
 
-    return model
+    return model, coeffs_all
 
 
 ########################################################
@@ -400,26 +328,20 @@ def logl(theta):
     Returns:
         Chisquare
     """
-    model = call_gen_disk(theta)
+    model, spf_coeffs = call_gen_disk(theta)
 
     # modelconvolved = convolve(model, PSF, boundary='wrap')
     # modelconvolved = fftconvolve(model, PSF, mode='same')
     modelconvolved = convolve(model, PSF, mode='same')#,method='fft')
 
-    # DISKOBJ = DiskFM(None,
-    #                  None,
-    #                  None,
-    #                  modelconvolved,
-    #                  basis_filename=os.path.join(KLIPDIR,
-    #                                              FILE_PREFIX + '_klbasis.h5'),
-    #                  load_from_basis=True)
 
+    res = (FREEFORM_IMAGE - modelconvolved) / NOISE #verified this image looks right
 
-    # reduced data have already been naned outside of the minimization
-    # zone, so we don't need to do it also for model_fm
-    res = (FREEFORM_IMAGE - modelconvolved) / NOISE
-
-    Chisquare = np.nansum(-0.5 * (res * res))
+    if BASIS == "bessel" or BASIS == "legendre":
+        penalize_coeffs = -LAMBDA_REG * np.sum(spf_coeffs ** 2)
+        Chisquare = np.nansum(-0.5 * (res * res)) + penalize_coeffs
+    else:
+        Chisquare = np.nansum(-0.5 * (res * res))
 
     return Chisquare
 
@@ -443,16 +365,51 @@ def logp(theta):
         log of priors
     """
     param_disk, _ = from_theta_to_params(theta)
+
     prior_rout = 1.
+
     # define the prior values
+    # check_coeffs = np.append(param_spf['dc'],param_spf['coeffs'])
+    # # print(check_coeffs)
+    # check_spf = legendre_reconstruction(scattering_angles_deg,*check_coeffs)
+    # has_negative_values = np.any(check_spf < 0)
+    # # print(COEFFS_INIT)
+    # # print(param_spf['dc'])
+
+    # if has_negative_values:
+    #     print('Unphysical SPF.')
+    #     return -np.inf
+    # else:
+    #     prior_rout = prior_rout * 1.
+
+    # if param_disk['dc'] < 0.1 or param_disk['dc'] > 3:
+    #     print('dc term out of prior.')
+    #     return -np.inf
+    # else:
+    #     prior_rout = prior_rout * 1.
+
+    if BASIS == "legendre":
+        if all(-len(COEFFS_INIT) < c < len(COEFFS_INIT) for c in param_disk['coeffs']):
+            prior_rout = prior_rout * 1.
+        else:
+            print('One or more Legendre coefficients out of prior.')
+            return -np.inf
+    elif BASIS == "bessel":
+            pass
+        # if all(-5e4 < c < 5e4 for c in (param_disk['coeffs'] - CSHIFT)):
+        # if all((-len(COEFFS_INIT)*10) < c < (len(COEFFS_INIT)*10) for c in param_disk['coeffs']):
+        #     prior_rout = prior_rout * 1.
+        # else:
+        #     print('One or more Bessel coefficients out of prior.')
+            # return -np.inf
     if DISK_MODEL == 'original':
         if (param_disk['beta'] < 5 or param_disk['beta'] > 30):
-            print('beta out of prior')
+            print('beta out of prior', param_disk["beta"])
             return -np.inf
         else:
             prior_rout = prior_rout * 1.
 
-        if (param_disk['r1'] < 62 or param_disk['r1'] > 82):
+        if (param_disk['r1'] < 65 or param_disk['r1'] > 85):
             print('r1 out of prior')
             return -np.inf
         else:
@@ -460,26 +417,26 @@ def logp(theta):
 
         # - rout = Logistic We  cut the prior at r2 = xx
         # because this parameter is very limited by the ADI
-        if (param_disk['r2'] < 82 or param_disk['r2'] > 150):
+        if (param_disk['r2'] < 80 or param_disk['r2'] > 150):
             print('r2 out of prior')
             return -np.inf
         else:
-            prior_rout = prior_rout / (1. + np.exp(40. * (param_disk['r2'] - 120)))
+            prior_rout = prior_rout / (1. + np.exp(40. * (param_disk['r2'] - 110)))
             # prior_rout = prior_rout * 1.  # or we can just use a flat prior
     elif DISK_MODEL == 'modified':
         if (param_disk['rc'] < 70 or param_disk['rc'] > 120): #in au
-            print('rc out of prior')
+            print('rc out of prior', param_disk['rc'])
             return -np.inf
         else:
             prior_rout = prior_rout * 1.
         
-        if (param_disk['alpha_in'] < 1 or param_disk['alpha_in'] > 50): #in au
+        if (param_disk['alpha_in'] < 1 or param_disk['alpha_in'] > 100): #in au
             print('alpha_in out of prior')
             return -np.inf
         else:
             prior_rout = prior_rout * 1.
 
-        if (param_disk['alpha_out'] < -50 or param_disk['alpha_out'] > -1): #in au
+        if (param_disk['alpha_out'] < -100 or param_disk['alpha_out'] > -1): #in au
             print('alpha_out out of prior')
             return -np.inf
         else:
@@ -491,19 +448,21 @@ def logp(theta):
     else:
         prior_rout = prior_rout * 1.
 
-    if (param_disk['inc'] < 74 or param_disk['inc'] > 80):
+    if (param_disk['inc'] < 70 or param_disk['inc'] > 85):
         print('inc out of prior')
         return -np.inf
     else:
         prior_rout = prior_rout * 1.
 
-    if (param_disk['PA'] < 22 or param_disk['PA'] > 28):
+    if (param_disk['PA'] < 20 or param_disk['PA'] > 30):
         print('PA out of prior')
         return -np.inf
     else:
         prior_rout = prior_rout * 1.
 
-    if (param_disk['dx'] < -10) or (param_disk['dx'] > 10):  #The x offset
+    # dx is degenerate with the degree of forward or back-scattering
+    # use Gaussian prior?
+    if (param_disk['dx'] < -15) or (param_disk['dx'] > 15):  #The x offset
         print('dx out of prior')
         return -np.inf
     else:
@@ -521,58 +480,8 @@ def logp(theta):
     else:
         prior_rout = prior_rout * 1.
 
-
-    if (SPF_MODEL == 'hg_1g') or (SPF_MODEL == 'hg_2g') or (SPF_MODEL
-                                                            == 'hg_3g'):
-
-        if (param_disk['g1'] < 0.001 or param_disk['g1'] > 0.9999):
-            print('g1 out of prior')
-            return -np.inf
-        else:
-            prior_rout = prior_rout * 1.
-
-        if (SPF_MODEL == 'hg_2g') or (SPF_MODEL == 'hg_3g'):
-            if (param_disk['g2'] < -0.9999 or param_disk['g2'] > -0.0001):
-                print('g2 out of prior')
-                return -np.inf
-            else:
-                prior_rout = prior_rout * 1.
-
-            if (param_disk['alpha1'] < 0.0001
-                    or param_disk['alpha1'] > 0.9999):
-                print('alpha1 out of prior')
-                return -np.inf
-            else:
-                prior_rout = prior_rout * 1.
-
-            if SPF_MODEL == 'hg_3g':
-
-                if (param_disk['g3'] < -1 or param_disk['g3'] > 1):
-                    print('g3 out of prior')
-                    return -np.inf
-                else:
-                    prior_rout = prior_rout * 1.
-
-                if (param_disk['alpha2'] < -1 or param_disk['alpha2'] > 1):
-                    print('alpha2 out of prior')
-                    return -np.inf
-                else:
-                    prior_rout = prior_rout * 1.
-
-    elif (SPF_MODEL == 'spf_fix'):
-        if (param_disk['beta_in'] < -30 or param_disk['beta_in'] > -1):
-            print('beta_in out of prior')
-            return -np.inf
-        else:
-            prior_rout = prior_rout * 1.
-
-        if (param_disk['a_r'] < 0.0001
-                or param_disk['a_r'] > 0.5):  #The aspect ratio
-            print('a_r out of prior')
-            return -np.inf
-        else:
-            prior_rout = prior_rout * 1.
-
+    # prior_uni = np.log(prior_rout)
+    # prior_gau = -np.log(dx_sigma*(np.sqrt(2*np.pi)))-0.5*((param_disk['dx']-dx_mu)/dx_sigma)**power
     # otherwise ...
     return np.log(prior_rout)
 
@@ -593,6 +502,7 @@ def lnpb(theta):
     Returns:
         log of priors + log of likelyhood
     """
+
     # from datetime import datetime
     # starttime = datetime.now()
     lp = logp(theta)
@@ -600,6 +510,7 @@ def lnpb(theta):
         return -np.inf
     ll = logl(theta)
     # print("Running time model + FM: ", datetime.now() - starttime)
+
 
     return lp + ll
 
@@ -631,7 +542,7 @@ def initialize_walkers_backend(nwalkers,
         if new_backend=False then [None, the loaded BACKEND]
     """
 
-    distutils.dir_util.mkpath(mcmcresultdir)
+    os.makedirs(mcmcresultdir, exist_ok=True)
 
     # Set up the backend h5
     # Don't forget to clear it in case the file already exists
@@ -722,14 +633,14 @@ def from_theta_init_to_PoI(theta_init):
     """
     theta_interest = []
     if DISK_MODEL.lower() == 'modified':
-        all_params = ['rc','alpha_in','alpha_out','a_r','inc','PA','dx','dy','Norm','g1','g2','alpha1','g3','alpha2']
+        all_params = ['rc','alpha_in','alpha_out','a_r','inc','PA','dx','dy','Norm']
         for ea, p in enumerate(all_params):
             if p in FREE_PARAMS:
                 theta_interest.append(theta_init[ea])
             else:
                 continue
     elif DISK_MODEL.lower() == 'original':
-        all_params = ['r1','r2','beta','a_r','inc','PA','dx','dy','Norm','g1','g2','alpha1','g3','alpha2']
+        all_params = ['r1','r2','beta','a_r','inc','PA','dx','dy','Norm']
         for ea, p in enumerate(all_params):
             if p in FREE_PARAMS:
                 theta_interest.append(theta_init[ea])
@@ -787,9 +698,9 @@ if __name__ == '__main__':
     N_ITER_MCMC = params_mcmc_yaml['N_ITER_MCMC']  #Number of interation
     SPF_MODEL = params_mcmc_yaml['SPF_MODEL']  #Type of description for the SPF
     DISK_MODEL = params_mcmc_yaml['DISK_MODEL']
-    FREE_PARAMS = arr_free_params(params_mcmc_yaml)
     R_INNER = params_mcmc_yaml['r_inner'] #for modified disk model boundaries
     R_OUTER = params_mcmc_yaml['r_outer'] #for modified disk model boundaries
+    USE_NOISE = params_mcmc_yaml["USE_NOISE"]
 
     FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
     NEW_BACKEND = params_mcmc_yaml['NEW_BACKEND']
@@ -850,17 +761,133 @@ if __name__ == '__main__':
     PSF = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
     PSF /= np.sum(PSF)
 
+
     # load initial parameter value and make them global
     THETA_INIT = from_param_to_theta_init(params_mcmc_yaml)
-    FIRST_THETA = from_theta_init_to_PoI(THETA_INIT)
+    FREE_PARAMS = arr_free_params(params_mcmc_yaml)
+
+    # Separate the HG params from the geo params and call my func to fit the Fourier model to the curve
+    # Return the coefficients - these are what we need to use the MCMC to optimize
+    # Finally fix the geo params
+    SM_ANGLE = params_mcmc_yaml['MIN_SCATT_ANG']
+    LG_ANGLE = params_mcmc_yaml['MAX_SCATT_ANG']
+    R1 = params_mcmc_yaml["r_inner"]
+    R2 = params_mcmc_yaml["r_outer"]
+    N_MODES = params_mcmc_yaml['N_BASIS']
+    RPROFSUB = params_mcmc_yaml["RPROFSUB"]
+    if RPROFSUB:
+        MED_PROFILE_EST = fits.getdata(f"{KLIPDIR}/estimated_med_profile.fits")
+        MED_PROFILE_EST /= np.max(MED_PROFILE_EST)
+    scattering_angles_deg = np.arange(SM_ANGLE,LG_ANGLE,1)
+    sc_angs_deg = np.linspace(SM_ANGLE,LG_ANGLE,(LG_ANGLE - SM_ANGLE) * 10)
+    XRANGE_MAX = params_mcmc_yaml["XRANGE_MAX"]
+    X_TOFIT = np.linspace(0, XRANGE_MAX, len(sc_angs_deg))
+    SC_ANGS_RAD = np.deg2rad(sc_angs_deg)
+    spf_tofit = calculate_hg_spf(g1=THETA_INIT[-3],
+                                 g2=THETA_INIT[-2],
+                                 alpha1=THETA_INIT[-1],
+                                #  scattangs=scattering_angles_deg)
+                                 scattangs=sc_angs_deg)
+    #
+    DIMENSION = round(ALIGNED_CENTER[0]) * 2
+    N_DIM_GEO = len(FREE_PARAMS)
+    if SPF_MODEL == 'hg_1g':
+        # GEO_PARAMS = THETA_INIT[:-1]
+        if params_mcmc_yaml['SPF_BASIS'] == 'fourier':
+            BASIS = 'fourier'
+            COEFFS_INIT = fit_fourier_to_hg_spf(KLIPDIR,g1=THETA_INIT[-3])
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT[1:])
+        elif params_mcmc_yaml['SPF_BASIS'] == 'legendre':
+            BASIS = 'legendre'
+            COEFFS_INIT = fit_legendre_to_hg_spf(KLIPDIR,spf_tofit,scattering_angles_deg,nmodes=N_MODES)
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT[1:])
+        elif params_mcmc_yaml['SPF_BASIS'] == "bessel":
+            BASIS = "bessel"
+            COEFFS_INIT = fit_bessel_to_hg_spf(KLIPDIR,spf_tofit,scattering_angles_deg,nmodes=N_MODES)
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT)
+        N_DIM_MCMC = N_DIM_GEO + len(COEFFS_INIT)
+    elif SPF_MODEL == 'hg_2g':
+        if params_mcmc_yaml['SPF_BASIS'] == 'fourier':
+            BASIS = 'fourier'
+            COEFFS_INIT = fit_fourier_to_hg_spf(KLIPDIR,g1=THETA_INIT[-3],g2=THETA_INIT[-2],alpha1=THETA_INIT[-1])
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT[1:])
+        elif params_mcmc_yaml['SPF_BASIS'] == 'legendre':
+            BASIS = 'legendre'
+            COEFFS_INIT_ALL = fit_legendre_to_hg_spf(KLIPDIR,
+                                                 spf_tofit,
+                                                 sc_angs_deg,
+                                                 nmodes=N_MODES)
+            COEFFS_INIT = COEFFS_INIT_ALL[1:]
+            DC = COEFFS_INIT_ALL[0]
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT)
+            print(f"HG Legendre 0 solution: {DC}")
+            print(f"Starting with coefficients: {THETA_INIT[-(N_MODES+1):]}") #include DC offset
+        elif params_mcmc_yaml['SPF_BASIS'] == "bessel":
+            BASIS = "bessel"
+            COEFFS_LEG = fit_legendre_to_hg_spf(KLIPDIR,
+                                                spf_tofit,
+                                                sc_angs_deg,
+                                                nmodes=N_MODES)
+            DC = COEFFS_LEG[0]
+            # spf_tofit -= np.ones_like(spf_tofit) * DC
+            # COEFFS_INIT = fit_bessel_to_hg_spf(KLIPDIR,spf_tofit,scattering_angles_deg,nmodes=N_MODES,cshift=CSHIFT)
+            COEFFS_INIT, SELECT_BASIS = fit_bessel_to_hg_spf(KLIPDIR,
+                                                             XRANGE_MAX,
+                                                             sc_angs_deg,
+                                                             nmodes=N_MODES,
+                                                             dcoffset=DC)
+            COEFFS_INIT_ALL = np.append(DC,COEFFS_INIT)
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT_ALL)
+        elif params_mcmc_yaml['SPF_BASIS'] == "ortho_bessel":
+            XRANGE_MAX = params_mcmc_yaml["XRANGE_MAX"]
+            BASIS = "bessel"
+            COEFFS_LEG = fit_legendre_to_hg_spf(KLIPDIR,spf_tofit,sc_angs_deg,nmodes=N_MODES)
+            DC = COEFFS_LEG[0]
+            # spf_tofit -= np.ones_like(spf_tofit) * DC
+            # COEFFS_INIT = fit_bessel_to_hg_spf(KLIPDIR,spf_tofit,scattering_angles_deg,nmodes=N_MODES,cshift=CSHIFT)
+            COEFFS_INIT, SELECT_BASIS = fit_bessel_to_hg_spf(KLIPDIR,
+                                                             XRANGE_MAX,
+                                                             spf_tofit,
+                                                             sc_angs_deg,
+                                                             nmodes=N_MODES,
+                                                             dcoffset=DC,
+                                                             orthogonalize=True)
+            # COEFFS_INIT_ALL = np.append(DC,COEFFS_INIT)
+            COEFFS_INIT_ALL = COEFFS_INIT
+            THETA_INIT = np.append(THETA_INIT[:-3],COEFFS_INIT_ALL)
+        N_DIM_MCMC = len(FREE_PARAMS) + len(COEFFS_INIT)
+    else:
+        raise ValueError('Not configured for a different SPF model. Choose "hg_1g" or "hg_2g".')
+    
+
+    THETA_INTEREST = from_theta_init_to_PoI(THETA_INIT)
+    FIRST_THETA = np.append(THETA_INTEREST, COEFFS_INIT_ALL)
+    print(f"print(FIRST_THETA) -> {FIRST_THETA}")
     N_DIM_MCMC = len(FIRST_THETA)
 
     # measure the size of images DIMENSION and make it global
     DIMENSION = round(ALIGNED_CENTER[0]) * 2
+
+
+    max_fov = DIMENSION / 2. * PIXSCALE_INS  #maximum radial distance in AU from the center to the edge
+    n_pts = int(np.floor(DIMENSION / 1))
+    xsize = max_fov * DISTANCE_STAR  #maximum radial distance in AU from the center to the edge
+
+    # print(f'max_fov: {max_fov}; xsize: {xsize}')
+
+    #The coordinate system here [x,y,z] is defined :
+    # +ve x is the line of sight
+    # +ve y is going right from the center
+    # +ve z is going up from the center
+
+    # y = np.linspace(0,xsize,num=npts/2)
+    Y_MODEL = np.linspace(-xsize, xsize, num=n_pts)
+    Z_MODEL = np.linspace(-xsize, xsize, num=n_pts)
     
     FREEFORM_IMAGE = fits.getdata(args.image) * WHEREMASK2GENERATEDISK
     NOISE[NOISE == 0] = np.nan
-    
+    LAMBDA_REG = params_mcmc_yaml["LAMBDA_REG"]
+
     # plt.imshow(FREEFORM_IMAGE, origin="lower")
     # plt.colorbar()
     # plt.show()
@@ -929,6 +956,7 @@ if __name__ == '__main__':
         # profiler.disable()
         # # Save the stats to a file
         # profiler.dump_stats(f'{basedir}/debrisdisk_mcmc_fit_and_plot/diskfit_mcmc.prof')
+        # profiler.dump_stats("/tmp/cProfile/modelfit_physical_to_freeform.prof")
 
     print("Time {0} iterations with {1} walkers and {2} cpus: {3}".format(
               N_ITER_MCMC, NWALKERS, cpu_count(),
