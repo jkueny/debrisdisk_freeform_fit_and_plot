@@ -12,7 +12,7 @@ ANNULI: 1 # number of annuli in the KLIP reduction
 IWA: 10 # pixels
 OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 # OWA: 32 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-MOVE_HERE: 14  #minrot in PyKLIP ADI
+MOVE_HERE: 6  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP

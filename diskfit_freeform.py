@@ -514,11 +514,11 @@ def optimize_model(target_image, model_init,
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
 
-    # Initialize the initial image of random pixels
+    # Initialize the initial image
     image_params = model_init
     # image_params = initialize_freeform_model_reduced()
 
-    # Set up the optimizer
+    # Set up optimizer, use adaptive stochastic grad descent
     optimizer = optax.adam(lr)
     opt_state =  optimizer.init(image_params)
 
