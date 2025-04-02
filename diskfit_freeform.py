@@ -251,7 +251,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     #                        ref_models_stacked, ref_psfs_stacked,
     #                        klmodes_stacked, evals, evecs_stacked,
     #                        PAs)
-    flat_postklip_psfs = jax.pmap(fm_from_eigen_single
+    flat_postklip_psfs = jax.vmap(fm_from_eigen_single
                           )(aligned_images, ref_psfs_stacked,
                             global_models_prepped,ref_models_stacked,
                             klmodes_stacked, evals, evecs_stacked,
@@ -356,6 +356,15 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
     print(
         "\n Create the binary masks to define model zone and chisquare zone"
     )
+
+        ## a few lines to create a circular central mask to hide center regions with a lot
+    ## of speckles. Currently not using it but it's there
+    mask_owa = np.ones((dataset.input.shape[1], dataset.input.shape[2]))
+    x = np.arange(dataset.input.shape[1], dtype=float)[None,:] - aligned_center[0]
+    y = np.arange(dataset.input.shape[2], dtype=float)[:,None] - aligned_center[1]
+    rho2d = np.sqrt(x**2 + y**2)
+    mask_owa[np.where(rho2d > dataset.OWA)] = 0.
+
     in_scaling = params_mcmc_yaml['MASK_IN_SCALING'] #originally 18
     out_scaling = params_mcmc_yaml['MASK_OUT_SCALING'] #originally 18
 
@@ -373,43 +382,39 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
         out_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'])),
         aligned_center=mask_center)
     mask2generatedisk = 1 - mask_disk_zeros
+
+    mask2generatedisk *= mask_owa
+
+    print(f"Saving mask to {os.path.join(klipdir,
+                                file_prefix + '_mask2generatedisk.fits')}")
     fits.writeto(os.path.join(klipdir,
                                 file_prefix + '_mask2generatedisk.fits'),
                     mask2generatedisk,
                     overwrite='True')
 
-    # we create a second mask for the minimization a little bit larger
-    # (because model expect to grow with the PSF convolution and the FM)
-    # and we can also exclude the center region where there are too much speckles
-    mask_disk_zeros = gpidiskpsf.make_disk_mask(
-        dataset.input.shape[1],
-        params_mcmc_yaml['pa_init'],
-        params_mcmc_yaml['inc_init'],
-        convert.au_to_pix(params_mcmc_yaml['r1_init'],
-                            params_mcmc_yaml['PIXSCALE_INS'],
-                            params_mcmc_yaml['DISTANCE_STAR']) -
-        in_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'] - 4)),
-        convert.au_to_pix(params_mcmc_yaml['r2_init'],
-                            params_mcmc_yaml['PIXSCALE_INS'],
-                            params_mcmc_yaml['DISTANCE_STAR']) +
-        out_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'])),
-        aligned_center=mask_center)
+    # # we create a second mask for the minimization a little bit larger
+    # # (because model expect to grow with the PSF convolution and the FM)
+    # # and we can also exclude the center region where there are too much speckles
+    # mask_disk_zeros = gpidiskpsf.make_disk_mask(
+    #     dataset.input.shape[1],
+    #     params_mcmc_yaml['pa_init'],
+    #     params_mcmc_yaml['inc_init'],
+    #     convert.au_to_pix(params_mcmc_yaml['r1_init'],
+    #                         params_mcmc_yaml['PIXSCALE_INS'],
+    #                         params_mcmc_yaml['DISTANCE_STAR']) -
+    #     in_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'] - 4)),
+    #     convert.au_to_pix(params_mcmc_yaml['r2_init'],
+    #                         params_mcmc_yaml['PIXSCALE_INS'],
+    #                         params_mcmc_yaml['DISTANCE_STAR']) +
+    #     out_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'])),
+    #     aligned_center=mask_center)
 
-    mask2minimize = (1 - mask_disk_zeros)
+    # mask2minimize = (1 - mask_disk_zeros)
 
-    ### a few lines to create a circular central mask to hide center regions with a lot
-    ### of speckles. Currently not using it but it's there
-    # mask_speckle_region = np.ones((dataset.input.shape[1], dataset.input.shape[2]))
-    # x = np.arange(dataset.input.shape[1], dtype=np.float)[None,:] - aligned_center[0]
-    # y = np.arange(dataset.input.shape[2], dtype=np.float)[:,None] - aligned_center[1]
-    # rho2d = np.sqrt(x**2 + y**2)
-    # mask_speckle_region[np.where(rho2d < 21)] = 0.
-    # mask2minimize = mask2minimize*mask_speckle_region
-
-    fits.writeto(os.path.join(klipdir,
-                                file_prefix + '_mask2minimize.fits'),
-                    mask2minimize,
-                    overwrite='True')
+    # fits.writeto(os.path.join(klipdir,
+    #                             file_prefix + '_mask2minimize.fits'),
+    #                 mask2minimize,
+    #                 overwrite='True')
     psflib = None
 
 
@@ -617,6 +622,7 @@ if __name__ == "__main__":
                                                 quietklip=True)
     
     # load wheremask2generatedisk
+    print(f"Loading mask: {os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits')}")
     WHEREMASK2GENERATEDISK = fits.getdata(
         os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits'))
 
