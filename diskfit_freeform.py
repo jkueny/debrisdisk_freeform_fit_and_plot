@@ -81,7 +81,7 @@ import optax
 
 # jax.config.update("jax_enable_x64", True)
 
-update_disk_jit = jax.jit(update_disk, static_argnames=["min_num_models",])
+# update_disk_jit = jax.jit(update_disk, static_argnames=["min_num_models",])
 # reconstruct_full_image_jax = jax.jit(reconstruct_full_image,
 #                                      static_argnames=["total_pixels"],
 #                                      )
@@ -206,7 +206,7 @@ def convolve_model_lax(input_model, psf):
                                    "total_pixels"])
 def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                   ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
-                  section_inds_arr, klmodes_stacked, evals, evecs_stacked, 
+                  section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
@@ -532,14 +532,14 @@ def optimize_model(target_image, model_init,
     klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
     # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
-    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes)
+    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 2)
     # evecs have been unpacked, stacked, and ready to be BATCHED!
     # input_img_nums = basis_data_unpacked["input_img_nums"]
     # These are the images used for the basis for every image in the dataset.
     ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
-    ref_PAs = basis_data_unpacked["ref_PAs"]
+    ref_PAs = basis_data_unpacked["ref_PAs"] 
     fixed_refs = basis_data_unpacked["fixed_refs"]
-    # ref_psfs shape (N_images, max_N_refs, N_pixels)
+    # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
     position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
@@ -551,7 +551,7 @@ def optimize_model(target_image, model_init,
     # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
-    @jax.jit
+    @jax.jit()
     def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf,
                                     aligned_image_data, ref_psfs,
