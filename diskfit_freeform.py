@@ -47,7 +47,7 @@ import numpy as np
 
 import astropy.io.fits as fits
 # from astropy.convolution import convolve
-from scipy.signal import convolve
+# from scipy.signal import convolve
 # from scipy.signal import fftconvolve
 import matplotlib.pyplot as plt
 
@@ -529,7 +529,13 @@ def optimize_model(target_image, model_init,
     # num_input_images = int(jax.device_get(basis_data["klparam_dict"]["nfiles"]))
     aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
     section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
+    aligned_image_sections = jnp.take(aligned_image_data, section_inds[-1], axis=1, fill_value=0.)
+    del aligned_image_data
+
     klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
+    klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
+    del klmodes
+
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
     # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
     evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 2)
@@ -537,8 +543,11 @@ def optimize_model(target_image, model_init,
     # input_img_nums = basis_data_unpacked["input_img_nums"]
     # These are the images used for the basis for every image in the dataset.
     ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
-    ref_PAs = basis_data_unpacked["ref_PAs"] 
-    fixed_refs = basis_data_unpacked["fixed_refs"]
+    ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
+    del ref_psfs
+
+    ref_PAs = basis_data_unpacked["ref_PAs"]
+    fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
@@ -547,17 +556,18 @@ def optimize_model(target_image, model_init,
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
+
     time_now = time.time()
     # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
-    @jax.jit()
+    @jax.jit
     def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf,
-                                    aligned_image_data, ref_psfs,
+                                    aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
                                     aligned_center, section_inds,
-                                    klmodes, evals, evecs, total_pixels)
+                                    klmodes_sections, evals, evecs, total_pixels)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -579,7 +589,7 @@ def optimize_model(target_image, model_init,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='run diskierFM autodiff')
     parser.add_argument('-p',
-                        '--param_file',
+                        '--param-file',
                         required=False,
                         help='parameter file name')
     parser.add_argument(
@@ -588,7 +598,7 @@ if __name__ == "__main__":
                         required=True,
                         help='Num. iterations')
     parser.add_argument(
-                        '--initial_model',
+                        '--initial-model',
                         type=str,
                         required=True,
                         help='Path to starting model fits file')
