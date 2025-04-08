@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: False
+FIRST_TIME: True
 FIRST_TIME_GS: True #first time doing pyklip gridsearch, for SNR analysis mask check
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
@@ -12,7 +12,8 @@ ANNULI: 1 # number of annuli in the KLIP reduction
 IWA: 9 # pixels
 # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-OWA: 48 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+# OWA: 48 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+OWA: 60 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 6  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
@@ -117,7 +118,7 @@ CONV_FACTOR: 1.6192783494243498e-07 # Jy / Ang.
 
 
 # MASKING PARAMETERS
-MASK_IN_SCALING: 5 #bigger means shrink inner bound, nominally 4
+MASK_IN_SCALING: 28 #bigger means shrink inner bound, nominally 4
 MASK_OUT_SCALING: 7 #bigger means expand outer bound, nominally 6
 MASK_SPECKLES: 12 #central circle mask
 MASK_MINOR: 68 #OWA to isolate minor axis
