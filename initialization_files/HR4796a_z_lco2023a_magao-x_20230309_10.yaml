@@ -12,9 +12,9 @@ ANNULI: 1 # number of annuli in the KLIP reduction
 # KLIP params optimized for ctrl region speckles, minor axis, 2x2 binning, 08/04/24 JKK
 # Fixing minrot to 6, bc minor axis flux optimization favors
 # very high minrot, outer disk suffers greatly, harder to subtract artifacts.
-IWA: 10 # pixels
-OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-# OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+IWA: 8 # pixels
+# OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 7  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
