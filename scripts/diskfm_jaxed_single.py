@@ -478,7 +478,8 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
     # freeform_model = jax.nn.sigmoid(full_model_image)
 
-    freeform_image = convolve_model(full_model_image, psf)
+    # freeform_image = convolve_model(full_model_image, psf)
+    freeform_image = full_model_image
 
     # confirmed image insertion works on global_models_prepped, individuals show as
     # expected.
@@ -618,7 +619,7 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    STARTING_DISK = fits.getdata("freeform_run_50kiter.fits")
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/HR4796a_z_lco2023a_magao-x_20230309_10/stitched_freeform_run_84parangspan_2KL.fits")
     # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
@@ -639,9 +640,11 @@ if __name__ == "__main__":
                                        psf=JAX_PSF, basis_data=fm_dict
                                 )
     
-    fm_rolled = jnp.roll(fm_full_image, -1, (0,1))
+    # fm_rolled = jnp.roll(fm_full_image, -1, (0,1))
+    fm_rolled = jnp.roll(fm_full_image, 0, (0,1))
     # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
     residuals = np.asarray(TARGET_IMAGE - (fm_rolled * MASK))
+    model_residuals = np.asarray(TARGET_IMAGE - STARTING_DISK)
     # residuals = np.asarray((fm_full_image * MASK) - TARGET_IMAGE)
     # residuals = np.asarray(COMPARISON_FM - (fm_full_image * MASK))
     vmin_relax = np.nanmin(np.asarray(REDUCED_DATA)) * 0.3
@@ -651,12 +654,14 @@ if __name__ == "__main__":
     # --- Visualization ---
     fig, ax = plt.subplots(2, 3, figsize=(12, 6))
 
-    cax00 = ax[0,0].imshow(np.asarray(STARTING_DISK), cmap='viridis', origin="lower")
-    ax[0,0].set_title("Otimized Freeform Model")
+    cax00 = ax[0,0].imshow(np.asarray(STARTING_DISK), cmap='viridis', origin="lower",
+                           vmin=round(vmin_relax), vmax=round(vmax_relax))
+    ax[0,0].set_title("Optimized Freeform Model")
     plt.colorbar(cax00)
     ax[0,0].axis("off")
 
-    cax01 = ax[0,1].imshow(np.asarray(fm_full_image * MASK), cmap='inferno', origin="lower")
+    cax01 = ax[0,1].imshow(np.asarray(fm_full_image * MASK), cmap='inferno', origin="lower",
+                           vmin=round(vmin_relax), vmax=round(vmax_relax))
     ax[0,1].set_title("Freeform FM")
     plt.colorbar(cax01)
     ax[0,1].axis("off")
@@ -679,9 +684,9 @@ if __name__ == "__main__":
     plt.colorbar(cax11)
     ax[1,1].axis("off")
 
-    cax12 = ax[1,2].imshow(np.array(residuals), cmap='magma', origin="lower",
-                           vmin=round(vmin_relax * 0.25), vmax=round(vmax_relax * 0.25))
-    ax[1,2].set_title("Residuals (hard stretch)")
+    cax12 = ax[1,2].imshow(np.array(model_residuals), cmap='magma', origin="lower",
+                           vmin=round(vmin_relax), vmax=round(vmax_relax))
+    ax[1,2].set_title("Residuals (data - model)")
     plt.colorbar(cax12)
     ax[1,2].axis("off")
 

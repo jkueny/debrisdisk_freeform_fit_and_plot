@@ -6,12 +6,12 @@ DISK_MODEL: original # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 8 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 3 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-IWA: 10 # pixels
-OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-# OWA: 32 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+IWA: 9 # pixels
+# OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 6  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
