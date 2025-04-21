@@ -57,7 +57,8 @@ import yaml
 from dev.pyklip.instruments.Instrument import GenericData
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
-from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_single, \
+from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
+                                        fm_from_eigen_rdi, \
                                         insert_section_into_full_image, \
                                         mass_derotation
 from dev.pyklip.fmlib.diskfm import DiskFM
@@ -203,11 +204,11 @@ def convolve_model_lax(input_model, psf):
 
 
 @partial(jax.jit, static_argnames=["fixed_refs","aligned_center",
-                                   "total_pixels"])
+                                   "total_pixels", "isRDI"])
 def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                   ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
-                  total_pixels):
+                  total_pixels, isRDI):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
         convolve by the PSF (psf is global)
@@ -225,7 +226,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     # DM commands scaled to [0,1] fits cubes do like 10 secs of wall clock time
     # Spatil freq. such that speckles end up at 10 lamb/D
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
-
+    isRDI = bool(isRDI)
 
 
     
@@ -238,12 +239,6 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     # freeform_image = convolve_model_lax(full_model_image, psf)
     freeform_image = full_model_image
 
-    global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
-                                                            PAs=PAs, ref_PAs=ref_PAs,
-                                                            # aligned_center=aligned_center,
-                                                            section_inds=section_inds_arr,
-                                                            min_num_models=fixed_refs,
-                                                            )
 
     # confirmed shape of model_images_prepped (84, 50176)
     # flat_postklip_psfs = fm_jaxed(aligned_images,
@@ -251,11 +246,34 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     #                        ref_models_stacked, ref_psfs_stacked,
     #                        klmodes_stacked, evals, evecs_stacked,
     #                        PAs)
-    flat_postklip_psfs = jax.vmap(fm_from_eigen_single
-                          )(aligned_images, ref_psfs_stacked,
-                            global_models_prepped,ref_models_stacked,
-                            klmodes_stacked, evals, evecs_stacked,
-                            )
+    if not isRDI:
+        global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
+                                                                PAs=PAs, ref_PAs=ref_PAs,
+                                                                # aligned_center=aligned_center,
+                                                                section_inds=section_inds_arr,
+                                                                min_num_models=fixed_refs,
+                                                                isRDI=isRDI
+                                                                )
+        
+        flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
+                            )(aligned_images, ref_psfs_stacked,
+                                global_models_prepped,ref_models_stacked,
+                                klmodes_stacked, evals, evecs_stacked,
+                                )
+    elif isRDI:
+        global_models_prepped = update_disk(model_disk=freeform_image,
+                                            PAs=PAs, ref_PAs=ref_PAs,
+                                            # aligned_center=aligned_center,
+                                            section_inds=section_inds_arr,
+                                            min_num_models=fixed_refs,
+                                            isRDI=isRDI
+                                            )
+        flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
+                            )(aligned_images, 
+                                global_models_prepped,
+                                klmodes_stacked,
+                                )
+
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
                                               total_pixels,section_inds_arr)
 
@@ -530,11 +548,9 @@ def optimize_model(target_image, model_init,
     aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
     section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
     aligned_image_sections = jnp.take(aligned_image_data, section_inds[-1], axis=1, fill_value=0.)
-    del aligned_image_data
 
     klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
     klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
-    del klmodes
 
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
     # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
@@ -544,10 +560,15 @@ def optimize_model(target_image, model_init,
     # These are the images used for the basis for every image in the dataset.
     ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
     ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
-    del ref_psfs
 
     ref_PAs = basis_data_unpacked["ref_PAs"]
-    fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number
+
+    if bool(basis_data_unpacked["klparams"]["isRDI"]):
+        fixed_refs = klmodes.shape[1]
+        mode = 1
+    elif not bool(basis_data_unpacked["klparams"]["isRDI"]):
+        fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number
+        mode = 0
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
@@ -556,6 +577,9 @@ def optimize_model(target_image, model_init,
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
+    del aligned_image_data
+    del klmodes
+    del ref_psfs
 
     time_now = time.time()
     # jax.profiler.start_trace("/tmp/tensorboard")
@@ -567,7 +591,7 @@ def optimize_model(target_image, model_init,
                                     aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
                                     aligned_center, section_inds,
-                                    klmodes_sections, evals, evecs, total_pixels)
+                                    klmodes_sections, evals, evecs, total_pixels, mode)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -576,7 +600,7 @@ def optimize_model(target_image, model_init,
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        if step_idx % 1000 == 0:
+        if step_idx % round(num_steps / 100) == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
@@ -626,6 +650,11 @@ if __name__ == "__main__":
     PIXSCALE_INS = params_mcmc_yaml['PIXSCALE_INS']
     ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
     FIRST_TIME = params_mcmc_yaml["FIRST_TIME"]
+    MODE = params_mcmc_yaml["MODE"]
+    # if MODE.upper() == "ADI":
+    #     mode = 0
+    # elif MODE.upper() == "RDI":
+    #     mode = 1
     BASIS_FILE = f"{KLIPDIR}/{FILE_PREFIX}_klbasis.h5"
 
     dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml,

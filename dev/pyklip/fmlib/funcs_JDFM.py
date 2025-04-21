@@ -67,7 +67,7 @@ def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0.0):
     else:
         return arr
 
-def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models):
+def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
     """
     Takes a 2D model disk and produces two outputs:
     
@@ -114,27 +114,30 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models):
     # Apply sectioning to each global rotated disk.
     global_rot_section_flat = jax.vmap(apply_section, in_axes=(0, None))(global_rot_flat, section_inds)
     
-    # Reference rotations.
-    ref_rotated_list = []
-    for i in range(N_global):
-        # For global image i, ref_PAs[i] is a 1D array of reference angles.
-        ref_angles = ref_PAs[i]
-        # Rotate model_disk for each reference angle.
-        # Note: We rotate the same model_disk for each reference PA.
-        ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle))(ref_angles)
-        # ref_rot has shape (L, height, width), where L = len(ref_angles).
-        # Now, apply the section for global image i.
-        # Flatten each sectioned reference model.
-        ref_rot_flat = ref_rot.reshape((ref_rot.shape[0], -1)) # (78,50176) or (N_refs, N_pixels)
-        ref_rot_sec = jax.vmap(lambda img: img[section_inds])(ref_rot_flat)
-        ref_rot_sec_flat = jnp.squeeze(ref_rot_sec)
-        # Pad along axis 0 so that each global image has min_num_models models.
-        ref_rot_sec_flat_padded = pad_array_to_fixed_first_dim(ref_rot_sec_flat, min_num_models, pad_value=0)
-        ref_rotated_list.append(jnp.squeeze(ref_rot_sec_flat_padded))
-    # Stack the results to obtain shape (N_global, min_num_models, N_pixels_section).
-    ref_rotated = jnp.stack(ref_rotated_list)
+    if not isRDI:
+        # Reference rotations.
+        ref_rotated_list = []
+        for i in range(N_global):
+            # For global image i, ref_PAs[i] is a 1D array of reference angles.
+            ref_angles = ref_PAs[i]
+            # Rotate model_disk for each reference angle.
+            # Note: We rotate the same model_disk for each reference PA.
+            ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle))(ref_angles)
+            # ref_rot has shape (L, height, width), where L = len(ref_angles).
+            # Now, apply the section for global image i.
+            # Flatten each sectioned reference model.
+            ref_rot_flat = ref_rot.reshape((ref_rot.shape[0], -1)) # (78,50176) or (N_refs, N_pixels)
+            ref_rot_sec = jax.vmap(lambda img: img[section_inds])(ref_rot_flat)
+            ref_rot_sec_flat = jnp.squeeze(ref_rot_sec)
+            # Pad along axis 0 so that each global image has min_num_models models.
+            ref_rot_sec_flat_padded = pad_array_to_fixed_first_dim(ref_rot_sec_flat, min_num_models, pad_value=0)
+            ref_rotated_list.append(jnp.squeeze(ref_rot_sec_flat_padded))
+        # Stack the results to obtain shape (N_global, min_num_models, N_pixels_section).
+        ref_rotated = jnp.stack(ref_rotated_list)
 
-    return global_rot_section_flat, ref_rotated
+        return global_rot_section_flat, ref_rotated
+    elif isRDI:
+        return global_rot_section_flat
 
 # @jax.jit
 def calculate_fm(delta_KL, original_KL, sci, model_sci):
@@ -280,8 +283,8 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     return delta_KL
 
 # @jax.jit
-def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
-                         klmodes, evals, evecs,):
+def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
+                         klmodes, evals, evecs):
     """ 
     Compute the forward model for one disk model image.
 
@@ -325,6 +328,63 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
                                     refs_data, model_disk_refs,
                                     # return_perturb_covar=False,
                                     )
+
+    # Calculate the post-KLIP PSF using your forward modeling routine.
+    postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,
+                                      sci_data, model_disk_sci)
+
+    postklip_psf_corrected = jnp.flip(postklip_psf, axis=1)
+    # postklip_psf_corrected = postklip_psf
+    # Save the rotated section.
+    # derotated_output = rotate_image(postklip_psf_corrected,
+    #                                 -parang,
+    #                                 # flip_x=False
+    #                                 )
+    return postklip_psf_corrected
+
+def fm_from_eigen_rdi(sci_data, model_disk_sci,
+                         klmodes):
+    """ 
+    Compute the forward model for one disk model image.
+
+    Note:
+        - All inputs must be JAX arrays, tuples, or scalars with fixed shapes.
+        - Any scalar or static parameters that are the same for every section
+        can be passed as-is.
+
+    Args:
+        sci_data (JAX array): A single science PSF image in the sequence.
+        Flattened, to a shape (1, N_pixels)
+
+        refs_data (JAX array): The other PSF images in the sequence used as
+        reference images for the PSF subtraction of the sci_data.
+        Flattened, to a shape (N_refs, N_pixels).
+
+        model_disk_sci (JAX array): A single disk model at the PA corresponding
+        to the working sci_data image. Flattened to a shape (1, N_pixels).
+
+        model_disk_refs (JAX array): Sequence of model disk images rotated to
+        the PAs consistent with the refs_data set.
+        Flattened to (N_refs, N_pixels).
+
+        klmodes (JAX array): Basis vectors used for the PSF subtraction of the
+        working science image, sci_data. Shape (N_modes, N_pixels)
+        evals (_type_): _description_
+        evecs (_type_): _description_
+        parang (_type_): _description_
+        IOWA (_type_): _description_
+        aligned_center (_type_): _description_
+        numbasis (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+
+    # Compute delta_KL (set to zero if mode=='RDI')
+    # Ex. shape for delta_KL (2, 39112)
+    delta_KL = 0. * klmodes
+
     # Calculate the post-KLIP PSF using your forward modeling routine.
     postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,
                                       sci_data, model_disk_sci)
