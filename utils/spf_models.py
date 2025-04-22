@@ -105,7 +105,7 @@ def orthogonalize_bessel_basis(x, nmodes, npts):
     
     return ortho_basis
 
-@numba.njit
+# @numba.njit
 def legendre_reconstruction(x, *a):
     nmodes = len(a)
     n = len(x)

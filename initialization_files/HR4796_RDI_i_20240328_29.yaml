@@ -7,18 +7,18 @@ MODE: RDI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow t
 DO_RDI_CORRELATION: True # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
 # KLMODE_NUMBER: 64 # number of KL modes used in the reduction < nb images in the basis
-KLMODE_NUMBER: 9 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 22 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-IWA: 12 # pixels
+IWA: 15 # pixels
 OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 # OWA: 32 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 0  #minrot in PyKLIP ADI
-HP_FILTER: 24 #size of FWHM for HP filter, disabled in diskfit_mcmc for now
+HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
-WL: 0.908 #wavelength in microns
+WL: 0.762 #wavelength in microns
 
 #  In the KLIP do you want to remove the images where the disk is on the satspots 
 # if True: frames are removed
@@ -27,13 +27,13 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 # The images where the disk is on the satspots are autonatically remove to measure the PSF
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-BAND_DIR: HR4796_lco20240328_29/raws_2x2binning_iz_smlyot/camsci2/lite_psflib  # name of folder where are the data (from basedir)
+BAND_DIR: HR4796_lco20240328_29/raws_2x2binning_iz_smlyot/camsci1/lite_psflib  # name of folder where are the data (from basedir)
 RDI_DIR: .       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
-FILE_PREFIX: camsci2_z_20240328_29 #prefix for all saved files (carefull not to erase your results)
-BAND_NAME: 2024 Mar 28, $z'$ band #for plot titles uniquely
-FILTER_NAME: $z'$
+FILE_PREFIX: camsci1_i_20240328_29 #prefix for all saved files (carefull not to erase your results)
+BAND_NAME: 2024 Mar 28, $i'$ band #for plot titles uniquely
+FILTER_NAME: $i'$
 
 # STAR OBSERVATION PARAMETERS
 DISTANCE_STAR: 72.248  #distance of the disk in pc, Gaia DR3
@@ -147,7 +147,7 @@ DISK_MAX_SC_ANG: 167 #this will never change
 SPF_FILE: HR4796/phase_functions
 SPF_MODEL: hg_2g # Heyniey greenstein ('hg_1g', 'hg_2g', 'hg_3g') or 
 # SPF_MODEL: adp # Agglomerated Dust Particle; Arnold et al. 2022
-SPF_BASIS: legendre # Fit Fourier series model
+SPF_BASIS: ortho_bessel # Fit Fourier series model
 
 
 MIN_SCATT_ANG: 10

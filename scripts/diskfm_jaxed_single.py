@@ -57,7 +57,7 @@ import jax.profiler
 from jax.scipy.signal import convolve2d
 
 update_disk_jit = jax.jit(update_disk, static_argnames=[
-                                                        "min_num_models",])
+                                                        "min_num_models","isRDI"])
 
 def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
     """
@@ -232,7 +232,7 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
     return delta_KL
 
-def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
+def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
                          klmodes, evals, evecs, parang):
     """ 
     Compute the forward model for one disk model image.
@@ -293,11 +293,66 @@ def fm_from_eigen_single(sci_data, refs_data, model_disk_sci, model_disk_refs,
     #                                 )
     return postklip_psf_flipx
 
-def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
-             ref_psfs_stacked, klmodes_stacked,
-             evals_arr, evecs_stacked, 
-            #  section_ind_arr, input_img_nums, input_img_shape,
-             PAs):
+def fm_from_eigen_rdi(sci_data, model_disk_sci, klmodes, parang):
+    """ 
+    Compute the forward model for one disk model image.
+
+    Note:
+        - All inputs must be JAX arrays, tuples, or scalars with fixed shapes.
+        - Any scalar or static parameters that are the same for every section
+        can be passed as-is.
+
+    Args:
+        sci_data (JAX array): A single science PSF image in the sequence.
+        Flattened, to a shape (1, N_pixels)
+
+        refs_data (JAX array): The other PSF images in the sequence used as
+        reference images for the PSF subtraction of the sci_data.
+        Flattened, to a shape (N_refs, N_pixels).
+
+        model_disk_sci (JAX array): A single disk model at the PA corresponding
+        to the working sci_data image. Flattened to a shape (1, N_pixels).
+
+        model_disk_refs (JAX array): Sequence of model disk images rotated to
+        the PAs consistent with the refs_data set.
+        Flattened to (N_refs, N_pixels).
+
+        klmodes (JAX array): Basis vectors used for the PSF subtraction of the
+        working science image, sci_data. Shape (N_modes, N_pixels)
+        evals (_type_): _description_
+        evecs (_type_): _description_
+        parang (_type_): _description_
+        IOWA (_type_): _description_
+        aligned_center (_type_): _description_
+        numbasis (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+
+    # Compute delta_KL (set to zero if mode=='RDI')
+    # Ex. shape for delta_KL (2, 39112)
+    delta_KL = 0. * klmodes
+    # Calculate the post-KLIP PSF using your forward modeling routine.
+    postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,
+                                      sci_data, model_disk_sci)
+    
+    # postklip_psf_squeezed = jnp.squeeze(postklip_psf)
+
+    # jax.debug.print("print(postklip_psf.shape) -> {x}", x=postklip_psf.shape)
+
+    postklip_psf_flipx = jnp.flip(postklip_psf, axis=1)
+    # Save the rotated section.
+    # derotated_output = rotate_image(postklip_psf_corrected,
+    #                                 -parang,
+    #                                 # flip_x=False
+    #                                 )
+    return postklip_psf_flipx
+
+def fm_jaxed(aligned_images, model_disks, 
+              klmodes_stacked, isRDI, PAs,
+             evals_arr=None, evecs_stacked=None, ref_models_stacked=None, ref_psfs_stacked=None,):
     """Do the forward modeling procedure using JAX's vmap() framework.
 
 
@@ -362,11 +417,16 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
     #                         model_disks,ref_models_stacked,
     #                         klmodes_stacked, evals_arr, evecs_stacked,
     #                         PAs)
-    flat_postklip_PSFs = jax.vmap(fm_from_eigen_single
-                          )(aligned_images, ref_psfs_stacked,
-                            model_disks,ref_models_stacked,
-                            klmodes_stacked, evals_arr, evecs_stacked,
-                            PAs)
+    if not isRDI:
+        flat_postklip_PSFs = jax.vmap(fm_from_eigen_adi
+                            )(aligned_images, ref_psfs_stacked,
+                                model_disks,ref_models_stacked,
+                                klmodes_stacked, evals_arr, evecs_stacked,
+                                PAs)
+    elif isRDI:
+        flat_postklip_PSFs = jax.vmap(fm_from_eigen_rdi
+                            )(aligned_images, model_disks,
+                              klmodes_stacked, PAs)
     # delta_KLs look reasonable JKK 03/18/2025
     # delta_KL_test1 = insert_section_into_full_image(delta_KLs[0][0], (224,224),
     #                                                 section_inds)
@@ -388,6 +448,7 @@ def fm_jaxed(aligned_images, model_disks, ref_models_stacked,
     # jax.debug.print("print(fm_out.shape; after nanmean) -> {x}", x=fm_out.shape)
 
     return flat_postklip_PSFs
+
 
 ####
 
@@ -472,7 +533,8 @@ def insert_section_into_full_image(flat_section, full_shape, section_inds):
 def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
                   ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked, 
-                  image_dim):
+                  image_dim, mode):
+    isRDI = bool(mode)
     # Model reconstruction confirmed JKK 03/18/2025
     full_model_image = reconstruct_full_image(mod_pix_params, image_dim)
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
@@ -485,12 +547,23 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
     # expected.
     # confirmed ref_models_stacked as well. Zero pad images are at the end of the item
     # arrays. JKK 03/18/2025
-    global_models_prepped, ref_models_stacked = update_disk_jit(model_disk=freeform_image,
+    if not isRDI:
+        global_models_prepped, ref_models_stacked = update_disk_jit(model_disk=freeform_image,
                                                             PAs=PAs, ref_PAs=ref_PAs,
                                                             # aligned_center=aligned_center,
                                                             section_inds=section_inds_arr,
-                                                            min_num_models=fixed_refs,
+                                                            min_num_models=fixed_refs, isRDI=mode,
                                                             )
+    elif isRDI:
+        global_models_prepped = update_disk_jit(model_disk=freeform_image,
+                                                PAs=PAs, ref_PAs=ref_PAs,
+                                                # aligned_center=aligned_center,
+                                                section_inds=section_inds_arr,
+                                                min_num_models=fixed_refs, isRDI=mode,
+                                                )
+    
+    flat_postklip_psfs = fm_jaxed(aligned_images, global_models_prepped,
+                                  klmodes_stacked, isRDI, PAs,)
     # # DEBUG: Grab a single disk model and view it
     # single_test_rotated = insert_section_into_full_image(ref_models_stacked[2][30], freeform_image.shape,
     #                                                      section_inds_arr)
@@ -499,11 +572,6 @@ def do_single_fm(mod_pix_params, disk_image, psf, aligned_images,
     # sys.exit()
     # confirmed shape of model_images_prepped (84, 50176)
     # jax.profiler.start_trace("/tmp/tensorboard")
-    flat_postklip_psfs = fm_jaxed(aligned_images,
-                           global_models_prepped,
-                           ref_models_stacked, ref_psfs_stacked,
-                           klmodes_stacked, evals, evecs_stacked,
-                           PAs)
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,image_dim,section_inds)
 
     freeform_fm_full = np.mean(derotated_postklip_psfs, axis=0)
@@ -537,6 +605,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
     # These are the images used for the basis for every image in the dataset.
     ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
     ref_PAs = basis_data_unpacked["ref_PAs"]
+    mode = basis_data_unpacked["klparams"]["isRDI"]
     fixed_refs = basis_data_unpacked["fixed_refs"]
     # ref_psfs shape (N_images, max_N_refs, N_pixels)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
@@ -551,7 +620,7 @@ def prep_and_return_fm(target_image, model_init, psf, basis_data,):
                  aligned_image_data, ref_psfs,
                  position_angles, ref_PAs, fixed_refs,
                  aligned_center, section_inds,
-                 klmodes, evals, evecs, dimension)
+                 klmodes, evals, evecs, dimension, mode)
     
     # jax.profiler.stop_trace()
     return fm_out
@@ -619,7 +688,8 @@ if __name__ == "__main__":
 
     TARGET_IMAGE = REDUCED_DATA * MASK# * 1e4
 
-    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/HR4796a_z_lco2023a_magao-x_20230309_10/stitched_freeform_run_84parangspan_2KL.fits")
+    # STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/HR4796a_z_lco2023a_magao-x_20230309_10/stitched_freeform_run_84parangspan_2KL.fits")
+    STARTING_DISK = fits.getdata("/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/HR4796_RDI_z_20240328_29/freeform_run_50kiter.fits")
     # STARTING_DISK = fits.getdata("camsci2_z_20230309_10_FirstModel.fits")
     STARTING_DISK *= MASK
     INIT_MODEL = jnp.array(STARTING_DISK)
@@ -645,11 +715,13 @@ if __name__ == "__main__":
     # residuals = np.asarray(TARGET_IMAGE - (fm_full_image * MASK))
     residuals = np.asarray(TARGET_IMAGE - (fm_rolled * MASK))
     model_residuals = np.asarray(TARGET_IMAGE - STARTING_DISK)
+    model_residuals[model_residuals != model_residuals] = 0.
     # residuals = np.asarray((fm_full_image * MASK) - TARGET_IMAGE)
     # residuals = np.asarray(COMPARISON_FM - (fm_full_image * MASK))
     vmin_relax = np.nanmin(np.asarray(REDUCED_DATA)) * 0.3
     vmax_relax = np.nanmax(np.asarray(REDUCED_DATA)) * 0.3
     starting_convolved = convolve_model(INIT_MODEL, JAX_PSF)
+    residuals_convolved = convolve_model(model_residuals, JAX_PSF)
     # fm_full_image = reconstruct_full_image(fm_init, TARGET_IMAGE.shape)
     # --- Visualization ---
     fig, ax = plt.subplots(2, 3, figsize=(12, 6))
@@ -660,22 +732,23 @@ if __name__ == "__main__":
     plt.colorbar(cax00)
     ax[0,0].axis("off")
 
-    cax01 = ax[0,1].imshow(np.asarray(fm_full_image * MASK), cmap='inferno', origin="lower",
+    cax01 = ax[1,0].imshow(np.asarray(fm_full_image * MASK), cmap='inferno', origin="lower",
                            vmin=round(vmin_relax), vmax=round(vmax_relax))
-    ax[0,1].set_title("Freeform FM")
+    ax[1,0].set_title("Freeform FM")
     plt.colorbar(cax01)
+    ax[1,0].axis("off")
+
+    cax02 = ax[0,1].imshow(np.asarray(residuals), cmap='magma', origin="lower",
+                            # vmin=round(vmin_relax), vmax=round(vmax_relax),
+                            )
+    ax[0,1].set_title("(data - FM)")
+    plt.colorbar(cax02)
     ax[0,1].axis("off")
 
-    cax02 = ax[0,2].imshow(np.asarray(residuals), cmap='magma', origin="lower",
-                            vmin=round(vmin_relax), vmax=round(vmax_relax))
-    ax[0,2].set_title("Residuals")
-    plt.colorbar(cax02)
-    ax[0,2].axis("off")
-
-    cax10 = ax[1,0].imshow(np.asarray(starting_convolved), cmap='viridis', origin="lower")
-    ax[1,0].set_title("Freeform Model Convolved")
+    cax10 = ax[1,2].imshow(np.asarray(residuals_convolved), cmap='viridis', origin="lower")
+    ax[1,2].set_title("Smoothed (data - model)")
     plt.colorbar(cax10)
-    ax[1,0].axis("off")
+    ax[1,2].axis("off")
 
     cax11 = ax[1,1].imshow(np.asarray(REDUCED_DATA * MASK), cmap='inferno', origin="lower",
     # cax11 = ax[1,1].imshow(np.asarray(COMPARISON_FM), cmap='inferno', origin="lower",
@@ -684,11 +757,12 @@ if __name__ == "__main__":
     plt.colorbar(cax11)
     ax[1,1].axis("off")
 
-    cax12 = ax[1,2].imshow(np.array(model_residuals), cmap='magma', origin="lower",
-                           vmin=round(vmin_relax), vmax=round(vmax_relax))
-    ax[1,2].set_title("Residuals (data - model)")
+    cax12 = ax[0,2].imshow(np.array(model_residuals), cmap='magma', origin="lower",
+                           vmin=round(vmin_relax / 3), vmax=round(vmax_relax / 3),
+                           )
+    ax[0,2].set_title("(data - model)")
     plt.colorbar(cax12)
-    ax[1,2].axis("off")
+    ax[0,2].axis("off")
 
     plt.tight_layout()
     plt.show()

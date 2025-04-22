@@ -14,8 +14,9 @@ basedir = f"{os.environ['HOME']}/projects"  # the base directory where is
 
 # default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'
 # default_parameter_file = 'HR4796_i_camsci1_20230309_10.yaml'
-default_parameter_file = 'HR4796_r_camsci1_20230312_13.yaml'
+# default_parameter_file = 'HR4796_r_camsci1_20230312_13.yaml'
 # default_parameter_file = 'HR4796_g_camsci2_20230312_13.yaml'
+default_parameter_file = 'HR4796_RDI_z_20240328_29.yaml'
 
 
 import warnings
@@ -1060,6 +1061,7 @@ if __name__ == '__main__':
         if basis == "legendre":
             coeffs_init = fit_legendre_to_hg_spf(klipdir,spf_tofit,sc_angs,nmodes=n_modes)
             dc = coeffs_init[0]
+            coeffs_init_all = coeffs_init
         elif basis == "bessel":
             coeffs_init_leg = fit_legendre_to_hg_spf(klipdir,spf_tofit,sc_angs,nmodes=n_modes)
             dc = coeffs_init_leg[0]

@@ -58,6 +58,8 @@ import yaml
 from emcee import EnsembleSampler
 from emcee import backends
 
+from pyklip.klip import high_pass_filter
+
 from numba.core.errors import NumbaWarning
 
 import cProfile
@@ -333,6 +335,8 @@ def logl(theta):
     # modelconvolved = convolve(model, PSF, boundary='wrap')
     # modelconvolved = fftconvolve(model, PSF, mode='same')
     modelconvolved = convolve(model, PSF, mode='same')#,method='fft')
+    if isinstance(HP_FILTER, int) and HP_FILTER > 0:
+        modelconvolved = high_pass_filter(modelconvolved, filtersize=HP_FILTER)
 
 
     res = (FREEFORM_IMAGE - modelconvolved) / NOISE #verified this image looks right
@@ -701,6 +705,7 @@ if __name__ == '__main__':
     R_INNER = params_mcmc_yaml['r_inner'] #for modified disk model boundaries
     R_OUTER = params_mcmc_yaml['r_outer'] #for modified disk model boundaries
     USE_NOISE = params_mcmc_yaml["USE_NOISE"]
+    HP_FILTER = params_mcmc_yaml["HP_FILTER"]
 
     FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
     NEW_BACKEND = params_mcmc_yaml['NEW_BACKEND']
@@ -774,10 +779,7 @@ if __name__ == '__main__':
     R1 = params_mcmc_yaml["r_inner"]
     R2 = params_mcmc_yaml["r_outer"]
     N_MODES = params_mcmc_yaml['N_BASIS']
-    RPROFSUB = params_mcmc_yaml["RPROFSUB"]
-    if RPROFSUB:
-        MED_PROFILE_EST = fits.getdata(f"{KLIPDIR}/estimated_med_profile.fits")
-        MED_PROFILE_EST /= np.max(MED_PROFILE_EST)
+
     scattering_angles_deg = np.arange(SM_ANGLE,LG_ANGLE,1)
     sc_angs_deg = np.linspace(SM_ANGLE,LG_ANGLE,(LG_ANGLE - SM_ANGLE) * 10)
     XRANGE_MAX = params_mcmc_yaml["XRANGE_MAX"]
