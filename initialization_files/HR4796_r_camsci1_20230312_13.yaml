@@ -51,7 +51,7 @@ NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 188 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
-N_ITER_MCMC: 940 #Number of interation
+N_ITER_MCMC: 2000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
 USE_NOISE: True
 # There is no burn-in phase here, the burnin only intervened when reading the data

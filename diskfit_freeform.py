@@ -235,9 +235,9 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
     # freeform_model = jax.nn.sigmoid(full_model_image)
 
-    # freeform_image = convolve_model(full_model_image, psf)
+    freeform_image = convolve_model(full_model_image, psf)
     # freeform_image = convolve_model_lax(full_model_image, psf)
-    freeform_image = full_model_image
+    # freeform_image = full_model_image
 
 
     # confirmed shape of model_images_prepped (84, 50176)
