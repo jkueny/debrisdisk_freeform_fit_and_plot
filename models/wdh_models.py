@@ -3,7 +3,7 @@ import jax.scipy as jsp
 
 
 def gen_wdh_image(x, y, beta, h0, sigma,
-                  PA_deg, x0, gaussian_fwhm, scaling):
+                  PA_deg, x0, fwhm, scaling):
     """
 
     """
@@ -17,17 +17,19 @@ def gen_wdh_image(x, y, beta, h0, sigma,
 
     # Base intensity
     power_law = (1. / r)**beta
-    exp_term = jnp.exp(-0.5 * (((r)**2 / (h0 * (x_rot - x0)**2)**gamma) + (x_rot / sigma)**2))
+    exp_term = jnp.exp(-0.5 * (((r)**2 / (h0 * (x_rot - x0)**2)) + (x_rot / sigma)**2))
     I = power_law * exp_term
-    I[jnp.isnan(I)] = 0.0
-    I[jnp.isinf(I)] = 0.0
+    I_nanless = I.at[jnp.isnan(I)].set(0.0)
+    I_valid = I_nanless.at[jnp.isinf(I_nanless)].set(0.0)
+    # I[jnp.isnan(I)] = 0.0
+    # I[jnp.isinf(I)] = 0.0
 
-    I_coron = I.at[r < R1].set(0.0)
+    I_coron = I_valid.at[r < R1].set(0.0)
 
 
     # Gaussian convolution
-    if gaussian_fwhm is not None and gaussian_fwhm > 0:
-        sigma_pix = gaussian_fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
+    if fwhm is not None and fwhm > 0:
+        sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
         sig2 = 2 * sigma_pix * sigma_pix
         window = jnp.exp(-(x**2 + y**2) / sig2)
         I_image = jsp.signal.convolve2d(I_coron,window)
