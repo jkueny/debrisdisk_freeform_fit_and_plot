@@ -141,13 +141,6 @@ def initialize_freeform_model_reduced():
     return free_params
 
 
-def parang_sort(filename):
-        """Extracts the float value between '2x2bin_' and '_parang'."""
-        match = re.search(r'2x2bin_([-+]?\d*\.\d+|\d+)_parang', filename)
-        if match:
-            return float(match.group(1))  # Convert extracted string to float
-        return float('inf')  # Assign an arbitrary large value if no match is found
-
 # @jax.jit
 def convolve_model(input_model, psf):
     # psf = jnp.asarray(psf)
@@ -291,236 +284,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     return mse
 
-def initialize_freeform_model(dimensions):
-    # Initialize freeform image parameters (random pixel values)
-    rng = jax.random.PRNGKey(42)
-    image_params = jax.random.normal(rng, dimensions)  # Trainable parameters
-    return image_params
 
-
-########################################################
-def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
-    """ initialize the MCMC by preparing the useful things to measure the
-    likelyhood (measure the data, the psf, the uncertainty map, the masks).
-
-    Args:
-        params_mcmc_yaml: dic, all the parameters of the MCMC and klip
-                            read from yaml file
-        quietklip : if True, pyklip and DiskFM are quiet
-
-
-    Returns:
-        a dataset a pyklip instance of Instrument.Data
-    """
-
-
-    datadir = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'])
-    klipdir = os.path.join(datadir, 'klip_fm_files')
-
-    os.makedirs(klipdir, exist_ok=True)
-
-    file_prefix = params_mcmc_yaml['FILE_PREFIX']
-
-    #The PSF centers
-    aligned_center = params_mcmc_yaml['ALIGNED_CENTER']
-    x_off = params_mcmc_yaml['MASK_DX']
-    y_off = params_mcmc_yaml['MASK_DY']
-    mask_center = aligned_center[0] + x_off, aligned_center[1] + y_off 
-    ### This is the only part of the code different for GPI IFS anf SPHERE
-    # For SPHERE We load and crop the PSF and the parangs
-    # For GPI, we load the raw data, emasure hte PSF from sat spots and
-    # collaspe the data
-    filelist = sorted(glob.glob(f'{datadir}/*parang*.fits'), key=parang_sort)
-
-
-    if len(filelist) == 0:
-        raise ValueError(f"Could not find files in the dir: {datadir}")
-    frames = []
-    # refs = []
-    derot_angs = []
-    # print(type(first_frame))
-    for each,name in enumerate(filelist):
-        # with fits.open(name) as input_hdu:
-        #     # print(input_hdu[0].header['ROTOFF'])
-        #     # exit()
-        #     derot_angs.append(input_hdu[0].header['ROTOFF'] - 180. + NORTH_CLIO)
-        # #     input_data = np.append(first_frame,input_hdu[0].data,axis=0)
-        #     frames.append(input_hdu[0].data)
-        dat_unit, hdr_unit = fits.getdata(name,header=True)
-        derot_angs.append(hdr_unit['PARANG'])
-        frames.append(dat_unit)
-    input_data = np.asarray(frames)
-    par_angs = np.asarray(derot_angs)
-    input_centers = np.array([aligned_center for _ in range(len(filelist))])
-    # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
-    IWA = params_mcmc_yaml['IWA']#use 13 for now, post-optimized bkg sub SNRE says JKK 01/18/23
-    dataset = GenericData(input_data,input_centers,parangs=par_angs,IWA=IWA,filenames=filelist)
-
-    #After this, this is for both GPI and SPHERE
-    #define the outer working angle
-    dataset.OWA = params_mcmc_yaml['OWA']
-
-    if dataset.input.shape[1] != dataset.input.shape[2]:
-        raise ValueError(""" Data slices are not square (dimx!=dimy), 
-                        please make them square""")
-
-    #create the masks
-    #create the mask where the non convoluted disk is going to be generated.
-    # To gain time, it is ~tightely adjusted to the expected models BEFORE
-    # convolution. Inded, the models are generated pixel by pixels. 0.1 s
-    # gained on every model is a day of calculation gain on one million model,
-    # so adjust your mask tightly to your model. You can change the harcoded parameter
-    # here if you neet to go faster (reduced it) or it the slope beta is very slow (increase it)
-    print(
-        "\n Create the binary masks to define model zone and chisquare zone"
-    )
-
-        ## a few lines to create a circular central mask to hide center regions with a lot
-    ## of speckles. Currently not using it but it's there
-    mask_owa = np.ones((dataset.input.shape[1], dataset.input.shape[2]))
-    x = np.arange(dataset.input.shape[1], dtype=float)[None,:] - aligned_center[0]
-    y = np.arange(dataset.input.shape[2], dtype=float)[:,None] - aligned_center[1]
-    rho2d = np.sqrt(x**2 + y**2)
-    mask_owa[np.where(rho2d > dataset.OWA)] = 0.
-
-    in_scaling = params_mcmc_yaml['MASK_IN_SCALING'] #originally 18
-    out_scaling = params_mcmc_yaml['MASK_OUT_SCALING'] #originally 18
-
-    mask_disk_zeros = gpidiskpsf.make_disk_mask(
-        dataset.input.shape[1],
-        params_mcmc_yaml['pa_init'],
-        params_mcmc_yaml['inc_init'],
-        convert.au_to_pix(params_mcmc_yaml['r1_init'],
-                            params_mcmc_yaml['PIXSCALE_INS'],
-                            params_mcmc_yaml['DISTANCE_STAR']) -
-        in_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'] - 4)),
-        convert.au_to_pix(params_mcmc_yaml['r2_init'],
-                            params_mcmc_yaml['PIXSCALE_INS'],
-                            params_mcmc_yaml['DISTANCE_STAR']) +
-        out_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'])),
-        aligned_center=mask_center)
-    mask2generatedisk = 1 - mask_disk_zeros
-
-    mask2generatedisk *= mask_owa
-
-    print(f"Saving mask to {os.path.join(klipdir,
-                                file_prefix + '_mask2generatedisk.fits')}")
-    fits.writeto(os.path.join(klipdir,
-                                file_prefix + '_mask2generatedisk.fits'),
-                    mask2generatedisk,
-                    overwrite='True')
-
-    # # we create a second mask for the minimization a little bit larger
-    # # (because model expect to grow with the PSF convolution and the FM)
-    # # and we can also exclude the center region where there are too much speckles
-    # mask_disk_zeros = gpidiskpsf.make_disk_mask(
-    #     dataset.input.shape[1],
-    #     params_mcmc_yaml['pa_init'],
-    #     params_mcmc_yaml['inc_init'],
-    #     convert.au_to_pix(params_mcmc_yaml['r1_init'],
-    #                         params_mcmc_yaml['PIXSCALE_INS'],
-    #                         params_mcmc_yaml['DISTANCE_STAR']) -
-    #     in_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'] - 4)),
-    #     convert.au_to_pix(params_mcmc_yaml['r2_init'],
-    #                         params_mcmc_yaml['PIXSCALE_INS'],
-    #                         params_mcmc_yaml['DISTANCE_STAR']) +
-    #     out_scaling / np.cos(np.radians(params_mcmc_yaml['inc_init'])),
-    #     aligned_center=mask_center)
-
-    # mask2minimize = (1 - mask_disk_zeros)
-
-    # fits.writeto(os.path.join(klipdir,
-    #                             file_prefix + '_mask2minimize.fits'),
-    #                 mask2minimize,
-    #                 overwrite='True')
-    psflib = None
-
-
-
-    return dataset, psflib
-
-
-########################################################
-def initialize_diskfm(dataset, params_mcmc_yaml, psf, psflib=None, quietklip=True):
-    """ initialize the MCMC by preparing the diskFM object
-
-    Args:
-        dataset: a pyklip instance of Instrument.Data
-        params_mcmc_yaml: dic, all the parameters of the MCMC and klip
-                            read from yaml file
-        psflib : a librairy of PSF if RDI
-        quietklip : if True, pyklip and DiskFM are quiet
-
-    Returns:
-        a  diskFM object
-    """
-    print("\n Initialize diskFM")
-    aligned_center = params_mcmc_yaml['ALIGNED_CENTER']
-    numbasis = [params_mcmc_yaml['KLMODE_NUMBER']]
-    move_here = params_mcmc_yaml['MOVE_HERE']
-    file_prefix = params_mcmc_yaml['FILE_PREFIX']
-    mode = params_mcmc_yaml['MODE']
-    annuli = params_mcmc_yaml['ANNULI']
-    first_time = params_mcmc_yaml["FIRST_TIME"]
-    datadir = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'])
-    klipdir = os.path.join(datadir, 'klip_fm_files')
-    image_size = round(aligned_center[0]) * 2, round(aligned_center[1]) * 2
-   # Initialize freeform image parameters (random pixel values)
-    rng = jax.random.PRNGKey(42)
-    freeform_model_here = jax.random.normal(rng, image_size)  # Trainable parameters
-    model_convolved_jax = convolve_model(freeform_model_here, psf)
-    model_convolved_here = np.asarray(jax.device_get(model_convolved_jax))
-    print(type(model_convolved_here))
-    # Disable print for pyklip
-    if quietklip:
-        sys.stdout = open(os.devnull, 'w')
-
-    if first_time:
-        # initialize the DiskFM object
-        diskobj = DiskFM(dataset.input.shape,
-                            numbasis,
-                            dataset,
-                            model_convolved_here,
-                            basis_filename=os.path.join(
-                                klipdir, file_prefix + '_klbasis.h5'),
-                            save_basis=True,
-                            aligned_center=aligned_center)
-        # measure the KL basis and save it
-
-        maxnumbasis = dataset.input.shape[0]
-        fm.klip_dataset(dataset,
-                        diskobj,
-                        numbasis=numbasis,
-                        maxnumbasis=maxnumbasis,
-                        annuli=annuli,
-                        mode=mode,
-                        subsections=1,
-                        outputdir=klipdir,
-                        fileprefix=file_prefix,
-                        aligned_center=aligned_center,
-                        mute_progression=True,
-                        highpass=False,
-                        minrot=move_here,
-                        calibrate_flux=False,
-                        numthreads=1,
-                        time_collapse='median',
-                        psf_library=psflib)
-    else:
-        # load the the KL basis and define the diskFM object
-        diskobj = JDFM(None,
-                        None,
-                        None,
-                        model_convolved_here,
-                        basis_filename=os.path.join(klipdir,
-                                                    file_prefix + '_klbasis.h5'),
-                        load_from_basis=True)
-
-    reduced_data = fits.getdata(os.path.join(klipdir,
-                                                file_prefix + '-klipped-KLmodes-all.fits'))[0]
-
-
-    
-    return diskobj, reduced_data
 
 # --- JIT-Compiled Gradient Computation ---
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
@@ -657,8 +421,6 @@ if __name__ == "__main__":
     #     mode = 1
     BASIS_FILE = f"{KLIPDIR}/{FILE_PREFIX}_klbasis.h5"
 
-    dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml,
-                                                quietklip=True)
     
     # load wheremask2generatedisk
     print(f"Loading mask: {os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits')}")
@@ -677,11 +439,11 @@ if __name__ == "__main__":
     if FIRST_TIME:
         print(FIRST_TIME)
         # initialize_diskfm and make diskobj global
-        DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
-                                    params_mcmc_yaml,
-                                    psf=JAX_PSF,
-                                    psflib=psflib,
-                                    quietklip=True)
+        # DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
+        #                             params_mcmc_yaml,
+        #                             psf=JAX_PSF,
+        #                             psflib=psflib,
+        #                             quietklip=True)
         print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
         sys.exit(0)
     else:

@@ -14,7 +14,7 @@ IWA: 12 # pixels
 OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 # OWA: 32 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 0  #minrot in PyKLIP ADI
-HP_FILTER: 24 #size of FWHM for HP filter, disabled in diskfit_mcmc for now
+HP_FILTER: 24 #size of FWHM for HP filter
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP

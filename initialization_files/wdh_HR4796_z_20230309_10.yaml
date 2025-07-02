@@ -2,7 +2,7 @@
 FIRST_TIME: True
 FIRST_TIME_GS: False #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
-DISK_MODEL: original # original or modified Max MB model code
+DISK_MODEL: wdh # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
@@ -34,7 +34,7 @@ FILE_PREFIX: camsci2_z_20230309_10 #prefix for all saved files (carefull not to 
 BAND_NAME: 2023 Mar 9, $z'$ band #for plot titles uniquely
 
 # STAR OBSERVATION PARAMETERS
-DISTANCE_STAR: 72.8   #distance of the disk in pc
+DISTANCE_STAR: 72.248   #distance of the disk in pc
 PIXSCALE_INS: 0.012  #picscale of your data
 
 # GRIDSEARCH PARAMS
@@ -57,48 +57,6 @@ N_ITER_MCMC: 2000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
 # There is no burn-in phase here, the burnin only intervened when reading the data
 
-# INITIAL MODEL PARAMETERS
-r1_init: 76.41 #include just for initializing the mask function
-r2_init: 88.00 #include just for initializing the mask function
-rc_init: 77.7 #35.5 #trying 39. for the masks
-alpha_in_init: 12
-alpha_out_init: -12
-beta_init: 15.1
-a_r_init: 0.01
-inc_init: 76.00 #trying 45. init for the mask2minimize
-pa_init: 24.91
-dx_init: -1.16
-dy_init: 1.41
-N_init: 420.50
-# amin_init: 0.68 #microns
-# amax_init: 10000. #microns, let's fix this for now
-# aexp_init: 3.5 #radial pwer law for size distribution of grains
-
-r_inner: 65
-r_outer: 110
-
-# MODEL PARAMETER STATES [0,1] --> [fixed, free]
-r1_state: 1
-r2_state: 1
-rc_state: 0
-alpha_in_state: 0
-alpha_out_state: 0
-beta_state: 1
-a_r_state: 0
-inc_state: 1
-pa_state: 1
-dx_state: 1
-dy_state: 1
-dz_state: 1
-N_state: 1
-# amin: 0
-# amax: 0
-# aexp: 0
-g1_state: 1
-g2_state: 1
-alpha1_state: 1
-g3_state: 0
-alpha2_state: 0
 
 # WIND PARAMETERS
 hr1_init: 0.1 #include just for initializing the mask function
@@ -112,8 +70,9 @@ hpa_init:  66.76810340975538
 hdx_init: 15.736274318840326
 hdy_init: -1.8994364349294457
 hdz_init: 0.01
-hN_init: 778.314016876
+hNorm_init: 778.314016876
 dtheta_init: 1.0
+gfwhm_init: 3.0
 
 hbeta2_init: -1.9190807973365744
 ha_r2_init: 0.29270564274473104
@@ -122,7 +81,7 @@ hpa2_init: -113.906450623
 hdx2_init: 15.736274318840326
 hdy2_init: 2.7432967701360966
 hdz2_init: 0.01
-hN2_init: 161.752741323
+hNorm2_init: 161.752741323
 
 ha_r3_init: 0.9278058937026628
 hpa3_init: -113.906450623
