@@ -58,35 +58,36 @@ NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previousl
 # There is no burn-in phase here, the burnin only intervened when reading the data
 
 
-# WIND PARAMETERS
-hr1_init: 0.1 #include just for initializing the mask function
-hr2_init: 60 #include just for initializing the mask function
+wdh_model:
+  # WIND PARAMETERS
+  hr1_init: 0.1 #include just for initializing the mask function
+  hr2_init: 60 #include just for initializing the mask function
 
-rscale_init: 1.01
-hbeta_init: -1.9190807973365744
-ha_r_init: 0.37243626309933575
-hsig_init: 3.652540435720588
-hpa_init:  66.76810340975538
-hdx_init: 15.736274318840326
-hdy_init: -1.8994364349294457
-hdz_init: 0.01
-hNorm_init: 778.314016876
-dtheta_init: 1.0
-gfwhm_init: 3.0
+  rscale_init: 1.01
+  beta_init: -1.9190807973365744
+  a_r_init: 0.37243626309933575
+  sig_init: 3.652540435720588
+  pa_init:  66.76810340975538
+  dx_init: 15.736274318840326
+  dy_init: -1.8994364349294457
+  dz_init: 0.01
+  Norm_init: 778.314016876
+  dtheta_init: 1.0
+  fwhm_init: 3.0
 
-hbeta2_init: -1.9190807973365744
-ha_r2_init: 0.29270564274473104
-hsig2_init: 3.652540435720588
-hpa2_init: -113.906450623
-hdx2_init: 15.736274318840326
-hdy2_init: 2.7432967701360966
-hdz2_init: 0.01
-hNorm2_init: 161.752741323
+  beta2_init: -1.9190807973365744
+  a_r2_init: 0.29270564274473104
+  sig2_init: 3.652540435720588
+  pa2_init: -113.906450623
+  dx2_init: 15.736274318840326
+  dy2_init: 2.7432967701360966
+  dz2_init: 0.01
+  Norm2_init: 161.752741323
 
-ha_r3_init: 0.9278058937026628
-hpa3_init: -113.906450623
-hdy3_init: 1.2852098741333626
-hN3_init: 134.862950151
+  ha_r3_init: 0.9278058937026628
+  hpa3_init: -113.906450623
+  hdy3_init: 1.2852098741333626
+  hN3_init: 134.862950151
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 rscale_state: 0

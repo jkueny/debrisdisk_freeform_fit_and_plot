@@ -2,11 +2,18 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 
 
-def gen_wdh_image(x, y, beta, h0, sigma,
-                  PA_deg, x0, fwhm, scaling):
+def render_wdh_model(x, y, params):
     """
 
     """
+    # Unpack
+    beta = params["beta"]
+    h0 = params["a_r"]
+    sigma = params["sigma"]
+    PA_deg = params["PA"]
+    x0 = params["dx"]
+    scaling = params["Norm"]
+    fwhm = fwhm
     R1 = 5 #At pixel scale 0.012"/pixel this is the IWA at g', about 4 lamb/D
     # Rotate to disk PA
     PA_rad = jnp.deg2rad(PA_deg)
@@ -26,14 +33,26 @@ def gen_wdh_image(x, y, beta, h0, sigma,
 
     I_coron = I_valid.at[r < R1].set(0.0)
 
+    return I_coron * scaling
+
+def gen_multiwdh_image(x, y, all_params):
+    # The convolutional kernel is the same for all WDHs
+    fwhm = all_params["ps_global"]["fwhm"]
+
+    n_wdh_params = all_params["ps_individual"]
+
+    model_image = jnp.zeros_like((x,y))
+
+    for _, params in n_wdh_params.items():
+        model_image += render_wdh_model(x, y, params, fwhm)
 
     # Gaussian convolution
     if fwhm is not None and fwhm > 0:
         sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
         sig2 = 2 * sigma_pix * sigma_pix
         window = jnp.exp(-(x**2 + y**2) / sig2)
-        I_image = jsp.signal.convolve2d(I_coron,window)
+        I_image = jsp.signal.convolve2d(model_image,window)
     else:
-        I_image = I_coron
+        I_image = model_image
 
-    return I_image * scaling
+    return I_image

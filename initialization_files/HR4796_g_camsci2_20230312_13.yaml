@@ -15,7 +15,6 @@ HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
-WL: 0.527 #wavelength in microns
 
 #  In the KLIP do you want to remove the images where the disk is on the satspots 
 # if True: frames are removed
@@ -30,7 +29,6 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 FILE_PREFIX: camsci2_g_20230312_13 #prefix for all saved files (carefull not to erase your results)
 BAND_NAME: 2023 Mar 12, $g$ band #for plot titles uniquely
-FILTER_NAME: $g'$
 
 # GRIDSEARCH PARAMS
 GRIDSEARCH_DIR: pyklip_reduced
@@ -43,9 +41,15 @@ PARANG_MAX: 118
 HP_MIN: 20
 HP_MAX: 30
 
-# STAR OBSERVATION PARAMETERS
-DISTANCE_STAR: 72.8   #distance of the disk in pc
-PIXSCALE_INS: 0.012  #picscale of your data
+METADATA:
+  # STAR OBSERVATION PARAMETERS
+  DISTANCE_STAR: 72.8   #distance of the disk in pc
+  PIXSCALE_INS: 0.012  #picscale of your data
+  WL: 0.527 #wavelength in microns
+  FILTER_NAME: $g'$
+  PRIM_MIRROR_SZ: 6.5 #meters
+  
+
 
 # MCMC PARAMETERS
 NEW_BACKEND: True
@@ -58,24 +62,25 @@ USE_NOISE: False
 # There is no burn-in phase here, the burnin only intervened when reading the data
 
 # INITIAL MODEL PARAMETERS
-r1_init: 76.36 #include just for initializing the mask function
-r2_init: 88.00 #include just for initializing the mask function
-rc_init: 77.7 #35.5 #trying 39. for the masks
-alpha_in_init: 12
-alpha_out_init: -12
-beta_init: 15.72
-a_r_init: 0.015
-inc_init: 76.00 #trying 45. init for the mask2minimize
-pa_init: 24.87
-dx_init: -1.78 # Chen+ 2020, J-band (bluest)
-dy_init: -0.41
-N_init: 380.76
-rscale_init: 10
-# amin_init: 0.68 #microns
-# amax_init: 10000. #microns, let's fix this for now
-aexp_init: 2.5 #radial pwer law for size distribution of grains
-r_inner: 65
-r_outer: 110
+disk_model:
+  r1_init: 76.36 #include just for initializing the mask function
+  r2_init: 88.00 #include just for initializing the mask function
+  rc_init: 77.7 #35.5 #trying 39. for the masks
+  alpha_in_init: 12
+  alpha_out_init: -12
+  beta_init: 15.72
+  a_r_init: 0.015
+  inc_init: 76.00 #trying 45. init for the mask2minimize
+  pa_init: 24.87
+  dx_init: -1.78 # Chen+ 2020, J-band (bluest)
+  dy_init: -0.41
+  N_init: 380.76
+  rscale_init: 10
+  # amin_init: 0.68 #microns
+  # amax_init: 10000. #microns, let's fix this for now
+  aexp_init: 2.5 #radial pwer law for size distribution of grains
+  r_inner: 65
+  r_outer: 110
 
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
 r1_state: 0
@@ -100,6 +105,37 @@ alpha1_state: 1
 g3_state: 0
 alpha2_state: 0
 
+wdh_model:
+  # WIND PARAMETERS
+  hr1_init: 0.1 #include just for initializing the mask function
+  hr2_init: 60 #include just for initializing the mask function
+  
+  rscale_init: 1.01
+  beta_init: -1.9190807973365744
+  a_r_init: 0.37243626309933575
+  sig_init: 3.652540435720588
+  pa_init:  66.76810340975538
+  dx_init: 15.736274318840326
+  dy_init: -1.8994364349294457
+  dz_init: 0.01
+  Norm_init: 778.314016876
+  dtheta_init: 1.0
+  fwhm_init: 3.0
+  
+  beta2_init: -1.9190807973365744
+  a_r2_init: 0.29270564274473104
+  sig2_init: 3.652540435720588
+  pa2_init: -113.906450623
+  dx2_init: 15.736274318840326
+  dy2_init: 2.7432967701360966
+  dz2_init: 0.01
+  Norm2_init: 161.752741323
+  
+  ha_r3_init: 0.9278058937026628
+  hpa3_init: -113.906450623
+  hdy3_init: 1.2852098741333626
+  hN3_init: 134.862950151
+
 RPROFSUB: True
 
 # APERTURE PHOTOMETRY
@@ -112,22 +148,16 @@ CONV_FACTOR: 2.8622456823223678e-08 # Jy / Ang.
 
 
 # MASKING PARAMETERS
-MASK_IN_SCALING: 4 #nominally 4
-MASK_OUT_SCALING: 6 #nominally 6
-MASK_SPECKLES: 12 #central circle mask
-MASK_MINOR: 47 #OWA to isolate minor axis
-MASK_DX: 1
-MASK_DY: -3.6
-DELTA_RADII: 1 #width of noisemap rings
-# Fit only half the disk at a time
-FIT_N_HALF_ONLY: false
-FIT_S_HALF_ONLY: true
-# Measured disk spine profile in z'
-WIDOW_MASK: False
-WIDOW_PT1: [127,130] #[y,x], 53.4 deg from horizontal
-WIDOW_PT2: [138,107] #[y,x], -11.1 deg from horizontal 
-WIDOW_PT3: [98,91] #[y,x], 53.4 deg from horizontal
-WIDOW_PT4: [87,117] #[y,x], -11.1 deg from horizontal 
+MASK:
+  IN_SCALING: 4 #nominally 4
+  OUT_SCALING: 6 #nominally 6
+  SPECKLES: 12 #central circle mask
+  MINOR: 47 #OWA to isolate minor axis
+  DX: 1
+  DY: -3.6
+
+noise:
+  DELTA_RADII: 1 #width of noisemap rings
 
 # offset: 0.
 # the parameter of the priors are still defined inside the code logp(theta) function
