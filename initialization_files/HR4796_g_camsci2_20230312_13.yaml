@@ -29,7 +29,7 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 FILE_PREFIX: camsci2_g_20230312_13 #prefix for all saved files (carefull not to erase your results)
 BAND_NAME: 2023 Mar 12, $g$ band #for plot titles uniquely
-WIND_LOOKUP_PREFIX: camwfs_20230312_13
+WIND_LOOKUP_PREFIX: camwfs_20230312_13_wind_lookup.csv
 
 # GRIDSEARCH PARAMS
 GRIDSEARCH_DIR: pyklip_reduced
@@ -120,7 +120,7 @@ wdh_model:
   dx_init: -0.1
   # dy_init: -1.8994364349294457
   dz_init: 0.01
-  Norm_init: 1.
+  Norm_init: 100.
   dtheta_init: 1.0
   fwhm_init: 3.0
   
@@ -131,14 +131,14 @@ wdh_model:
   dx2_init: 0.1
   # dy2_init: 2.7432967701360966
   # dz2_init: 0.01
-  Norm2_init: 2.
+  Norm2_init: 100.
   
   beta3_init: 2.0
   a_r3_init: 0.1
   sig3_init: 15.
   pa3_init: 90.
   dx3_init: 1.1
-  Norm3_init: 200.
+  Norm3_init: 100.
 
 RPROFSUB: True
 

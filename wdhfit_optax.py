@@ -108,14 +108,17 @@ def main(config):
         y = np.linspace(-fov_size, fov_size, num=n_pts)
 
         xx, yy = np.meshgrid(x, y)
-        print(n_pts, xx.shape)
-
-        wdh_model_here = gen_multiwdh_image(xx, yy, params_init)
+        mask2generatehalo, mask2minimize, pa_mask = wdh_obj.prep_dataset_and_masks()
+        wdh_models_here = gen_multiwdh_image(xx, yy, params_init, mask2generatehalo)
+        # print(pa_mask)
         
-        wdh_model_test_toplot = np.asarray(np.log10(np.sum(wdh_model_here, axis=0)+1e-6))
-        print(wdh_model_test_toplot.shape)
-        plt.imshow(wdh_model_test_toplot, cmap="jet")
-        plt.show()
+        # wdh_model_test_toplot = np.asarray(np.log10(np.sum(wdh_model_here, axis=0)+1e-6))
+        # print(wdh_model_test_toplot.shape)
+        # plt.imshow(wdh_model_test_toplot, cmap="jet", origin="lower")
+        # plt.show()
+
+        wdh_obj.initialize_windfm(wdh_models_here, pa_mask)
+
 
 
     # Convolve the init model

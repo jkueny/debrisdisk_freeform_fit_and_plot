@@ -150,6 +150,7 @@ class WindFM(NoFM):
                  numbasis,
                  dataset,
                  model_wdh_list,
+                 model_pas_mask,
                  basis_filename="",
                  kl_basis_file=None,
                  load_from_basis=False,
@@ -259,8 +260,7 @@ class WindFM(NoFM):
             self.output_imgs_shape = output_imgs_shape
 
             self.PAs = dataset.PAs
-            self.w1PAs = dataset.wdh1pas
-            self.w2PAs = dataset.wdh2pas
+            self.wdhpas = dataset._wdhpas
             self.wvs = dataset.wvs
 
             self.nwvs = int(np.size(np.unique(
@@ -280,50 +280,54 @@ class WindFM(NoFM):
             self.aligned_center = aligned_center
 
         # Prepare the first disk for FM
-        self.update_wind(model_wdh_list)
+        self.update_wind(model_wdh_list, model_pas_mask)
 
-    def update_wind(self, model_wdh_list):
+    def update_wind(self, model_wdh_list, valid_PA_mask):
         """
         Rotate and sum N WDH models based on wind direction PAs for each frame.
 
         Args:
             model_wdh_list: List of 2D WDH model images (unrotated).
                             Length must match number of wind PA sets available.
+            valid_PA_mask: Boolean mask of same shape as model_wdh_list; (Nmodels, Kimages)
 
         Returns:
             None. Sets self.model_wdhs with rotated+summed WDH models per frame.
         """
-
+        import matplotlib.pyplot as plt
         num_components = len(model_wdh_list)
         model_shape = np.shape(model_wdh_list[0])
         self.model_wdhs = np.zeros(self.inputs_shape)
 
-        for i in range(len(self.w1PAs)):
+
+        for i in range(self.inputs_shape[0]): # inputs_shape [Kimages xpix ypix]
             model_sum = np.zeros(model_shape)
 
             for j in range(num_components):
+                # print(j)
                 model = deepcopy(model_wdh_list[j]).astype(np.float64).newbyteorder("=")
 
                 # Get the wind PA list for this component
-                wind_pa_list_name = f"w{j+1}PAs"
-                if not hasattr(self, wind_pa_list_name):
-                    raise AttributeError(f"Missing PA list: self.{wind_pa_list_name}")
-                wind_pa_here = getattr(self, wind_pa_list_name)[i]
+                wind_pa_list = self.wdhpas
+                do_rot = valid_PA_mask[j][i]
 
-                if np.isnan(wind_pa_here):
-                    model_rot = np.zeros(model_shape)
-                else:
+                if do_rot:
+                    wind_pa_here = wind_pa_list[j][i]
                     model_rot = rotate_image(
                         model,
                         wind_pa_here,
                         self.aligned_center,
                         flipx=True,
                     )
+                else:
+                    model_rot = np.zeros(model_shape)
 
                 model_sum += model_rot
 
             model_sum[np.isnan(model_sum)] = 0.0
             self.model_wdhs[i] = model_sum
+
+        # print(valid_PA_mask[1])
 
         self.model_wdhs = np.reshape(
             self.model_wdhs,
@@ -517,8 +521,7 @@ class WindFM(NoFM):
 
             # We save information about the dataset that will be used when we load the KL basis
             self.klparam_dict['PAs'] = np.float64(self.PAs)
-            self.klparam_dict['w1PAs'] = np.float64(self.w2PAs)
-            self.klparam_dict['w2PAs'] = np.float64(self.w1PAs)
+            self.klparam_dict['wdhpas'] = np.float64(self.wdhpas)
             self.klparam_dict['wvs'] = np.float64(self.wvs)
 
             self.klparam_dict['nwvs'] = np.float64(self.nwvs)

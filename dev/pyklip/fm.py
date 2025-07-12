@@ -25,7 +25,7 @@ except ImportError:
     mkl_exists = False
 
 # Turns parallelism off for debugging purposes
-debug = False
+debug = True
 
 
 
@@ -95,7 +95,7 @@ def klip_math(sci, refs, numbasis, covar_psfs=None, model_sci=None, models_ref=N
     tot_basis = covar_psfs.shape[0]
 
     if numbasis[0] is None:
-        evals, evecs = la.eigh(covar_psfs, eigvals = (tot_basis-np.min([100,tot_basis-1]), tot_basis-1))
+        evals, evecs = la.eigh(covar_psfs, subset_by_index=(tot_basis-np.min([100,tot_basis-1]), tot_basis-1))
         evals = np.copy(evals[::-1])
         evecs = np.copy(evecs[:,::-1])
         # import matplotlib.pyplot as plt
@@ -110,7 +110,7 @@ def klip_math(sci, refs, numbasis, covar_psfs=None, model_sci=None, models_ref=N
         max_basis = np.max(numbasis) + 1
 
         # calculate eigenvectors/values of covariance matrix
-        evals, evecs = la.eigh(covar_psfs, eigvals = (int(tot_basis-max_basis), int(tot_basis-1)))
+        evals, evecs = la.eigh(covar_psfs, subset_by_index=(int(tot_basis-max_basis), int(tot_basis-1)))
         evals = np.copy(evals[::-1])
         evecs = np.copy(evecs[:,::-1])
 
@@ -178,7 +178,7 @@ def klip_math(sci, refs, numbasis, covar_psfs=None, model_sci=None, models_ref=N
 # @profile
 
 
-def perturb_specIncluded(evals, evecs, original_KL, refs, models_ref, return_perturb_covar=False):
+def perturb_specIncluded(evals, evecs, original_KL, refs, models_ref):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
 
@@ -200,40 +200,37 @@ def perturb_specIncluded(evals, evecs, original_KL, refs, models_ref, return_per
     N_ref = refs.shape[0]
     # N_pix = original_KL.shape[1]
 
-    refs_mean_sub = refs - np.nanmean(refs, axis=1, keepdims=True)
-    # refs_mean_sub = refs - np.nanmean(refs, axis=1)[:, None]
-    # refs_mean_sub = refs - (np.sum(temp_refs,axis=1)/N_ref)[:, None]
-    # refs_mean_sub[np.where(np.isnan(refs_mean_sub))] = 0
-    refs_mean_sub[refs_mean_sub != refs_mean_sub] = 0
+    refs_mean_sub = refs - np.mean(refs, axis=1)[:, None] #tested, no NaNs and nanmean is slow
+
 
     models_mean_sub = models_ref # - np.nanmean(models_ref, axis=1)[:,None] should this be the case?
-    # models_mean_sub[np.where(np.isnan(models_mean_sub))] = 0
-    models_mean_sub[models_mean_sub != models_mean_sub] = 0
-
-    #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
+    # models_mean_sub[models_mean_sub != models_mean_sub] = 0
 
     evals_tiled = np.tile(evals,(max_basis,1))
-    np.fill_diagonal(evals_tiled,np.nan)
+
+    np.fill_diagonal(evals_tiled,1)
+    # for k in range(max_basis):
+    #     evals_tiled[k, k] = 1.0
     evals_sqrt = np.sqrt(evals)
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
     beta_tmp = 1./(evals_tiled.transpose()- evals_tiled)
-    #print(evals)
-    beta_tmp[np.diag_indices(np.size(evals))] = -0.5/evals
+
+    n = evals.shape[0]            # number of modes
+    for i in range(n):
+        beta_tmp[i, i] = -0.5 / evals[i]
     beta = evals_ratio*beta_tmp
 
     C_partial = models_mean_sub.dot(refs_mean_sub.transpose())
     C = C_partial+C_partial.transpose()
-    #C =  models_mean_sub.dot(refs_mean_sub.transpose())+refs_mean_sub.dot(models_mean_sub.transpose())
     alpha = (evecs.transpose()).dot(C).dot(evecs)
 
     delta_KL = (beta*alpha).dot(original_KL)+(evalse_inv_sqrt[:,None]*evecs.transpose()).dot(models_mean_sub)
 
-    if return_perturb_covar:
-        return delta_KL, C
-    else:
-        return delta_KL
-
+    # if return_perturb_covar:
+    #     return delta_KL, C
+    # else:
+    return delta_KL
 
 
 

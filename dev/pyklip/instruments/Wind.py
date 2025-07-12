@@ -359,7 +359,7 @@ class GenericWDH(Data):
     """
     # Constructor
     def __init__(self, input_data, centers, obj_parangs=None,
-                 wdh1_parangs=None, wdh2_parangs=None,
+                 wdh_parangs=None,
                  wvs=None, IWA=0, filenames=None, flipx=False):
         super(GenericWDH, self).__init__()
         # read in the data
@@ -381,14 +381,10 @@ class GenericWDH(Data):
             self._PAs = obj_parangs
         else:
             self._PAs = np.zeros(nfiles)
-        if wdh1_parangs is not None:
-            self._wdh1pas = wdh1_parangs
+        if wdh_parangs is not None:
+            self._wdhpas = wdh_parangs
         else:
-            self._wdh1pas = np.zeros(nfiles)
-        if wdh2_parangs is not None:
-            self._wdh2pas = wdh2_parangs
-        else:
-            self._wdh2pas = np.zeros(nfiles)
+            self._wdhpas = np.zeros(nfiles)
 
         if wvs is not None:
             self._wvs = wvs

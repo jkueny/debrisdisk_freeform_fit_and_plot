@@ -1,8 +1,14 @@
 import jax.numpy as jnp
 import jax.scipy as jsp
 
+def gaussian_1d(fwhm):
+    sigma = fwhm / (2.0 * jnp.sqrt(2.0 * jnp.log(2.0)))
+    half_width = int(jnp.ceil(5 * sigma))           # truncate at ±4σ
+    x = jnp.arange(-half_width, half_width + 1)
+    g = jnp.exp(-0.5 * (x / sigma)**2)
+    return g / g.sum()                          # L1-normalise
 
-def render_wdh_model(x, y, params, fwhm):
+def render_wdh_model(x, y, params, mask, fwhm):
     """
 
     """
@@ -34,16 +40,21 @@ def render_wdh_model(x, y, params, fwhm):
 
     # Gaussian convolution
     if fwhm is not None and fwhm > 0:
-        sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
-        sig2 = 2 * sigma_pix * sigma_pix
-        window = jnp.exp(-(x**2 + y**2) / sig2)
-        I_image = jsp.signal.convolve2d(I_coron,window, mode="same")
+        # sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
+        kernel_1d = gaussian_1d(fwhm)
+        # Convolve along x
+        tmp = jsp.signal.fftconvolve(I_coron, kernel_1d[None, :], mode="same")
+        # Convolve along y
+        I_image = jsp.signal.fftconvolve(tmp,   kernel_1d[:,  None], mode="same")
+        # sig2 = 2 * sigma_pix * sigma_pix
+        # window = jnp.exp(-(x**2 + y**2) / sig2)
+        # I_image = jsp.signal.convolve2d(I_coron,window, mode="same")
     else:
         I_image = I_coron
 
-    return I_image * scaling
+    return I_image * scaling * mask
 
-def gen_multiwdh_image(x, y, all_params):
+def gen_multiwdh_image(x, y, all_params, mask):
     """
     Generate a list of unrotated WDH model images, one per component in `ps_individual`.
 
@@ -72,8 +83,8 @@ def gen_multiwdh_image(x, y, all_params):
     for wdh_params in n_wdh_params:
 
 
-        model = render_wdh_model(x, y, wdh_params, fwhm)
+        model = render_wdh_model(x, y, wdh_params, mask, fwhm)
         model_list.append(model)
 
 
-    return model_list    # The convolutional kernel is the same for all WDHs
+    return jnp.asarray(model_list)    # The convolutional kernel is the same for all WDHs

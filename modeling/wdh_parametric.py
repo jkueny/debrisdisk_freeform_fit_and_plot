@@ -15,6 +15,7 @@ from dev.pyklip.fmlib.windfm import WindFM
 import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
 import utils.astro_unit_conversion as convert
+import multiprocessing as mp
 
 class ParametricWDH:
     def __init__(self, config):
@@ -27,6 +28,7 @@ class ParametricWDH:
     def _get_initial_params(self):
         # Clamp the number of wind layers to between 1 and 3
         n_wdhs = int(self.params_file["wdh_model"]["N_WIND_LAYERS"])
+        self.n_models = n_wdhs
         if n_wdhs < 1 or n_wdhs > 3:
             raise ValueError("N_WIND_LAYERS must be between 1 and 3.")
 
@@ -70,6 +72,7 @@ class ParametricWDH:
         self.datadir = os.path.join(basedir, self.params_file["BAND_DIR"])
 
         self.file_prefix = self.params_file["FILE_PREFIX"]
+        self.path_wind_parquet = os.path.join(klipdir, self.params_file["WIND_LOOKUP_PREFIX"])
 
     def _load_metadata(self):
         self.pixscale = self.params_file["METADATA"]["PIXSCALE_INS"]
@@ -84,11 +87,12 @@ class ParametricWDH:
         self.owa = self.params_file["OWA"]
         self.minrot = self.params_file["MOVE_HERE"]
         self.mode = self.params_file["MODE"]
+        self.move_here = self.params_file["MOVE_HERE"]
         aligned_center = self.params_file["ALIGNED_CENTER"]
         self.aligned_center = aligned_center
         self.image_size = np.ceil(aligned_center[0]) * 2
     
-    def prep_psflib_and_mask(self):
+    def prep_dataset_and_masks(self):
         # Make the mask
         x_off = self.params_file["MASK"]["DX"]
         y_off = self.params_file["MASK"]["DY"]
@@ -98,9 +102,9 @@ class ParametricWDH:
                           key=parang_sort)
         if len(filelist) == 0:
             raise ValueError(f"Could not find files in the dir: {self.datadir}")
-        input_data, par_angs, wdh1_angs, wdh2_angs = prep_image_frames_parangs(filelist,
-                                                                               path_wind_parquet,
-                                                                                   )
+        input_data, par_angs, wdh_angs, model_pa_mask = prep_image_frames_parangs(filelist,
+                                                                               self.path_wind_parquet,
+                                                                               self.n_models)
         frames = []
         # refs = []
         derot_angs = []
@@ -114,16 +118,16 @@ class ParametricWDH:
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
         IWA = self.params_file['IWA']#use 13 for now, post-optimized bkg sub SNRE says JKK 01/18/23
         dataset = GenericWDH(input_data,
-                                 input_centers,
-                                 obj_parangs=par_angs,
-                                 wdh1_parangs=wdh1_angs,
-                                 wdh2_parangs=wdh2_angs,
-                                 IWA=IWA,filenames=filelist)
+                             input_centers,
+                             obj_parangs=par_angs,
+                             wdh_parangs=wdh_angs,
+                             IWA=IWA,filenames=filelist)
+
         dataset.OWA = self.params_file["OWA"]
         if dataset.input.shape[1] != dataset.input.shape[2]:
             raise ValueError(""" Data slices are not square (dimx!=dimy), 
                             please make them square""")
-
+        self.dataset = dataset
         # mask2generatedisk = 1 - mask_disk_zeros
         lyot_sm_rad = 3 #lambda / D
         ctrl_rad = 24 #lambda / D
@@ -151,7 +155,7 @@ class ParametricWDH:
             dataset.input.shape[1],
             pa_init,
             inc_init,
-            convert.au_to_pix(self.params_init["disk_model"]['r1_init'],
+            convert.au_to_pix(self.params_file["disk_model"]['r1_init'],
                               self.pixscale,
                               self.distance) -
             in_scaling / np.cos(np.radians(inc_init)),
@@ -180,45 +184,43 @@ class ParametricWDH:
                      mask2minimize,
                      overwrite='True')
         
+        return mask2generatehalo, mask2minimize, model_pa_mask
+        
 
-        def initialize_windfm(self):
-            x = np.arange(self.image_size) - self.aligned_center[0]
-            y = np.arange(self.image_size) - self.aligned_center[1]
+    def initialize_windfm(self, first_models, model_pas_mask):
 
-            xx, yy = np.meshgrid(x, y)
-            initial_wdh_images = gen_multiwdh_image(xx, yy, self.params_init)
-            wdh_image_init = np.asarray(jnp.sum(initial_wdh_images, axis=0))
-            wdh_images_np = np.asarray(initial_wdh_images)
-            model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
-            save_fits(model_init_saveto, wdh_image_init)
-            windobj = WindFM(dataset.input.shape,
-                         self.numbasis,
-                         self.dataset,
-                         model_wdh_list=wdh_images_np,
-                         basis_filename=os.path.join(
-                             self.klipdir, self.file_prefix + '_klbasis.h5'),
-                         save_basis=True,
-                         aligned_center=aligned_center)
-            maxnumbasis = dataset.input.shape[0]
-            fm.klip_dataset(dataset,
-                            windobj,
-                            numbasis=self.numbasis,
-                            maxnumbasis=maxnumbasis,
-                            annuli=self.annuli,
-                            mode=self.mode,
-                            subsections=1,
-                            outputdir=self.klipdir,
-                            fileprefix=self.file_prefix,
-                            aligned_center=aligned_center,
-                            mute_progression=True,
-                            highpass=False,
-                            minrot=self.move_here,
-                            calibrate_flux=False,
-                            numthreads=1,
-                            time_collapse='median',
-                            psf_library=None)
+        wdh_model_here = np.asarray(jnp.sum(first_models, axis=0))
+        model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
+        save_fits(model_init_saveto, wdh_model_here)
+        windobj = WindFM(self.dataset.input.shape,
+                        self.numbasis,
+                        self.dataset,
+                        model_wdh_list=np.asarray(first_models),
+                        model_pas_mask=model_pas_mask,
+                        basis_filename=os.path.join(
+                            self.klipdir, self.file_prefix + '_klbasis.h5'),
+                        save_basis=True,
+                        aligned_center=self.aligned_center)
+        maxnumbasis = self.dataset.input.shape[0]
+        fm.klip_dataset(self.dataset,
+                        fm_class=windobj,
+                        numbasis=self.numbasis,
+                        maxnumbasis=maxnumbasis,
+                        annuli=self.annuli,
+                        mode=self.mode,
+                        subsections=1,
+                        outputdir=self.klipdir,
+                        fileprefix=self.file_prefix,
+                        aligned_center=self.aligned_center,
+                        mute_progression=True,
+                        highpass=False,
+                        minrot=self.move_here,
+                        calibrate_flux=False,
+                        numthreads=mp.cpu_count(),
+                        time_collapse='median',
+                        psf_library=None)
 
-            sys.stdout = sys.__stdout__
-            reduced_data = fits.getdata(os.path.join(self.klipdir,
-                                                    self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
-            self.reduced_data = reduced_data
+        sys.stdout = sys.__stdout__
+        reduced_data = fits.getdata(os.path.join(self.klipdir,
+                                                self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
+        self.reduced_data = reduced_data
