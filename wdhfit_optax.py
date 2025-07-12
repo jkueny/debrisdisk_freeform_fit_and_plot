@@ -88,18 +88,35 @@ import optax
 
 
 def main(config):
+    import matplotlib.pyplot as plt
 
     # Init the wdh model object
     wdh_obj = ParametricWDH(config)
 
     # Make the intial model
     params_init = wdh_obj.params_init
+    # Ex. {'ps_global': {'fwhm': 3.0}, 'ps_indiv': [{wdh1_params}, {wdh2_params}, {wdh3_params}]}
 
-    if params_init["FIRST_TIME"]:
 
+    if wdh_obj.params_file["FIRST_TIME"]:
+        diff_lim = ((wdh_obj.wl * 1e-6) / wdh_obj.params_file["METADATA"]["PRIM_MIRR_SZ"])
+        res_el = diff_lim * 180 / np.pi * 3600
+        max_fov = (wdh_obj.image_size // 2) * wdh_obj.pixscale
+        fov_size = max_fov / res_el
+        n_pts = int(np.ceil(wdh_obj.image_size))
+        x = np.linspace(-fov_size, fov_size, num=n_pts)
+        y = np.linspace(-fov_size, fov_size, num=n_pts)
 
-        image_wdh_init = wdh_obj.gen_wdh_image_from_params(params_init)
+        xx, yy = np.meshgrid(x, y)
+        print(n_pts, xx.shape)
+
+        wdh_model_here = gen_multiwdh_image(xx, yy, params_init)
         
+        wdh_model_test_toplot = np.asarray(np.log10(np.sum(wdh_model_here, axis=0)+1e-6))
+        print(wdh_model_test_toplot.shape)
+        plt.imshow(wdh_model_test_toplot, cmap="jet")
+        plt.show()
+
 
     # Convolve the init model
 

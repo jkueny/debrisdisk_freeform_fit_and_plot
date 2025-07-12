@@ -2,18 +2,17 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 
 
-def render_wdh_model(x, y, params):
+def render_wdh_model(x, y, params, fwhm):
     """
 
     """
     # Unpack
     beta = params["beta"]
     h0 = params["a_r"]
-    sigma = params["sigma"]
+    sigma = params["sig"]
     PA_deg = params["PA"]
     x0 = params["dx"]
     scaling = params["Norm"]
-    fwhm = fwhm
     R1 = 5 #At pixel scale 0.012"/pixel this is the IWA at g', about 4 lamb/D
     # Rotate to disk PA
     PA_rad = jnp.deg2rad(PA_deg)
@@ -33,26 +32,48 @@ def render_wdh_model(x, y, params):
 
     I_coron = I_valid.at[r < R1].set(0.0)
 
-    return I_coron * scaling
-
-def gen_multiwdh_image(x, y, all_params):
-    # The convolutional kernel is the same for all WDHs
-    fwhm = all_params["ps_global"]["fwhm"]
-
-    n_wdh_params = all_params["ps_individual"]
-
-    model_image = jnp.zeros_like((x,y))
-
-    for _, params in n_wdh_params.items():
-        model_image += render_wdh_model(x, y, params, fwhm)
-
     # Gaussian convolution
     if fwhm is not None and fwhm > 0:
         sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
         sig2 = 2 * sigma_pix * sigma_pix
         window = jnp.exp(-(x**2 + y**2) / sig2)
-        I_image = jsp.signal.convolve2d(model_image,window)
+        I_image = jsp.signal.convolve2d(I_coron,window, mode="same")
     else:
-        I_image = model_image
+        I_image = I_coron
 
-    return I_image
+    return I_image * scaling
+
+def gen_multiwdh_image(x, y, all_params):
+    """
+    Generate a list of unrotated WDH model images, one per component in `ps_individual`.
+
+    Parameters
+    ----------
+    x, y : 2D jnp.ndarray
+        Coordinate grid.
+    params : dict
+        Dictionary with keys 'ps_global' and 'ps_individual'.
+        'ps_individual' should be a dict of WDH component parameter dicts.
+
+    Returns
+    -------
+    image_list : list of 2D jnp.ndarray
+        List of WDH model images, one per component.
+    """
+    assert "ps_indiv" in all_params, "params must contain 'ps_indiv' key"
+    assert "ps_global" in all_params, "params must contain 'ps_global' key"
+
+    fwhm = all_params["ps_global"]["fwhm"]
+    n_wdh_params = all_params["ps_indiv"]
+
+    
+    model_list = []
+
+    for wdh_params in n_wdh_params:
+
+
+        model = render_wdh_model(x, y, wdh_params, fwhm)
+        model_list.append(model)
+
+
+    return model_list    # The convolutional kernel is the same for all WDHs

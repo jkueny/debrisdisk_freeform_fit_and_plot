@@ -149,8 +149,7 @@ class WindFM(NoFM):
                  inputs_shape,
                  numbasis,
                  dataset,
-                 model_wdh1,
-                 model_wdh2,
+                 model_wdh_list,
                  basis_filename="",
                  kl_basis_file=None,
                  load_from_basis=False,
@@ -281,70 +280,56 @@ class WindFM(NoFM):
             self.aligned_center = aligned_center
 
         # Prepare the first disk for FM
-        self.update_wind(model_wdh1, model_wdh2)
+        self.update_wind(model_wdh_list)
 
-    def update_wind(self, model_wdh1, model_wdh2):
+    def update_wind(self, model_wdh_list):
         """
-        Takes model disk and rotates it to the PAs of the input images for use as
-        reference PSFS
-
-        The disk can be either an 3D array of shape (wvs,y,x) for data of the same shape
-        or a 2D Array of shape (y,x), in which case, if the dataset is multiwavelength
-        the same model is used for all wavelenths.
+        Rotate and sum N WDH models based on wind direction PAs for each frame.
 
         Args:
-            model_disk: Disk to be forward modeled.
+            model_wdh_list: List of 2D WDH model images (unrotated).
+                            Length must match number of wind PA sets available.
 
         Returns:
-            None
+            None. Sets self.model_wdhs with rotated+summed WDH models per frame.
         """
 
+        num_components = len(model_wdh_list)
+        model_shape = np.shape(model_wdh_list[0])
         self.model_wdhs = np.zeros(self.inputs_shape)
-        
-
-        # Extract the # of WL per files
-        n_wv_per_file = self.nwvs  # Number of wavelenths per file.
-
-        model_wdh_shape = np.shape(model_wdh1)
-
-
-        self.model_wdh1 = model_wdh1
-        self.model_wdh2 = model_wdh2
 
         for i in range(len(self.w1PAs)):
-            w1pa_here = self.w1PAs[i]
-            w2pa_here = self.w2PAs[i]
-            # model_copy = deepcopy(model_disk).astype(np.float64).newbyteorder("=")
-            model1_copy = deepcopy(model_wdh1).astype(np.float64).newbyteorder("=")
-            model2_copy = deepcopy(model_wdh2).astype(np.float64).newbyteorder("=")
+            model_sum = np.zeros(model_shape)
 
-            if np.isnan(w1pa_here): #NaN if windsocc does not detect strong wind
-                model1_updated = np.zeros(model_wdh_shape)
-            else:
-                model1_updated = rotate_image(
-                                    model1_copy,
-                                    w1pa_here,
-                                    self.aligned_center,
-                                    flipx=True,
-                                    )
-            if np.isnan(w2pa_here):
-                model2_updated = np.zeros(model_wdh_shape)
-            else:
-                model2_updated = rotate_image(
-                                    model2_copy,
-                                    w2pa_here,
-                                    self.aligned_center,
-                                    flipx=True,
-                                    )
-            mod_rot_flipx = model1_updated + model2_updated
-            mod_rot_flipx[mod_rot_flipx != mod_rot_flipx] = 0.0
-            self.model_wdhs[i] = mod_rot_flipx
+            for j in range(num_components):
+                model = deepcopy(model_wdh_list[j]).astype(np.float64).newbyteorder("=")
+
+                # Get the wind PA list for this component
+                wind_pa_list_name = f"w{j+1}PAs"
+                if not hasattr(self, wind_pa_list_name):
+                    raise AttributeError(f"Missing PA list: self.{wind_pa_list_name}")
+                wind_pa_here = getattr(self, wind_pa_list_name)[i]
+
+                if np.isnan(wind_pa_here):
+                    model_rot = np.zeros(model_shape)
+                else:
+                    model_rot = rotate_image(
+                        model,
+                        wind_pa_here,
+                        self.aligned_center,
+                        flipx=True,
+                    )
+
+                model_sum += model_rot
+
+            model_sum[np.isnan(model_sum)] = 0.0
+            self.model_wdhs[i] = model_sum
 
         self.model_wdhs = np.reshape(
             self.model_wdhs,
-            (self.inputs_shape[0],
-             self.inputs_shape[1] * self.inputs_shape[2]),
+            (self.inputs_shape[0], self.inputs_shape[1] * self.inputs_shape[2]),
         )
+
 
     def alloc_fmout(self, output_img_shape):
         """Allocates shared memory for the output of the shared memory

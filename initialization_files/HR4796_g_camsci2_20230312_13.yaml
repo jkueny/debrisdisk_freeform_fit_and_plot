@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: False
+FIRST_TIME: True
 FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
@@ -29,6 +29,7 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 FILE_PREFIX: camsci2_g_20230312_13 #prefix for all saved files (carefull not to erase your results)
 BAND_NAME: 2023 Mar 12, $g$ band #for plot titles uniquely
+WIND_LOOKUP_PREFIX: camwfs_20230312_13
 
 # GRIDSEARCH PARAMS
 GRIDSEARCH_DIR: pyklip_reduced
@@ -47,7 +48,7 @@ METADATA:
   PIXSCALE_INS: 0.012  #picscale of your data
   WL: 0.527 #wavelength in microns
   FILTER_NAME: $g'$
-  PRIM_MIRROR_SZ: 6.5 #meters
+  PRIM_MIRR_SZ: 6.5 #meters
   
 
 
@@ -106,35 +107,38 @@ g3_state: 0
 alpha2_state: 0
 
 wdh_model:
+  N_WIND_LAYERS: 3
   # WIND PARAMETERS
   hr1_init: 0.1 #include just for initializing the mask function
   hr2_init: 60 #include just for initializing the mask function
   
   rscale_init: 1.01
-  beta_init: -1.9190807973365744
-  a_r_init: 0.37243626309933575
-  sig_init: 3.652540435720588
+  beta_init: 2.0
+  a_r_init: 0.1
+  sig_init: 15.
   pa_init:  66.76810340975538
-  dx_init: 15.736274318840326
-  dy_init: -1.8994364349294457
+  dx_init: -0.1
+  # dy_init: -1.8994364349294457
   dz_init: 0.01
-  Norm_init: 778.314016876
+  Norm_init: 1.
   dtheta_init: 1.0
   fwhm_init: 3.0
   
-  beta2_init: -1.9190807973365744
-  a_r2_init: 0.29270564274473104
-  sig2_init: 3.652540435720588
+  beta2_init: 2.0
+  a_r2_init: 0.1
+  sig2_init: 15.
   pa2_init: -113.906450623
-  dx2_init: 15.736274318840326
-  dy2_init: 2.7432967701360966
-  dz2_init: 0.01
-  Norm2_init: 161.752741323
+  dx2_init: 0.1
+  # dy2_init: 2.7432967701360966
+  # dz2_init: 0.01
+  Norm2_init: 2.
   
-  ha_r3_init: 0.9278058937026628
-  hpa3_init: -113.906450623
-  hdy3_init: 1.2852098741333626
-  hN3_init: 134.862950151
+  beta3_init: 2.0
+  a_r3_init: 0.1
+  sig3_init: 15.
+  pa3_init: 90.
+  dx3_init: 1.1
+  Norm3_init: 200.
 
 RPROFSUB: True
 

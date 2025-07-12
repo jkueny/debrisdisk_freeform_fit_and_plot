@@ -1,5 +1,5 @@
 import os
-import re
+import sys
 import glob
 from astropy.io import fits
 import numpy as np
@@ -8,7 +8,11 @@ import jax.numpy as jnp
 from modeling.jax_models.wdh_modeling import gen_multiwdh_image
 from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
-from dev.pyklip.instruments.Instrument import GenericData
+from utils.masks import control_region_mask
+from utils.sci_image_utils import parang_sort, prep_image_frames_parangs
+from dev.pyklip.instruments.Wind import GenericWDH
+from dev.pyklip.fmlib.windfm import WindFM
+import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
 import utils.astro_unit_conversion as convert
 
@@ -18,33 +22,37 @@ class ParametricWDH:
         self.params_init = self._get_initial_params()
         self._load_dirs()
         self._load_metadata()
+        self._load_klparams()
         # self.klbasis = self._loadbasis()
     def _get_initial_params(self):
-        # This gets applied to all models
-        all_wdhs = {}
-        all_wdhs["fwhm"] = self.params_file["wdh_model"]["fwhm_init"]
+        # Clamp the number of wind layers to between 1 and 3
+        n_wdhs = int(self.params_file["wdh_model"]["N_WIND_LAYERS"])
+        if n_wdhs < 1 or n_wdhs > 3:
+            raise ValueError("N_WIND_LAYERS must be between 1 and 3.")
 
-        # First WDH
-        wdh1 = {}
-        wdh1["beta"] = self.params_file["wdh_model"]["beta_init"]
-        wdh1["a_r"] = self.params_file["wdh_model"]["a_r_init"]
-        wdh1["sig"] = self.params_file["wdh_model"]["sig_init"]
-        wdh1["PA"] = self.params_file["wdh_model"]["pa_init"]
-        wdh1["dx"] = self.params_file["wdh_model"]["dx_init"]
-        wdh1["Norm"] = self.params_file["wdh_model"]["Norm_init"]
-        
-        wdh2 = {}
-        wdh2["beta"] = self.params_file["wdh_model"]["beta2_init"]
-        wdh2["a_r"] = self.params_file["wdh_model"]["a_r2_init"]
-        wdh2["sig"] = self.params_file["wdh_model"]["sig2_init"]
-        wdh2["PA"] = self.params_file["wdh_model"]["pa2_init"]
-        wdh2["dx"] = self.params_file["wdh_model"]["dx2_init"]
-        wdh2["Norm"] = self.params_file["wdh_model"]["Norm2_init"]
+        # Shared parameters for all WDHs
+        all_wdhs = {
+            "fwhm": self.params_file["wdh_model"]["fwhm_init"]
+        }
 
-        params_init = {"ps_global":all_wdhs,
-                       "ps_indiv":[wdh1, wdh2]}
-        
-        return params_init
+        # Create each WDH component's dictionary dynamically
+        ps_indiv = []
+        for i in range(1, n_wdhs + 1):
+            suffix = "" if i == 1 else str(i)
+            wdh = {
+                "beta": self.params_file["wdh_model"][f"beta{suffix}_init"],
+                "a_r": self.params_file["wdh_model"][f"a_r{suffix}_init"],
+                "sig": self.params_file["wdh_model"][f"sig{suffix}_init"],
+                "PA": self.params_file["wdh_model"][f"pa{suffix}_init"],
+                "dx": self.params_file["wdh_model"][f"dx{suffix}_init"],
+                "Norm": self.params_file["wdh_model"][f"Norm{suffix}_init"]
+            }
+            ps_indiv.append(wdh)
+
+        return {
+            "ps_global": all_wdhs,
+            "ps_indiv": ps_indiv
+        }               
     
     def _load_dirs(self):
         basedir = f'{os.environ["HOME"]}/projects'
@@ -66,12 +74,19 @@ class ParametricWDH:
     def _load_metadata(self):
         self.pixscale = self.params_file["METADATA"]["PIXSCALE_INS"]
         self.distance = self.params_file["METADATA"]["DISTANCE_STAR"]
+        self.wl = self.params_file["METADATA"]["WL"]
+        self.diam = self.params_file["METADATA"]["PRIM_MIRR_SZ"]
+
+    def _load_klparams(self):
+        self.numbasis = self.params_file["KLMODE_NUMBER"]
+        self.annuli = self.params_file["ANNULI"]
+        self.iwa = self.params_file["IWA"]
+        self.owa = self.params_file["OWA"]
+        self.minrot = self.params_file["MOVE_HERE"]
+        self.mode = self.params_file["MODE"]
         aligned_center = self.params_file["ALIGNED_CENTER"]
         self.aligned_center = aligned_center
-        self.image_size = round(aligned_center[0]) * 2
-        self.mode = self.params_file["MODE"]
-        self.wl = self.params_file["METADATA"]["WL"]
-        self.diam = self.params_file["METADATA"]["PRIM_MIRROR_SZ"]
+        self.image_size = np.ceil(aligned_center[0]) * 2
     
     def prep_psflib_and_mask(self):
         # Make the mask
@@ -83,6 +98,9 @@ class ParametricWDH:
                           key=parang_sort)
         if len(filelist) == 0:
             raise ValueError(f"Could not find files in the dir: {self.datadir}")
+        input_data, par_angs, wdh1_angs, wdh2_angs = prep_image_frames_parangs(filelist,
+                                                                               path_wind_parquet,
+                                                                                   )
         frames = []
         # refs = []
         derot_angs = []
@@ -95,7 +113,12 @@ class ParametricWDH:
         input_centers = np.array([aligned_center for _ in range(len(filelist))])
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
         IWA = self.params_file['IWA']#use 13 for now, post-optimized bkg sub SNRE says JKK 01/18/23
-        dataset = GenericData(input_data,input_centers,parangs=par_angs,IWA=IWA,filenames=filelist)
+        dataset = GenericWDH(input_data,
+                                 input_centers,
+                                 obj_parangs=par_angs,
+                                 wdh1_parangs=wdh1_angs,
+                                 wdh2_parangs=wdh2_angs,
+                                 IWA=IWA,filenames=filelist)
         dataset.OWA = self.params_file["OWA"]
         if dataset.input.shape[1] != dataset.input.shape[2]:
             raise ValueError(""" Data slices are not square (dimx!=dimy), 
@@ -157,55 +180,45 @@ class ParametricWDH:
                      mask2minimize,
                      overwrite='True')
         
-        def gen_wdh_image_from_params(self, params):
-            x = jnp.arange(self.image_size) - self.aligned_center[0]
-            y = jnp.arange(self.image_size) - self.aligned_center[1]
 
-            wdh_image = gen_multiwdh_image(x, y, params)
-
-            return wdh_image
-        
         def initialize_windfm(self):
-            initial_wdh_image = gen_wdh_image_from_params(self.params_init)
+            x = np.arange(self.image_size) - self.aligned_center[0]
+            y = np.arange(self.image_size) - self.aligned_center[1]
+
+            xx, yy = np.meshgrid(x, y)
+            initial_wdh_images = gen_multiwdh_image(xx, yy, self.params_init)
+            wdh_image_init = np.asarray(jnp.sum(initial_wdh_images, axis=0))
+            wdh_images_np = np.asarray(initial_wdh_images)
             model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
-            save_fits(model_init_saveto, initial_wdh_image)
+            save_fits(model_init_saveto, wdh_image_init)
             windobj = WindFM(dataset.input.shape,
-                         numbasis,
-                         dataset,
-                         model_wdh1=model1_here_convolved,
-                         model_wdh2=model2_here_convolved,
+                         self.numbasis,
+                         self.dataset,
+                         model_wdh_list=wdh_images_np,
                          basis_filename=os.path.join(
-                             klipdir, file_prefix + '_klbasis.h5'),
+                             self.klipdir, self.file_prefix + '_klbasis.h5'),
                          save_basis=True,
                          aligned_center=aligned_center)
+            maxnumbasis = dataset.input.shape[0]
+            fm.klip_dataset(dataset,
+                            windobj,
+                            numbasis=self.numbasis,
+                            maxnumbasis=maxnumbasis,
+                            annuli=self.annuli,
+                            mode=self.mode,
+                            subsections=1,
+                            outputdir=self.klipdir,
+                            fileprefix=self.file_prefix,
+                            aligned_center=aligned_center,
+                            mute_progression=True,
+                            highpass=False,
+                            minrot=self.move_here,
+                            calibrate_flux=False,
+                            numthreads=1,
+                            time_collapse='median',
+                            psf_library=None)
 
-
-
-
-            
-        
-
-
-def parang_sort(filename):
-    """Extracts the float value between '2x2bin_' and '_parang'."""
-    match = re.search(r'2x2bin_([-+]?\d*\.\d+|\d+)_parang', filename)
-    if match:
-        return float(match.group(1))  # Convert extracted string to float
-    return float('inf')  # Assign an arbitrary large value if no match is found
-
-def control_region_mask(framesize, coronrad, seeinglimited):
-    center_x, center_y = framesize[0] // 2, framesize[1] // 2
-    mask_ctrl_reg = np.ones(framesize)
-    x = np.arange(framesize[0], dtype=float)[None,:] - center_x
-    y = np.arange(framesize[1], dtype=float)[:,None] - center_y
-    rho2d = np.sqrt(x**2 + y**2)
-    mask_ctrl_reg[np.where(rho2d > seeinglimited)] = 0.
-    # mask_ctrl_reg[int(ALIGNED_CENTER[0] - owa / 2):int(ALIGNED_CENTER[0] + owa / 2),int(ALIGNED_CENTER[1] - owa / 2):int(ALIGNED_CENTER[1] + owa / 2)] = 0.
-    # mask_ctrl_reg[mask_ctrl_reg == 0.] = np.nan
-    mask_ctrl_reg[np.where(rho2d < coronrad)] = 0.
-    # mask_ctrl_reg = 1 - mask_ctrl_reg
-    # mask_ctrl_reg = rotate(mask_ctrl_reg,angle=-62, reshape=False, order=0)
-    # mask_ctrl_reg = 1 - mask_ctrl_reg
-    mask_ctrl_reg[mask_ctrl_reg > 0.5] = 1
-    mask_ctrl_reg[mask_ctrl_reg < 0.5] = 0
-    return mask_ctrl_reg
+            sys.stdout = sys.__stdout__
+            reduced_data = fits.getdata(os.path.join(self.klipdir,
+                                                    self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
+            self.reduced_data = reduced_data
