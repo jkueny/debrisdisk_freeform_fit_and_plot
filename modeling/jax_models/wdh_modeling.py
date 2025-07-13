@@ -10,7 +10,6 @@ def gaussian_1d(fwhm):
     g = jnp.exp(-0.5 * (x / sigma)**2)
     return g / g.sum()                          # L1-normalise
 
-@jax.jit
 def convolve_fft_xy(model, kernel_1d):
     # Convolve along x
     tmp = jsp.signal.fftconvolve(model, kernel_1d[None, :], mode="same")
@@ -20,6 +19,7 @@ def convolve_fft_xy(model, kernel_1d):
     return image
 
 
+@jax.jit
 def render_wdh_model(x, y, params, mask, fwhm):
     """
 
@@ -50,10 +50,15 @@ def render_wdh_model(x, y, params, mask, fwhm):
     I_coron = jnp.where(r < R1, 0, I_valid)
 
     # Gaussian convolution
-    # convolve doing a "double pass" 1D convolution for speed
-    kernel_1d = gaussian_1d(fwhm) #make 1D Gauss
-    I_image = convolve_fft_xy(I_coron, kernel_1d)
-
+    # if fwhm is not None and fwhm > 0:
+    sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
+    # kernel_1d = gaussian_1d(fwhm)
+    # I_image = convolve_fft_xy(I_coron, kernel_1d)
+    sig2 = 2 * sigma_pix * sigma_pix
+    window = jnp.exp(-(x**2 + y**2) / sig2)
+    I_image = jsp.signal.convolve2d(I_coron,window, mode="same")
+    # else:
+    #     I_image = I_coron
 
     return I_image * scaling * mask
 
