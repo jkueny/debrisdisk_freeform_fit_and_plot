@@ -25,7 +25,7 @@ except ImportError:
     mkl_exists = False
 
 # Turns parallelism off for debugging purposes
-debug = True
+debug = False
 
 
 
@@ -214,7 +214,7 @@ def perturb_specIncluded(evals, evecs, original_KL, refs, models_ref):
     evals_sqrt = np.sqrt(evals)
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
-    beta_tmp = 1./(evals_tiled.transpose()- evals_tiled)
+    beta_tmp = 1./(evals_tiled.transpose()- evals_tiled + 1e-6)
 
     n = evals.shape[0]            # number of modes
     for i in range(n):

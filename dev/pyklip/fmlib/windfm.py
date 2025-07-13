@@ -239,6 +239,7 @@ class WindFM(NoFM):
             self.input_img_num_dict = manager.dict()
 
             self.klparam_dict = manager.dict()
+            self.wdhPAs_dict = manager.dict()
         # Coords where align_and_scale places model center
 
         if self.load_from_basis is True:  # We want to load the FM basis
@@ -280,9 +281,10 @@ class WindFM(NoFM):
             self.aligned_center = aligned_center
 
         # Prepare the first disk for FM
-        self.update_wind(model_wdh_list, model_pas_mask)
+        self.validPAs = model_pas_mask
+        self.update_wind(model_wdh_list)
 
-    def update_wind(self, model_wdh_list, valid_PA_mask):
+    def update_wind(self, model_wdh_list):
         """
         Rotate and sum N WDH models based on wind direction PAs for each frame.
 
@@ -294,7 +296,6 @@ class WindFM(NoFM):
         Returns:
             None. Sets self.model_wdhs with rotated+summed WDH models per frame.
         """
-        import matplotlib.pyplot as plt
         num_components = len(model_wdh_list)
         model_shape = np.shape(model_wdh_list[0])
         self.model_wdhs = np.zeros(self.inputs_shape)
@@ -309,7 +310,7 @@ class WindFM(NoFM):
 
                 # Get the wind PA list for this component
                 wind_pa_list = self.wdhpas
-                do_rot = valid_PA_mask[j][i]
+                do_rot = self.validPAs[j][i]
 
                 if do_rot:
                     wind_pa_here = wind_pa_list[j][i]
@@ -508,6 +509,10 @@ class WindFM(NoFM):
             self.klparam_dict['numbasis'] = np.float64(numbasis)
             self.klparam_dict['output_imgs_shape'] = np.float64(
                 output_img_shape)
+            
+            # Save the WDH PAs and PA mask
+            self.wdhPAs_dict["PAs"] = np.float64(self.wdhpas)
+            self.wdhPAs_dict["PAmask"] = np.float64(self.validPAs)
 
             # To have a single identifier for each set of aligned images,
             # we save the wavelenght in nm
@@ -698,6 +703,7 @@ class WindFM(NoFM):
                 'phiend_dict': dict(self.phiend_dict),
                 'input_img_num_dict': dict(self.input_img_num_dict),
                 'klparam_dict': dict(self.klparam_dict),
+                'wdhPAs_dict': dict(self.wdhPAs_dict),
             }
 
             _save_dict_to_hdf5(saving_in_h5_dict, self.basis_filename)

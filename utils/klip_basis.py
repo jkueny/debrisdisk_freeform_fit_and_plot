@@ -175,6 +175,10 @@ def unpack_basis_data(basis_data):
     # For ref_PAs: build ragged reference position angles (no padding).
     ref_PAs = build_batched_ref_PAs(basis_data["klparam_dict"], basis_data["ref_psfs_indicies_dict"])
     out["ref_PAs"] = ref_PAs  # tuple of 1D JAX arrays (ragged)
+
+    if "wdhPAs_dict" in basis_data.keys():
+        out["wdhPAs"] = jnp.array(basis_data["wdhPAs"]["PAs"])
+        out["PAmask"] = jnp.array(basis_data["wdhPAs"]["PAmask"])
     
     # Optionally, check consistency: if later we wish to pad ref_PAs, the fixed_refs for numeric arrays is fixed.
     # Here, we simply leave ref_PAs as ragged.
@@ -246,6 +250,7 @@ def load_kl_basis(h5_path):
     # Special keys: leave as non-JAX arrays.
     special_keys = [
         "klparam_dict",
+        "wdhPAs_dict"
     ]
 
     for key in klbasis:

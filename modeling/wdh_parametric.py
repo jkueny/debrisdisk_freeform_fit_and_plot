@@ -92,12 +92,8 @@ class ParametricWDH:
         self.aligned_center = aligned_center
         self.image_size = np.ceil(aligned_center[0]) * 2
     
-    def prep_dataset_and_masks(self):
-        # Make the mask
-        x_off = self.params_file["MASK"]["DX"]
-        y_off = self.params_file["MASK"]["DY"]
-        aligned_center = self.aligned_center
-        mask_center = aligned_center[0] + x_off, aligned_center[1] + y_off
+    def prep_dataset(self):
+        
         filelist = sorted(glob.glob(f'{self.datadir}/*parang*.fits'),
                           key=parang_sort)
         if len(filelist) == 0:
@@ -105,6 +101,7 @@ class ParametricWDH:
         input_data, par_angs, wdh_angs, model_pa_mask = prep_image_frames_parangs(filelist,
                                                                                self.path_wind_parquet,
                                                                                self.n_models)
+        self.PAmask = model_pa_mask
         frames = []
         # refs = []
         derot_angs = []
@@ -113,8 +110,9 @@ class ParametricWDH:
             derot_angs.append(hdr_unit['PARANG'])
             frames.append(dat_unit)
         input_data = np.asarray(frames)
+        self.frame_shape = input_data[0].shape
         par_angs = np.asarray(derot_angs)
-        input_centers = np.array([aligned_center for _ in range(len(filelist))])
+        input_centers = np.array([self.aligned_center for _ in range(len(filelist))])
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
         IWA = self.params_file['IWA']#use 13 for now, post-optimized bkg sub SNRE says JKK 01/18/23
         dataset = GenericWDH(input_data,
@@ -127,8 +125,18 @@ class ParametricWDH:
         if dataset.input.shape[1] != dataset.input.shape[2]:
             raise ValueError(""" Data slices are not square (dimx!=dimy), 
                             please make them square""")
-        self.dataset = dataset
+        
+        
+        return dataset
+    
+    def prep_binary_masks(self):
         # mask2generatedisk = 1 - mask_disk_zeros
+        # Make the mask
+        x_off = self.params_file["MASK"]["DX"]
+        y_off = self.params_file["MASK"]["DY"]
+        aligned_center = self.aligned_center
+        image_size = (round(aligned_center[0]) * 2, round(aligned_center[1]) * 2)
+        mask_center = aligned_center[0] + x_off, aligned_center[1] + y_off
         lyot_sm_rad = 3 #lambda / D
         ctrl_rad = 24 #lambda / D
 
@@ -137,7 +145,7 @@ class ParametricWDH:
         reselem_pix = reselem / self.pixscale #num pixels, int
         coron_reg = lyot_sm_rad * reselem_pix
         seeing_limited = ctrl_rad * reselem_pix * np.sqrt(2)
-        mask2generatehalo = control_region_mask(dataset.input.shape[1:],
+        mask2generatehalo = control_region_mask(image_size,
                                                 coronrad=coron_reg,
                                                 seeinglimited=seeing_limited,
                                                 )
@@ -152,7 +160,7 @@ class ParametricWDH:
         inc_init = self.params_file["disk_model"]['inc_init']
         pa_init = self.params_file["disk_model"]['pa_init']
         mask_disk_zeros = make_disk_mask(
-            dataset.input.shape[1],
+            image_size[0],
             pa_init,
             inc_init,
             convert.au_to_pix(self.params_file["disk_model"]['r1_init'],
@@ -169,10 +177,10 @@ class ParametricWDH:
 
         ### a few lines to create a circular central mask to hide center regions with a lot
         ### of speckles. Currently not using it but it's there
-        mask_coron_region = np.ones((dataset.input.shape[1], dataset.input.shape[2]))
-        mask_speckle_region = np.ones((dataset.input.shape[1], dataset.input.shape[2]))
-        x = np.arange(dataset.input.shape[1], dtype=float)[None,:] - aligned_center[0]
-        y = np.arange(dataset.input.shape[2], dtype=float)[:,None] - aligned_center[1]
+        mask_coron_region = np.ones(image_size)
+        mask_speckle_region = np.ones(image_size)
+        x = np.arange(image_size[0], dtype=float)[None,:] - aligned_center[0]
+        y = np.arange(image_size[1], dtype=float)[:,None] - aligned_center[1]
         rho2d = np.sqrt(x**2 + y**2)
         mask_coron_region[np.where(rho2d < coron_reg)] = 0.
         mask_speckle_region[np.where(rho2d < mask_speckles)] = 0.
@@ -183,26 +191,25 @@ class ParametricWDH:
         fits.writeto(f'{save_mask_part}_mask2minimize.fits',
                      mask2minimize,
                      overwrite='True')
-        
-        return mask2generatehalo, mask2minimize, model_pa_mask
-        
+        return mask2generatehalo, mask2minimize
 
-    def initialize_windfm(self, first_models, model_pas_mask):
+    def initialize_windfm(self, dataset, first_models):
 
         wdh_model_here = np.asarray(jnp.sum(first_models, axis=0))
+        model_pas_mask = self.PAmask
         model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
         save_fits(model_init_saveto, wdh_model_here)
-        windobj = WindFM(self.dataset.input.shape,
+        windobj = WindFM(dataset.input.shape,
                         self.numbasis,
-                        self.dataset,
+                        dataset,
                         model_wdh_list=np.asarray(first_models),
                         model_pas_mask=model_pas_mask,
                         basis_filename=os.path.join(
                             self.klipdir, self.file_prefix + '_klbasis.h5'),
                         save_basis=True,
                         aligned_center=self.aligned_center)
-        maxnumbasis = self.dataset.input.shape[0]
-        fm.klip_dataset(self.dataset,
+        maxnumbasis = dataset.input.shape[0]
+        fm.klip_dataset(dataset,
                         fm_class=windobj,
                         numbasis=self.numbasis,
                         maxnumbasis=maxnumbasis,
@@ -221,6 +228,6 @@ class ParametricWDH:
                         psf_library=None)
 
         sys.stdout = sys.__stdout__
-        reduced_data = fits.getdata(os.path.join(self.klipdir,
-                                                self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
-        self.reduced_data = reduced_data
+        # reduced_data = fits.getdata(os.path.join(self.klipdir,
+        #                                         self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
+        # self.reduced_data = reduced_data

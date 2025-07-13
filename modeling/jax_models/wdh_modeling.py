@@ -1,12 +1,24 @@
 import jax.numpy as jnp
 import jax.scipy as jsp
 
+import jax
+
 def gaussian_1d(fwhm):
     sigma = fwhm / (2.0 * jnp.sqrt(2.0 * jnp.log(2.0)))
-    half_width = int(jnp.ceil(5 * sigma))           # truncate at ±4σ
+    half_width = 5 * sigma # truncate at 5 sigma
     x = jnp.arange(-half_width, half_width + 1)
     g = jnp.exp(-0.5 * (x / sigma)**2)
     return g / g.sum()                          # L1-normalise
+
+@jax.jit
+def convolve_fft_xy(model, kernel_1d):
+    # Convolve along x
+    tmp = jsp.signal.fftconvolve(model, kernel_1d[None, :], mode="same")
+    # Convolve along y
+    image = jsp.signal.fftconvolve(tmp,   kernel_1d[:,  None], mode="same")
+
+    return image
+
 
 def render_wdh_model(x, y, params, mask, fwhm):
     """
@@ -31,26 +43,17 @@ def render_wdh_model(x, y, params, mask, fwhm):
     power_law = (1. / r)**beta
     exp_term = jnp.exp(-0.5 * (((r)**2 / (h0 * (x_rot - x0)**2)) + (x_rot / sigma)**2))
     I = power_law * exp_term
-    I_nanless = I.at[jnp.isnan(I)].set(0.0)
-    I_valid = I_nanless.at[jnp.isinf(I_nanless)].set(0.0)
-    # I[jnp.isnan(I)] = 0.0
-    # I[jnp.isinf(I)] = 0.0
+    I_nanless = jnp.where(jnp.isnan(I), 0., I)
+    I_valid = jnp.where(jnp.isinf(I_nanless), 0., I_nanless)
 
-    I_coron = I_valid.at[r < R1].set(0.0)
+
+    I_coron = jnp.where(r < R1, 0, I_valid)
 
     # Gaussian convolution
-    if fwhm is not None and fwhm > 0:
-        # sigma_pix = fwhm / (2 * jnp.sqrt(2 * jnp.log(2)))
-        kernel_1d = gaussian_1d(fwhm)
-        # Convolve along x
-        tmp = jsp.signal.fftconvolve(I_coron, kernel_1d[None, :], mode="same")
-        # Convolve along y
-        I_image = jsp.signal.fftconvolve(tmp,   kernel_1d[:,  None], mode="same")
-        # sig2 = 2 * sigma_pix * sigma_pix
-        # window = jnp.exp(-(x**2 + y**2) / sig2)
-        # I_image = jsp.signal.convolve2d(I_coron,window, mode="same")
-    else:
-        I_image = I_coron
+    # convolve doing a "double pass" 1D convolution for speed
+    kernel_1d = gaussian_1d(fwhm) #make 1D Gauss
+    I_image = convolve_fft_xy(I_coron, kernel_1d)
+
 
     return I_image * scaling * mask
 
@@ -74,7 +77,7 @@ def gen_multiwdh_image(x, y, all_params, mask):
     assert "ps_indiv" in all_params, "params must contain 'ps_indiv' key"
     assert "ps_global" in all_params, "params must contain 'ps_global' key"
 
-    fwhm = all_params["ps_global"]["fwhm"]
+    fwhm = float(all_params["ps_global"]["fwhm"])
     n_wdh_params = all_params["ps_indiv"]
 
     
