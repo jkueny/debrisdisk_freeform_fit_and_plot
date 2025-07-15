@@ -17,7 +17,12 @@ def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0):
         raise ValueError(f"Array has {current_first_dim} rows, which exceeds the fixed limit of {fixed_first_dim}.")
     pad_rows = fixed_first_dim - current_first_dim
     if pad_rows > 0:
-        pad_width = [(0, pad_rows), (0, 0)]
+        if len(arr.shape) > 1:
+            # The tuple is for padding arrays both before AND after the current values...!
+            # Pad (before, after)
+            pad_width = [(0, pad_rows), (0, 0)]
+        else:
+            pad_width = (0, pad_rows) # we only want to add values at the end.
         return jnp.pad(arr, pad_width, mode='constant', constant_values=pad_value)
     else:
         return arr
@@ -53,22 +58,26 @@ def build_batched_ref_images(aligned_images, ref_psfs_indicies_dict, fixed_refs,
     """
     keys = sorted(ref_psfs_indicies_dict.keys())
     batched_refs = []
+    batched_inds = []
     # height, width = image_shape
     image_pixels = image_shape
     for k in keys:
         # Get reference indices for this key.
         ref_inds = np.asarray(ref_psfs_indicies_dict[k]).astype(int)
+        # ref_inds shape (n_refs,)
         n_refs = len(ref_inds)
         if n_refs > fixed_refs:
             raise ValueError(f"For key {k}: number of references {n_refs} exceeds fixed limit {fixed_refs}.")
         # Gather reference images.
         refs = aligned_images[ref_inds]  # shape (n_refs, height, width)
-        refs_flat = refs.reshape((refs.shape[0], image_pixels))
+        refs_flat = refs.reshape((refs.shape[0], image_pixels)) #shape (n_refs, n_pixels)
         refs_padded = pad_array_to_fixed_first_dim(refs_flat, fixed_refs, pad_value=0)
+        inds_padded = pad_array_to_fixed_first_dim(ref_inds, fixed_refs, pad_value=-1)
+        batched_inds.append(inds_padded)
         batched_refs.append(refs_padded)
-    return jnp.stack(batched_refs)
+    return jnp.stack(batched_refs), jnp.stack(batched_inds)
 
-def build_batched_ref_PAs(klparam_dict, ref_psfs_indicies_dict):
+def build_batched_ref_PAs(global_PAs, ref_psfs_indicies_dict):
     """
     For each key in ref_psfs_indicies_dict, extract from klparam_dict["PAs"]
     the position angles corresponding to the reference indices.
@@ -76,12 +85,13 @@ def build_batched_ref_PAs(klparam_dict, ref_psfs_indicies_dict):
     Returns a tuple of 1D JAX arrays (one per key), which may have varying lengths.
     No zero-padding is performed.
     """
-    global_PAs = jnp.array(klparam_dict["PAs"])
+    # global_PAs = jnp.array(klparam_dict["PAs"])
+    PAs_arr = jnp.array(global_PAs)
     batched_PAs = []
     for k in ref_psfs_indicies_dict.keys():
         ref_inds = np.asarray(ref_psfs_indicies_dict[k]).astype(int)
         # Extract the position angles corresponding to these indices.
-        image_PAs = global_PAs[ref_inds]
+        image_PAs = PAs_arr[ref_inds]
         batched_PAs.append(image_PAs)
     return tuple(batched_PAs)
 
@@ -95,6 +105,27 @@ def apply_section_inds_to_image(aligned_image, section_inds):
     """
     # Use the tuple of indices to index into the image.
     return aligned_image[section_inds]
+
+def prepare_ref_angle_tensors(ref_PAs, min_num_models):
+    """
+    Turn a ragged list/tuple of 1-D JAX arrays into two dense tensors:
+       ref_ang_pad : (N_global, min_num_models)   [float32]
+       valid_mask  : (N_global, min_num_models)   [bool]
+    The padding value itself is irrelevant because valid_mask tells JAX
+    which entries to use.
+    """
+    N_global = len(ref_PAs)
+    ref_ang_pad = np.zeros((N_global, min_num_models), dtype=np.float32)
+    valid_mask  = np.zeros((N_global, min_num_models), dtype=np.bool_)
+    for i, arr in enumerate(ref_PAs):
+        L = len(arr)
+        if L > min_num_models:
+            raise ValueError(
+                f"ref_PAs[{i}] has length {L} > min_num_models={min_num_models}"
+            )
+        ref_ang_pad[i, :L] = np.asarray(arr, dtype=np.float32)
+        valid_mask [i, :L] = True
+    return jnp.asarray(ref_ang_pad), jnp.asarray(valid_mask)
 
 def unpack_basis_data(basis_data):
     """
@@ -169,16 +200,19 @@ def unpack_basis_data(basis_data):
     out["input_img_nums"] = jnp.array(input_img_nums, dtype=jnp.int32)
     
     # For ref_psfs_indicies_dict: build batched reference images from the reduced (sectioned) images.
-    ref_psfs = build_batched_ref_images(reduced_aligned_images, basis_data["ref_psfs_indicies_dict"], fixed_refs, N_pixels_section)
+    ref_psfs, ref_inds = build_batched_ref_images(reduced_aligned_images, basis_data["ref_psfs_indicies_dict"], fixed_refs, N_pixels_section)
     out["ref_psfs"] = ref_psfs  # shape (N_keys, fixed_refs, N_pixels_section)
     
     # For ref_PAs: build ragged reference position angles (no padding).
-    ref_PAs = build_batched_ref_PAs(basis_data["klparam_dict"], basis_data["ref_psfs_indicies_dict"])
+    ref_PAs = build_batched_ref_PAs(basis_data["klparam_dict"]["PAs"],
+                                    basis_data["ref_psfs_indicies_dict"])
     out["ref_PAs"] = ref_PAs  # tuple of 1D JAX arrays (ragged)
 
+    out["ref_inds"] = ref_inds
     if "wdhPAs_dict" in basis_data.keys():
-        out["wdhPAs"] = jnp.array(basis_data["wdhPAs"]["PAs"])
-        out["PAmask"] = jnp.array(basis_data["wdhPAs"]["PAmask"])
+        wdhPAs = jnp.array(basis_data["wdhPAs_dict"]["PAs"])
+        out["wdhPAs"] = wdhPAs
+        out["PAmask"] = jnp.array(basis_data["wdhPAs_dict"]["PAmask"])
     
     # Optionally, check consistency: if later we wish to pad ref_PAs, the fixed_refs for numeric arrays is fixed.
     # Here, we simply leave ref_PAs as ragged.

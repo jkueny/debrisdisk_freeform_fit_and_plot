@@ -842,8 +842,7 @@ class WindFM(NoFM):
 
         # Those are loaded to avoid depending at all on the dataset when we load the KL basis
         self.PAs = self.klparam_dict['PAs']
-        self.w1PAs = self.klparam_dict["w1PAs"]
-        self.w2PAs = self.klparam_dict["w2PAs"]
+        self.wdhPAs = self.wdhPAs_dict["PAs"]
         self.wvs = self.klparam_dict['wvs']
 
         self.nwvs = int(self.klparam_dict['nwvs'])  # Get the number of wvls

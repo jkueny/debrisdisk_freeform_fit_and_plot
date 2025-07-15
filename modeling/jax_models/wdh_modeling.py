@@ -82,7 +82,7 @@ def gen_multiwdh_image(x, y, all_params, mask):
     assert "ps_indiv" in all_params, "params must contain 'ps_indiv' key"
     assert "ps_global" in all_params, "params must contain 'ps_global' key"
 
-    fwhm = float(all_params["ps_global"]["fwhm"])
+    fwhm = all_params["ps_global"]["fwhm"]
     n_wdh_params = all_params["ps_indiv"]
 
     

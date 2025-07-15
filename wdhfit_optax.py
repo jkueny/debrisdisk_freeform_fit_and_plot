@@ -59,7 +59,7 @@ import yaml
 from dev.pyklip.instruments.Instrument import GenericData
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
-from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
+from dev.pyklip.fmlib.funcs_JDFM import update_wind, fm_from_eigen_adi, \
                                         fm_from_eigen_rdi, \
                                         insert_section_into_full_image, \
                                         mass_derotation
@@ -73,7 +73,8 @@ from modeling.jax_models.wdh_modeling import gen_multiwdh_image
 
 import utils.make_gpi_psf_for_disks as gpidiskpsf
 import utils.astro_unit_conversion as convert
-from utils.klip_basis import load_kl_basis, unpack_basis_data
+from utils.klip_basis import load_kl_basis, unpack_basis_data, \
+                             prepare_ref_angle_tensors
 from utils.io import yaml_handling, fits_handling
 from utils.model_tools import convolve_model
 
@@ -85,12 +86,12 @@ import jax.numpy as jnp
 from jax.scipy.signal import convolve2d
 import optax
 
-@partial(jax.jit, static_argnames=["fixed_refs","aligned_center",
-                                   "total_pixels", "isRDI"])
-def loss_function(mod_pix_params, disk_image, psf, aligned_images,
-                  ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
+# @partial(jax.jit, static_argnames=["fixed_refs",
+#                                    "total_pixels", "isRDI"])
+def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
+                  ref_psfs_stacked, PAs, ref_inds, wdh_PAs, fixed_refs,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
-                  total_pixels, isRDI):
+                  total_pixels, isRDI, modelhalomoask, mask_skip_models):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
         convolve by the PSF (psf is global)
@@ -113,13 +114,8 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     
     # Ensure that the model pixel values range [0,1]
-    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels)
-    # freeform_model = jax.nn.sigmoid(mod_pix_params)
-    # freeform_model = jax.nn.sigmoid(full_model_image)
+    full_model_images = gen_multiwdh_image(x_arr, y_arr, mod_params, modelhalomoask)
 
-    freeform_image = convolve_model(full_model_image, psf)
-    # freeform_image = convolve_model_lax(full_model_image, psf)
-    # freeform_image = full_model_image
 
 
     # confirmed shape of model_images_prepped (84, 50176)
@@ -128,14 +124,14 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     #                        ref_models_stacked, ref_psfs_stacked,
     #                        klmodes_stacked, evals, evecs_stacked,
     #                        PAs)
+    global_models_prepped, ref_models_stacked = update_wind(model_wdhs=full_model_images,
+                                                            PAs=wdh_PAs, ref_inds=ref_inds,
+                                                            # aligned_center=aligned_center,
+                                                            section_inds=section_inds_arr,
+                                                            mask_skip_models=mask_skip_models,
+                                                            isRDI=isRDI
+                                                            )
     if not isRDI:
-        global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
-                                                                PAs=PAs, ref_PAs=ref_PAs,
-                                                                # aligned_center=aligned_center,
-                                                                section_inds=section_inds_arr,
-                                                                min_num_models=fixed_refs,
-                                                                isRDI=isRDI
-                                                                )
         
         flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
                             )(aligned_images, ref_psfs_stacked,
@@ -143,13 +139,6 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                                 klmodes_stacked, evals, evecs_stacked,
                                 )
     elif isRDI:
-        global_models_prepped = update_disk(model_disk=freeform_image,
-                                            PAs=PAs, ref_PAs=ref_PAs,
-                                            # aligned_center=aligned_center,
-                                            section_inds=section_inds_arr,
-                                            min_num_models=fixed_refs,
-                                            isRDI=isRDI
-                                            )
         flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
                             )(aligned_images, 
                                 global_models_prepped,
@@ -177,14 +166,15 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, model_init,
-                   psf, basis_data, total_pixels, num_steps, lr=0.1):
+def optimize_model(target_image, params_init, x_arr, y_arr,
+                   total_pixels, basis_data, num_steps, model_mask,
+                   mask_skip_images, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
 
     # Initialize the initial image
-    image_params = model_init
+    image_params = params_init
     # image_params = initialize_freeform_model_reduced()
 
     # Set up optimizer, use adaptive stochastic grad descent
@@ -213,8 +203,10 @@ def optimize_model(target_image, model_init,
     ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
 
     ref_PAs = basis_data_unpacked["ref_PAs"]
-    wdh_PAs = basis_data_unpacked["wdhPAs"]
+    wdhPAs = basis_data_unpacked["wdhPAs"]
     valid_PA_mask = basis_data_unpacked["PAmask"]
+    ref_inds = basis_data_unpacked["ref_inds"]
+
 
     if bool(basis_data_unpacked["klparams"]["isRDI"]):
         fixed_refs = klmodes.shape[1]
@@ -222,6 +214,7 @@ def optimize_model(target_image, model_init,
     elif not bool(basis_data_unpacked["klparams"]["isRDI"]):
         fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number
         mode = 0
+
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
@@ -238,13 +231,15 @@ def optimize_model(target_image, model_init,
     # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
-    @jax.jit
+    # @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, jax_target_image, psf,
+        loss, grads = loss_and_grad(image_params, x_arr, y_arr,
+                                    jax_target_image,
                                     aligned_image_sections, ref_psfs_sections,
-                                    position_angles, ref_PAs, fixed_refs,
+                                    position_angles, ref_inds, fixed_refs,
                                     aligned_center, section_inds,
-                                    klmodes_sections, evals, evecs, total_pixels, mode)
+                                    klmodes_sections, evals, evecs, total_pixels,
+                                    mode, model_mask, mask_skip_images)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -277,7 +272,6 @@ def main(config):
     # Make the masks and initial model
     mask2generatehalo, mask2minimize = wdh_obj.prep_binary_masks()
 
-    print(mask2generatehalo)
 
     mask2generatehalo_jax = jnp.array(mask2generatehalo)
 
@@ -326,6 +320,7 @@ def main(config):
     reduced_data[reduced_data != reduced_data] = 0.
 
     mask_indices = jnp.flatnonzero(jnp.array(mask2generatehalo))
+    total_pixels = np.prod(reduced_data.shape)
 
     # model_mask_indices = jnp.vstack((mask_indices, mask_indices, mask_indices))
 
@@ -334,10 +329,18 @@ def main(config):
     init_models_flat = init_models.reshape(init_models.shape[0],
                                            (init_models.shape[1] * init_models.shape[2]))
     init_models_interest = init_models_flat[:, mask_indices]
-    reduced_data_flat = reduced_data.reshape(reduced_data.shape[0] * reduced_data.shape[1])
+    reduced_data_flat = reduced_data.flatten()
     reduced_flat_interest = reduced_data_flat[mask_indices]
 
-
+    optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
+                                                   params_init=params_init,
+                                                   x_arr=xx, y_arr=yy,
+                                                   total_pixels=total_pixels,
+                                                   basis_data=fm_dict,
+                                                   num_steps=args.iterations,
+                                                   model_mask=mask2generatehalo_jax,
+                                                   mask_skip_images=valid_pas_mask
+                                                   )
 
 
 

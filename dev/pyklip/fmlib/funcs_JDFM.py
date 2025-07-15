@@ -50,6 +50,9 @@ def insert_section_into_full_image(flat_section, full_shape, section_inds):
     full_image = full_image_flat.reshape(full_shape)
     return full_image
 
+def _apply_section(img, inds):
+    return img[inds].reshape(inds.shape[1])
+
 
 def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0.0):
     """
@@ -100,19 +103,17 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
     # Global rotations.
     N_global = PAs.shape[0]
     # Tile the model_disk to get one copy per global image.
-    global_disks = jnp.tile(model_disk, (N_global, 1, 1))
+    global_disks = jnp.tile(model_disk, reps=(N_global, 1, 1))
     # Rotate each copy by its corresponding global PA.
     global_rot = jax.vmap(rotate_image)(global_disks, PAs)
 
     # global_rot_flipx = jnp.flip(global_rot, axis=2)
     global_rot_flipx = global_rot
-    # Helper: apply section indices.
-    def apply_section(img, inds):
-        return img[inds].reshape(inds.shape[1])
+
     # Flatten each sectioned image.
     global_rot_flat = global_rot_flipx.reshape((N_global, -1))
     # Apply sectioning to each global rotated disk.
-    global_rot_section_flat = jax.vmap(apply_section, in_axes=(0, None))(global_rot_flat, section_inds)
+    global_rot_section_flat = jax.vmap(_apply_section, in_axes=(0, None))(global_rot_flat, section_inds)
     
     if not isRDI:
         # Reference rotations.
@@ -138,6 +139,81 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
         return global_rot_section_flat, ref_rotated
     elif isRDI:
         return global_rot_section_flat
+    
+def update_wind(model_wdhs, PAs, ref_inds, section_inds,
+                mask_skip_models, isRDI):
+    """
+    Takes a 2D model disk and produces two outputs:
+    
+      1. global_rotated: A JAX array of flattened disk models rotated by the global PAs,
+         then sectioned using section_inds.
+         Shape: (N_global, N_pixels_section), where N_pixels_section is the number
+         of pixels in the region-of-interest.
+         
+      2. ref_rotated: A JAX array of flattened disk models rotated by each reference PA
+         for each global image. For each global image, if the number of reference angles
+         is less than min_num_models, the output is zero-padded along that axis.
+         Final shape: (N_global, min_num_models, N_pixels_section)
+         
+    Args:
+      model_disk: 2D JAX array of shape (height, width).
+      PAs: JAX array of global position angles (in degrees) with shape (N_global,).
+      ref_PAs: JAX array of shape (N_global, min_num_models) that contains the PAs of the
+      assoc. wind directions in the reference images used in the basis. Padded, not ragged.
+      aligned_center: Tuple (cx, cy) specifying the center of rotation.
+      section_inds: Tuple (or list) of length N_global. Each element is a tuple (row_inds, col_inds)
+                    that selects the region-of-interest from an image.
+      min_num_models: Integer; fixed number of reference models to output per global image.
+    
+    Returns:
+      global_rotated: JAX array of shape (N_global, N_pixels_section) containing the flattened,
+                      sectioned, globally rotated disk models.
+      ref_rotated: JAX array of shape (N_global, min_num_models, N_pixels_section) containing
+                   the flattened, sectioned disk models rotated by each reference PA (padded as needed).
+    """
+    N_models, H, W = model_wdhs.shape
+    N_img, K_ref   = ref_inds.shape
+    N_pix          = section_inds[0].size
+
+    # ----------------------------------------------------------
+    # 1) build *combined* WDH model for every science frame
+    # ----------------------------------------------------------
+    # mask for layers that exist in each frame
+    PAs_clean   = jnp.where(mask_skip_models, PAs, 0.0)           # any angle OK where mask==0
+
+    def _one_frame(pa_vec, mask_vec):
+        # rotate each layer → (N_models,H,W)
+        rot = jax.vmap(rotate_image)(model_wdhs, pa_vec)
+        # zero where layer absent and sum
+        return (rot * mask_vec[:, None, None]).sum(axis=0)   # (H,W)
+
+    # (N_img,H,W)
+    combined_all = jax.vmap(_one_frame)(PAs_clean.T, mask_skip_models.T)
+
+    combined_flat = combined_all.reshape(N_img, H*W)
+
+    # section & flatten once – this feeds both outputs
+    global_flat = jax.vmap(_apply_section, in_axes=(0, None))(
+        combined_flat, section_inds
+    )                                                       # (N_img,N_pix)
+
+    # ----------------------------------------------------------
+    # 2) RDI?  we're done
+    # ----------------------------------------------------------
+    if isRDI:
+        return global_flat, None
+
+    # ----------------------------------------------------------
+    # 3) build *reference cube* by indexing global_flat
+    # ----------------------------------------------------------
+    valid_mask   = ref_inds != -1           # (N_img,K_ref) bool
+    refs_clean   = jnp.where(valid_mask, ref_inds, 0) # put 0 where padding
+
+    # gather → (N_img,K_ref,N_pix)
+    ref_cube = jnp.take(global_flat, refs_clean, axis=0)
+    ref_cube = ref_cube * valid_mask[..., None]              # zero padded slots
+
+    return global_flat, ref_cube
 
 # @jax.jit
 def calculate_fm(delta_KL, original_KL, sci, model_sci):
