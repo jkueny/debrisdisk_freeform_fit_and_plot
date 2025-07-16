@@ -42,6 +42,8 @@ import time
 
 # # because this error was coming up
 # os.environ['OPENBLAS_NUM_THREADS'] = '1'
+# os.environ["OMP_NUM_THREADS"] = "1"
+# os.environ["MKL_NUM_THREADS"] = "1"
 
 
 from functools import partial
@@ -63,9 +65,8 @@ from modeling.wdh_parametric import ParametricWDH
 from modeling.jax_models.wdh_modeling import gen_multiwdh_image
 
 
-from utils.klip_basis import load_kl_basis, unpack_basis_data, \
-                             prepare_ref_angle_tensors
-from utils.model_tools import convolve_model
+from utils.klip_basis import load_kl_basis, unpack_basis_data
+from utils.io.save_results import save_optimization_outputs
 
 
 import jax
@@ -73,10 +74,43 @@ import jax.numpy as jnp
 # import jax.profiler
 import optax
 
-@partial(jax.jit, static_argnames=["fixed_refs",
-                                   "total_pixels", "isRDI"])
+LAMBDA_REG = 0.1
+
+def relative_l2(params_all):
+    """
+    params_all is an array shaped (N_models, N_params_per_model, …)
+    where params_all[0]  holds the dominant model’s parameters.
+    """
+    fwhm = params_all["ps_global"]["fwhm"]
+    n_wdh_params = params_all["ps_indiv"]
+    
+
+    # Grab the dominant WDH params
+    wdh_dom = n_wdh_params[0] #this is a dict
+    beta_dom = wdh_dom["beta"]
+    a_r_dom = wdh_dom["a_r"]
+    sig_dom = wdh_dom["sig"]
+
+    additional_models = n_wdh_params[1:]
+
+    
+    differences = []
+    for i in n_wdh_params:
+        diff_beta = jnp.square((i["beta"] - beta_dom) / (0.1 * beta_dom))
+        diff_a_r = jnp.square((i["a_r"] - a_r_dom) / (0.1 * a_r_dom))
+        diff_sig = jnp.square((i["sig"] - sig_dom) / (0.1 * sig_dom))
+        differences.append(diff_beta + diff_a_r + diff_sig)
+    # Now grab the a_r and beta params from the secondary
+    # and (if applic) tertiary models
+    diff_jax = jnp.array(differences)
+
+
+    return jnp.sum(diff_jax) / diff_jax.size
+
+
+@partial(jax.jit, static_argnames=["total_pixels", "isRDI"])
 def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
-                  ref_psfs_stacked, PAs, ref_inds, wdh_PAs, fixed_refs,
+                  ref_psfs_stacked, PAs, ref_inds, wdh_PAs,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, mask2generatehalo, mask_skip_models,
                   mask2minimize_inds):
@@ -99,7 +133,11 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
     isRDI = bool(isRDI)
 
-
+    # if we're only fitting one model, we out
+    reg = jnp.where(len(mod_params["ps_indiv"]) > 1, #if more than one WDH model
+                    relative_l2(mod_params), #regularize
+                    0., #otherwise, we're good
+                    )
     
     # Ensure that the model pixel values range [0,1]
     full_model_images = gen_multiwdh_image(x_arr, y_arr, mod_params, mask2generatehalo)
@@ -151,7 +189,7 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
-    return mse
+    return mse + LAMBDA_REG * reg
 
 # --- JIT-Compiled Gradient Computation ---
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
@@ -228,7 +266,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
                                     jax_target_image,
                                     aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_inds, wdhPAs,
-                                    fixed_refs,
+                                    # fixed_refs,
                                     # aligned_center,
                                     section_inds,
                                     klmodes_sections, evals, evecs, total_pixels,
@@ -241,19 +279,17 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        # if step_idx % round(num_steps / 100) == 0:
-        #     print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+        if step_idx % round(num_steps / 10) == 0:
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
     # print(loss_history)
-    print(image_params)
     
     # optimized_model = jax.nn.sigmoid(image_params)
-    final_wdh_images = gen_multiwdh_image(x=x_arr, y=y_arr, all_params=image_params,
+    optimized_wdh_models = gen_multiwdh_image(x=x_arr, y=y_arr, all_params=image_params,
                                          mask=mask2generatehalo)
-    optimized_model = jnp.sum(final_wdh_images, axis=0)
-    return optimized_model, loss_history
+    return optimized_wdh_models, loss_history, image_params
 
 
 
@@ -294,15 +330,18 @@ def main(config):
         # print(wdh_model_test_toplot.shape)
         # plt.imshow(wdh_model_test_toplot, cmap="jet", origin="lower")
         # plt.show()
-        wdh_models_init_np = np.asarray(wdh_models_init)
+        # wdh_models_init_np = np.asarray(wdh_models_init)
 
         wdh_obj.initialize_windfm(dataset, wdh_models_init)
+
+
         print('First time initializing... \
               check wind_fm_files directory and modify the yaml conf file first_time flag.')
         sys.exit(0)
 
     params_file = wdh_obj.params_file
     klipdir = wdh_obj.klipdir
+    resultsdir = wdh_obj.resultsdir
     file_prefix = wdh_obj.file_prefix
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
     # Read in the masks
@@ -311,7 +350,7 @@ def main(config):
     # Read in the basis
     fm_dict = load_kl_basis(basis_path)
     image_size = fm_dict["klparam_dict"]["input_img_shape"]
-    wdh_pas = fm_dict["wdhPAs_dict"]["PAs"]
+    wdhPAs = fm_dict["wdhPAs_dict"]["PAs"]
     valid_pas_mask = fm_dict["wdhPAs_dict"]["PAmask"]
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
     reduced_data[reduced_data != reduced_data] = 0.
@@ -337,7 +376,7 @@ def main(config):
 
 
 
-    optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
+    opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_flat_interest,
                                                    params_init=params_init,
                                                    x_arr=xx, y_arr=yy,
                                                    total_pixels=total_pixels,
@@ -347,10 +386,21 @@ def main(config):
                                                    mask2minimize_inds=mask2minimize_indices,
                                                    mask_skip_images=valid_pas_mask
                                                    )
-    opt_model_plottable = np.asarray(optimized_model)
-    print(opt_model_plottable.shape)
-    plt.imshow(opt_model_plottable, origin="lower")
-    plt.show()
+    
+    optimized_model = jnp.sum(opt_models, axis=0)
+    opt_model_np = np.asarray(optimized_model)
+    opt_model_fm = wdh_obj.single_fm(np.asarray(opt_models))
+    opt_model_fm_np = np.asarray(opt_model_fm)
+    residuals_image = reduced_data - opt_model_fm_np
+    
+    save_optimization_outputs(save_dir=resultsdir,
+                              file_prefix=file_prefix,
+                              params_dict=bestfit_ps,
+                              model_image=opt_model_np,
+                              forward_model_image=opt_model_fm_np,
+                              residuals_image=residuals_image,
+                              loss_value=loss_hist[-1])
+
 
     # Convolve the init model
 

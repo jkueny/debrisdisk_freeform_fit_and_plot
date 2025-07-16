@@ -175,14 +175,12 @@ def update_wind(model_wdhs, PAs, ref_inds, section_inds,
     N_img, K_ref   = ref_inds.shape
     N_pix          = section_inds[0].size
 
-    # ----------------------------------------------------------
-    # 1) build *combined* WDH model for every science frame
-    # ----------------------------------------------------------
+
     # mask for layers that exist in each frame
     PAs_clean   = jnp.where(mask_skip_models, PAs, 0.0)           # any angle OK where mask==0
 
     def _one_frame(pa_vec, mask_vec):
-        # rotate each layer → (N_models,H,W)
+        # rotate each layer -> (N_models,H,W)
         rot = jax.vmap(rotate_image)(model_wdhs, pa_vec)
         # zero where layer absent and sum
         return (rot * mask_vec[:, None, None]).sum(axis=0)   # (H,W)
@@ -195,23 +193,16 @@ def update_wind(model_wdhs, PAs, ref_inds, section_inds,
     # section & flatten once – this feeds both outputs
     global_flat = jax.vmap(_apply_section, in_axes=(0, None))(
         combined_flat, section_inds
-    )                                                       # (N_img,N_pix)
+    )       
 
-    # ----------------------------------------------------------
-    # 2) RDI?  we're done
-    # ----------------------------------------------------------
+    # RDI?  we're done
     if isRDI:
         return global_flat, None
 
-    # ----------------------------------------------------------
-    # 3) build *reference cube* by indexing global_flat
-    # ----------------------------------------------------------
-    valid_mask   = ref_inds != -1           # (N_img,K_ref) bool
-    refs_clean   = jnp.where(valid_mask, ref_inds, 0) # put 0 where padding
 
-    # gather → (N_img,K_ref,N_pix)
-    ref_cube = jnp.take(global_flat, refs_clean, axis=0)
-    ref_cube = ref_cube * valid_mask[..., None]              # zero padded slots
+
+    ref_cube = jnp.take(global_flat, ref_inds, axis=0)
+
 
     return global_flat, ref_cube
 

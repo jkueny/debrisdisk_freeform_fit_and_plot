@@ -8,7 +8,7 @@
             "name": "Python Debugger: Current File with Arguments",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "program": "/Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/wdhfit_optax.py",
             "console": "integratedTerminal",
             "args": "-p initialization_files/HR4796_g_camsci2_20230312_13.yaml --iterations 1"
         }

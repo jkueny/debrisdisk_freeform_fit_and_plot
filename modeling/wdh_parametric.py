@@ -1,21 +1,32 @@
+'''
+NOTE: Turn parallelism OFF in fm.py (i.e., debug=True in the preamble)
+
+Using the manager() thing in WindFM to create the shared memory dictionaries
+increases the compute time by like 2 orders of magnitude... and is needed for
+doing parallel processing with a worker pool. At least for my current pyklip settings,
+single threaded is so much faster. 07/16/2025
+
+'''
+
 import os
 import sys
 import glob
 from astropy.io import fits
 import numpy as np
 import jax.numpy as jnp
+from datetime import datetime
 
-from modeling.jax_models.wdh_modeling import gen_multiwdh_image
 from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
 from utils.masks import control_region_mask
 from utils.sci_image_utils import parang_sort, prep_image_frames_parangs
 from dev.pyklip.instruments.Wind import GenericWDH
 from dev.pyklip.fmlib.windfm import WindFM
+from dev.pyklip.fmlib.nofm import NoFM, BasisOnly
 import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
 import utils.astro_unit_conversion as convert
-import multiprocessing as mp
+# import multiprocessing as mp
 
 class ParametricWDH:
     def __init__(self, config):
@@ -68,6 +79,7 @@ class ParametricWDH:
         resultsdir = os.path.join(basedir, self.params_file["BAND_DIR"],
                                   "results_wdh")
         os.makedirs(resultsdir, exist_ok=True)
+        self.resultsdir = resultsdir
 
         self.datadir = os.path.join(basedir, self.params_file["BAND_DIR"])
 
@@ -208,9 +220,21 @@ class ParametricWDH:
                             self.klipdir, self.file_prefix + '_klbasis.h5'),
                         save_basis=True,
                         aligned_center=self.aligned_center)
+        # nofm_obj = BasisOnly(dataset.input.shape,
+        #                 np.atleast_1d([self.numbasis]),
+        #                 # dataset,
+        #                 # model_wdh_list=np.asarray(first_models),
+        #                 # model_pas_mask=model_pas_mask,
+        #                 basis_filename=os.path.join(
+        #                     self.klipdir, self.file_prefix + '_klbasis.h5'),
+        #                 save_basis=True,
+        #                 # aligned_center=self.aligned_center,
+        #                 )
         maxnumbasis = dataset.input.shape[0]
+        time_start = datetime.now()
         fm.klip_dataset(dataset,
                         fm_class=windobj,
+                        # fm_class=nofm_obj,
                         numbasis=self.numbasis,
                         maxnumbasis=maxnumbasis,
                         annuli=self.annuli,
@@ -219,15 +243,44 @@ class ParametricWDH:
                         outputdir=self.klipdir,
                         fileprefix=self.file_prefix,
                         aligned_center=self.aligned_center,
-                        mute_progression=True,
+                        # mute_progression=True,
                         highpass=False,
                         minrot=self.move_here,
                         calibrate_flux=False,
-                        numthreads=mp.cpu_count(),
+                        # numthreads=mp.cpu_count(), #default: use all
                         time_collapse='median',
                         psf_library=None)
+        
+        print(f"klip_dataset() took {datetime.now() - time_start}.")
+        
+        model_fm_init = self.single_fm(np.asarray(first_models))
+
+        model_fm_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel_FM.fits")
+
+        save_fits(model_fm_saveto, model_fm_init)
 
         sys.stdout = sys.__stdout__
         # reduced_data = fits.getdata(os.path.join(self.klipdir,
         #                                         self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
         # self.reduced_data = reduced_data
+
+    def single_fm(self, wdh_models):
+        # Refresh the windFM object
+        basis_file_path = os.path.join(self.klipdir, f"{self.file_prefix}_klbasis.h5")
+
+        windfm = WindFM(inputs_shape=None,
+                            numbasis=None,
+                            dataset=None,
+                            model_wdh_list=wdh_models,
+                            model_pas_mask=None,
+                            basis_filename=basis_file_path,
+                            load_from_basis=True)
+        
+        windfm.update_wind(wdh_models)
+
+        model_fm = windfm.fm_parallelized()[0]
+
+
+
+        return model_fm
+

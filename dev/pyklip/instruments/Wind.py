@@ -382,9 +382,9 @@ class GenericWDH(Data):
         else:
             self._PAs = np.zeros(nfiles)
         if wdh_parangs is not None:
-            self._wdhpas = wdh_parangs
+            self._wdhPAs = wdh_parangs
         else:
-            self._wdhpas = np.zeros(nfiles)
+            self._wdhPAs = np.zeros(nfiles)
 
         if wvs is not None:
             self._wvs = wvs

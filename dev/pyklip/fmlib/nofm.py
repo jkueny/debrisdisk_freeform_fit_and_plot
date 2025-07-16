@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import ctypes
+import os
 
 import numpy as np
 
@@ -8,7 +9,7 @@ class NoFM(object):
     Super class for all forward modelling classes. Has fall-back functions for all fm dependent calls so that each FM class does
     not need to implement functions it doesn't want to. Should do no forward modelling and just do regular KLIP by itself
     """
-    def __init__(self, inputs_shape, numbasis):
+    def __init__(self, inputs_shape, numbasis, save_basis):
         """
         Initializes the NoFM class
 
@@ -21,8 +22,9 @@ class NoFM(object):
         """
         self.inputs_shape = inputs_shape
         self.numbasis = numbasis
-        self.outputs_shape = inputs_shape + numbasis.shape
+        self.outputs_shape = inputs_shape #+ numbasis.shape
         self.need_aux = False
+        self.save_basis = save_basis
         # Use float64
         # self.data_type = ctypes.c_double
         # Use float32
@@ -167,3 +169,85 @@ class NoFM(object):
             pixel_weights: weights for each pixel for weighted mean. Leave this as a single number for simple mean
         """
         return
+    
+class BasisOnly(NoFM):
+    """
+    KLIP without forward modelling, but still write KL basis to HDF5.
+    """
+    def __init__(self, inputs_shape, numbasis,
+                 basis_filename="kl_basis.h5",
+                 **kwargs):
+        super().__init__(inputs_shape, numbasis, **kwargs)
+        self.save_basis      = True          # flag read by KLIP wrapper
+        self.basis_filename  = basis_filename
+
+    # -----------------------------------------------------------------
+    # The only expensive part of WindFM.fm_from_eigen is disabled here;
+    # we simply call BaseFM’s helper that writes the eigenvectors.
+    # -----------------------------------------------------------------
+    def cleanup_fmout(self, fmout):
+        """
+        After running KLIP-FM, if there's anything to do to the fmout array (such as reshaping it), now's the time
+        to do that before outputting it
+
+        Args:
+            fmout: numpy array of ouput of FM
+
+        Returns:
+            fmout: same but cleaned up if necessary
+        """
+
+        self.save_kl_basis()
+
+        return fmout
+    def save_kl_basis(self):
+        """
+        Save the KL basis and other needed parameters
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
+
+        # Convert everything to np arrays and types to be safe for the saving.
+        for key in self.section_ind_dict.keys():
+            self.section_ind_dict[key] = np.asarray(self.section_ind_dict[key])
+            self.radstart_dict[key] = np.float64(self.radstart_dict[key])
+            self.radend_dict[key] = np.float64(self.radend_dict[key])
+            self.phistart_dict[key] = np.float64(self.phistart_dict[key])
+            self.phiend_dict[key] = np.float64(self.phiend_dict[key])
+
+        _, file_extension = os.path.splitext(self.basis_filename)
+
+
+        if file_extension == ".h5":
+            # transform mp dicts to normal dicts
+            # make a single dictionnary and save in h5
+
+            saving_in_h5_dict = {
+                'aligned_images_dict': dict(self.aligned_images_dict),
+                'klmodes_dict': dict(self.klmodes_dict),
+                'evecs_dict': dict(self.evecs_dict),
+                'evals_dict': dict(self.evals_dict),
+                'ref_psfs_indicies_dict': dict(self.ref_psfs_indicies_dict),
+                'section_ind_dict': dict(self.section_ind_dict),
+                'radstart_dict': dict(self.radstart_dict),
+                'radend_dict': dict(self.radend_dict),
+                'phistart_dict': dict(self.phistart_dict),
+                'phiend_dict': dict(self.phiend_dict),
+                'input_img_num_dict': dict(self.input_img_num_dict),
+                'klparam_dict': dict(self.klparam_dict),
+                'wdhPAs_dict': dict(self.wdhPAs_dict),
+            }
+
+            # _save_dict_to_hdf5(saving_in_h5_dict, self.basis_filename)
+
+            # del saving_in_h5_dict
+
+        else:
+            raise ValueError(file_extension +
+                             """ is not a possible extension. Filenames can
+                haves 2 recognizable extension2: .h5 and .pkl""")

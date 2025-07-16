@@ -25,7 +25,7 @@ except ImportError:
     mkl_exists = False
 
 # Turns parallelism off for debugging purposes
-debug = False
+debug = True
 
 
 
@@ -1339,7 +1339,7 @@ def klip_parallelized(imgs, centers, parangs, wvs, IWA, fm_class, OWA=None, mode
         interm_data, interm_shape = fm_class.alloc_interm(sector_size, original_imgs_shape[0])
 
         for wv_index, wv_value in enumerate(unique_wvs):
-
+            # print(wv_index, wv_value)
             # pick out the science images that need PSF subtraction for this wavelength
             scidata_indicies = np.where(wvs == wv_value)[0]
 
@@ -1376,7 +1376,7 @@ def klip_parallelized(imgs, centers, parangs, wvs, IWA, fm_class, OWA=None, mode
                     stdout.write("\r {0:.2f}% of sector, {1:.2f}% of total completed".format(100*float(N_it_perSector)/float(totalimgs),100*float(N_it)/float(N_tot_it)))
                     stdout.flush()
                 #JB debug
-                #print("outputs klip_section_multifile_perfile",tpool_outputs)
+                # print("outputs klip_section_multifile_perfile",tpool_outputs)
 
             # if this is the last job finished for this sector,
             # do something here?
@@ -1534,14 +1534,16 @@ def _klip_section_multifile_perfile(img_num, sector_index, radstart, radend, phi
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         ref_psfs_mean_sub = ref_psfs - np.nanmean(ref_psfs, axis=1)[:, None]
-    ref_nanpix = np.where(np.isnan(ref_psfs_mean_sub))
+    # ref_nanpix = np.where(np.isnan(ref_psfs_mean_sub))
+    ref_nanpix = ref_psfs_mean_sub != ref_psfs_mean_sub
     ref_psfs_mean_sub[ref_nanpix] = 0
 
     #calculate the covariance matrix for the reference PSFs
     #note that numpy.cov normalizes by p-1 to get the NxN covariance matrix
     #we have to correct for that in the klip.klip_math routine when consturcting the KL
     #vectors since that's not part of the equation in the KLIP paper
-    covar_psfs = np.cov(ref_psfs_mean_sub)
+    # covar_psfs = np.cov(ref_psfs_mean_sub)
+    covar_psfs = ref_psfs_mean_sub @ ref_psfs_mean_sub.T / (ref_psfs_mean_sub.shape[1] - 1)
 
     if corr_smooth > 0:
         # calcualte the correlation matrix, with possible smoothing  

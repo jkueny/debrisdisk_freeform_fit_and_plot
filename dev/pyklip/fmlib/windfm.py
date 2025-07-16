@@ -208,7 +208,7 @@ class WindFM(NoFM):
                 "KLIP reduction parameters (mode, annuli and subsections) "\
                 "are only defined once in klip_dataset [pyklip.parallelized].")
 
-        super(WindFM, self).__init__(inputs_shape, numbasis)
+        super(WindFM, self).__init__(inputs_shape, numbasis, save_basis)
 
         self.supports_rdi = True # temporary flag until all FM classes supports RDI. 
 
@@ -224,22 +224,38 @@ class WindFM(NoFM):
             save_basis = False
 
         if self.save_basis is True:
-            manager = mp.Manager()
-            self.klmodes_dict = manager.dict()
-            self.evecs_dict = manager.dict()
-            self.evals_dict = manager.dict()
-            self.aligned_images_dict = manager.dict()
-            self.ref_psfs_indicies_dict = manager.dict()
-            self.section_ind_dict = manager.dict()
+            # manager = mp.Manager()
+            # self.klmodes_dict = manager.dict()
+            # self.evecs_dict = manager.dict()
+            # self.evals_dict = manager.dict()
+            # self.aligned_images_dict = manager.dict()
+            # self.ref_psfs_indicies_dict = manager.dict()
+            # self.section_ind_dict = manager.dict()
 
-            self.radstart_dict = manager.dict()
-            self.radend_dict = manager.dict()
-            self.phistart_dict = manager.dict()
-            self.phiend_dict = manager.dict()
-            self.input_img_num_dict = manager.dict()
+            # self.radstart_dict = manager.dict()
+            # self.radend_dict = manager.dict()
+            # self.phistart_dict = manager.dict()
+            # self.phiend_dict = manager.dict()
+            # self.input_img_num_dict = manager.dict()
 
-            self.klparam_dict = manager.dict()
-            self.wdhPAs_dict = manager.dict()
+            # self.klparam_dict = manager.dict()
+            # self.wdhPAs_dict = manager.dict()
+
+            self.klmodes_dict = {}
+            self.evecs_dict = {}
+            self.evals_dict = {}
+            self.aligned_images_dict = {}
+            self.ref_psfs_indicies_dict = {}
+            self.section_ind_dict = {}
+
+            self.radstart_dict = {}
+            self.radend_dict = {}
+            self.phistart_dict = {}
+            self.phiend_dict = {}
+            self.input_img_num_dict = {}
+
+            self.klparam_dict = {}
+            self.wdhPAs_dict = {}
         # Coords where align_and_scale places model center
 
         if self.load_from_basis is True:  # We want to load the FM basis
@@ -261,7 +277,7 @@ class WindFM(NoFM):
             self.output_imgs_shape = output_imgs_shape
 
             self.PAs = dataset.PAs
-            self.wdhpas = dataset._wdhpas
+            self.wdhPAs = dataset._wdhPAs
             self.wvs = dataset.wvs
 
             self.nwvs = int(np.size(np.unique(
@@ -280,9 +296,9 @@ class WindFM(NoFM):
             # define the center
             self.aligned_center = aligned_center
 
-        # Prepare the first disk for FM
-        self.validPAs = model_pas_mask
-        self.update_wind(model_wdh_list)
+            # Prepare the first disk for FM
+            self.validPAs = model_pas_mask
+            self.update_wind(model_wdh_list)
 
     def update_wind(self, model_wdh_list):
         """
@@ -300,6 +316,7 @@ class WindFM(NoFM):
         model_shape = np.shape(model_wdh_list[0])
         self.model_wdhs = np.zeros(self.inputs_shape)
 
+        wind_pa_list = self.wdhPAs
 
         for i in range(self.inputs_shape[0]): # inputs_shape [Kimages xpix ypix]
             model_sum = np.zeros(model_shape)
@@ -309,7 +326,6 @@ class WindFM(NoFM):
                 model = deepcopy(model_wdh_list[j]).astype(np.float64).newbyteorder("=")
 
                 # Get the wind PA list for this component
-                wind_pa_list = self.wdhpas
                 do_rot = self.validPAs[j][i]
 
                 if do_rot:
@@ -511,7 +527,7 @@ class WindFM(NoFM):
                 output_img_shape)
             
             # Save the WDH PAs and PA mask
-            self.wdhPAs_dict["PAs"] = np.float64(self.wdhpas)
+            self.wdhPAs_dict["PAs"] = np.float64(self.wdhPAs)
             self.wdhPAs_dict["PAmask"] = np.float64(self.validPAs)
 
             # To have a single identifier for each set of aligned images,
@@ -526,7 +542,7 @@ class WindFM(NoFM):
 
             # We save information about the dataset that will be used when we load the KL basis
             self.klparam_dict['PAs'] = np.float64(self.PAs)
-            self.klparam_dict['wdhpas'] = np.float64(self.wdhpas)
+            self.klparam_dict['wdhPAs'] = np.float64(self.wdhPAs)
             self.klparam_dict['wvs'] = np.float64(self.wvs)
 
             self.klparam_dict['nwvs'] = np.float64(self.nwvs)
@@ -732,63 +748,14 @@ class WindFM(NoFM):
             file_extension = ""
         else:
             _, file_extension = path.splitext(self.basis_filename)
-        manager = mp.Manager()
 
         # Load in file
-        if file_extension == ".pkl":
-            pkl_file = open(self.basis_filename, "rb")
-            if version_info.major == 3:
-                # Using encoding='latin1' is required for unpickling NumPy arrays
-                # and instances of datetime, date and time pickled by Python 2.
-                self.aligned_images_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
 
-                self.klmodes_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.evecs_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.evals_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.ref_psfs_indicies_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.section_ind_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-
-                self.radstart_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.radend_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.phistart_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.phiend_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-                self.input_img_num_dict = dict(
-                    pickle.load(pkl_file, encoding="latin1"))
-
-                self.klparam_dict = pickle.load(pkl_file, encoding="latin1")
-
-            else:
-                self.aligned_images_dict = dict(pickle.load(pkl_file))
-
-                self.klmodes_dict = dict(pickle.load(pkl_file))
-                self.evecs_dict = dict(pickle.load(pkl_file))
-                self.evals_dict = dict(pickle.load(pkl_file))
-                self.ref_psfs_indicies_dict = dict(
-                    pickle.load(pkl_file))
-                self.section_ind_dict = dict(pickle.load(pkl_file))
-
-                self.radstart_dict = dict(pickle.load(pkl_file))
-                self.radend_dict = dict(pickle.load(pkl_file))
-                self.phistart_dict = dict(pickle.load(pkl_file))
-                self.phiend_dict = dict(pickle.load(pkl_file))
-                self.input_img_num_dict = dict(pickle.load(pkl_file))
-
-                self.klparam_dict = pickle.load(pkl_file)
-
+        if not file_extension == ".h5":
+            print("Only .h5 file format supported for the basis file.")
+        
         else:
-
-            if file_extension == ".h5":
-                kl_basis_file = _load_dict_from_hdf5(self.basis_filename)
+            kl_basis_file = _load_dict_from_hdf5(self.basis_filename)
 
 
         self.aligned_images_dict = dict(
@@ -807,7 +774,8 @@ class WindFM(NoFM):
         self.phiend_dict = dict(kl_basis_file['phiend_dict'])
         self.input_img_num_dict = dict(
             kl_basis_file['input_img_num_dict'])
-
+        self.wdhPAs_dict = dict(kl_basis_file["wdhPAs_dict"])
+        self.validPAs = self.wdhPAs_dict["PAmask"]
         self.klparam_dict = dict(kl_basis_file['klparam_dict'])
 
         del kl_basis_file
