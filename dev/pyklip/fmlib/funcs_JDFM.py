@@ -392,9 +392,9 @@ def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
     # Compute delta_KL (set to zero if mode=='RDI')
     # Ex. shape for delta_KL (2, 39112)
     delta_KL = perturb_KLmodes(evals, evecs, klmodes,
-                                    refs_data, model_disk_refs,
-                                    # return_perturb_covar=False,
-                                    )
+                                refs_data, model_disk_refs,
+                                # return_perturb_covar=False,
+                                )
 
     # Calculate the post-KLIP PSF using your forward modeling routine.
     postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,

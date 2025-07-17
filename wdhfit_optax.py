@@ -14,6 +14,7 @@ loss function. This includes:
 The main func should initialize the WDH model object, then generate and save the
 masks, initial model, and initial FM. 
 
+TODO save the klipped images with the masks applied for debug/feedback.
 
 """
 
@@ -78,8 +79,24 @@ LAMBDA_REG = 0.1
 
 def relative_l2(params_all):
     """
-    params_all is an array shaped (N_models, N_params_per_model, …)
-    where params_all[0]  holds the dominant model’s parameters.
+    params_all is the parameter dictionary for the WDH models.
+
+    It has a global parameter dict, and individual model paramter
+    dicts. 
+
+    Currently (07/16/2025) the only global parameter is the FWHM
+    of the Gaussian kernel for model convolution.
+
+    There can be up to 3 WDH models fit at once. If we're only
+    fitting for one model, this function won't even get called.
+
+    params_all should have the format:
+
+    {"ps_global":{"fwhm": JAX array}, "ps_indiv":[{WDH1 params},
+    {WDH2 params}, {WDH3 params}]}
+
+    The param values are of type jax.lib.xla_client.ArrayImpl.
+    
     """
     fwhm = params_all["ps_global"]["fwhm"]
     n_wdh_params = params_all["ps_indiv"]
@@ -95,6 +112,8 @@ def relative_l2(params_all):
 
     
     differences = []
+    # In this setup we're also computing the differences b/w the dominant
+    # model params and themselves, but who cares
     for i in n_wdh_params:
         diff_beta = jnp.square((i["beta"] - beta_dom) / (0.1 * beta_dom))
         diff_a_r = jnp.square((i["a_r"] - a_r_dom) / (0.1 * a_r_dom))
@@ -161,9 +180,9 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
         
         flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
                             )(aligned_images, ref_psfs_stacked,
-                                global_models_prepped,ref_models_stacked,
-                                klmodes_stacked, evals, evecs_stacked,
-                                )
+                              global_models_prepped,ref_models_stacked,
+                              klmodes_stacked, evals, evecs_stacked,
+                              )
     elif isRDI:
         flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
                             )(aligned_images, 
