@@ -300,9 +300,10 @@ def optimize_model(target_image, model_init,
     image_params = model_init
     # image_params = initialize_freeform_model_reduced()
 
-    # Set up optimizer, use adaptive stochastic grad descent
+    # Set up optimizer, use adaptive stochastic grad descent (Adam)
     optimizer = optax.adam(lr)
-    opt_state =  optimizer.init(image_params)
+    # initialize the internal state to track 1st and 2nd moments of the gradients
+    opt_state =  optimizer.init(image_params) #this is all zeros initially
 
     loss_history = []
 

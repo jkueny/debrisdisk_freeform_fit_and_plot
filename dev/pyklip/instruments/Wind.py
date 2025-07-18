@@ -5,9 +5,9 @@ import subprocess
 import multiprocessing as mp
 import numpy as np
 import astropy.io.fits as fits
-import pyklip
-import pyklip.klip as klip
-import pyklip.instruments.utils.wcsgen as wcsgen
+# import pyklip
+import dev.pyklip.klip as klip
+import dev.pyklip.instruments.utils.wcsgen as wcsgen
 
 class Data(object):
     """

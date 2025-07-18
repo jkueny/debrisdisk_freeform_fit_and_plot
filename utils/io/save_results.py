@@ -15,10 +15,10 @@ def save_optimization_outputs(save_dir: str,
                                forward_model_image: np.ndarray,
                                residuals_image: np.ndarray,
                                loss_value: float,
-                               optimizer_name: str = "Optax AdamW",
+                               optimizer_name: str = "Optax Adam",
                                model_version: str = None):
-    """
-    Save all relevant outputs of a WDH model optimization run.
+    '''
+    Dumps relevant outputs from WDH optimization run into a JSON file.
 
     Parameters
     ----------
@@ -27,19 +27,18 @@ def save_optimization_outputs(save_dir: str,
     params_dict : dict
         Nested dictionary of best-fit parameters.
     model_image : ndarray
-        Final WDH model image.
+        Optimized WDH model image.
     forward_model_image : ndarray
         Final forward-modeled image.
     loss_value : float
         Final loss achieved during optimization.
     optimizer_name : str
-        Name of the optimizer used (e.g., "Optax AdamW").
+        Name of the optimizer used (default: "Optax AdamW").
     model_version : str, optional
         Optional version tag or hash for the model code used.
-    """
-    # --------------------------------------------------
-    # 1. Create new results subdirectory (e.g. opt_run_0003)
-    # --------------------------------------------------
+    '''
+    
+
     run_root = Path(save_dir)
     run_root.mkdir(exist_ok=True)
 
@@ -53,14 +52,12 @@ def save_optimization_outputs(save_dir: str,
     run_dir = run_root / f"opt_run_{run_id:04d}"
     run_dir.mkdir()
 
-    # --------------------------------------------------
-    # 2. Save parameters as JSON
-    # --------------------------------------------------
+    # Output params into JSON, need to convert JAX types first
 
     def clean(obj):
         """
         Recursively convert NumPy or JAX arrays (or scalars) into
-        JSON-serialisable Python types.
+        JSON-friendly Python types.
         """
         if isinstance(obj, (np.ndarray, jax.Array,        # jax>=0.4
                             jax.lib.xla_client.ArrayImpl, # older alias

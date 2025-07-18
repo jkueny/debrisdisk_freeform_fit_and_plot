@@ -16,6 +16,8 @@ masks, initial model, and initial FM.
 
 TODO save the klipped images with the masks applied for debug/feedback.
 
+TODO try the L-BFGS optimizer paired with Huber loss
+
 """
 
 import os
@@ -210,8 +212,7 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
 
     return mse + LAMBDA_REG * reg
 
-# --- JIT-Compiled Gradient Computation ---
-# loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
+# Compute loss and gradients simultaneously
 loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, params_init, x_arr, y_arr,
@@ -313,8 +314,6 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
 
 
 def main(config):
-    import matplotlib.pyplot as plt
-
     # Init the wdh model object
     wdh_obj = ParametricWDH(config)
 
@@ -427,7 +426,7 @@ def main(config):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='run diskierFM autodiff')
+    parser = argparse.ArgumentParser(description='fit a WDH model to KLIP image data.')
     parser.add_argument('-p',
                         '--param-file',
                         required=False,

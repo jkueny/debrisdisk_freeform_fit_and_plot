@@ -187,6 +187,8 @@ class ParametricWDH:
         # mask2minimize = (1 - mask_disk_zeros)
         mask2minimize = mask_disk_zeros * mask2generatehalo
 
+        self.mask2minimize = mask2minimize
+
         ### a few lines to create a circular central mask to hide center regions with a lot
         ### of speckles. Currently not using it but it's there
         mask_coron_region = np.ones(image_size)
@@ -252,7 +254,16 @@ class ParametricWDH:
                         psf_library=None)
         
         print(f"klip_dataset() took {datetime.now() - time_start}.")
+
+        path_rd = os.path.join(self.klipdir, f"{self.file_prefix}-klipped-KLmodes-all.fits")
+        reduced_data = fits.getdata(path_rd)
+
+        reduced_data_masked = reduced_data * self.mask2minimize
         
+        saveto_masked = os.path.join(self.klipdir, f"{self.file_prefix}_masked_data.fits")
+
+        save_fits(saveto_masked, reduced_data_masked)
+
         model_fm_init = self.single_fm(np.asarray(first_models))
 
         model_fm_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel_FM.fits")
