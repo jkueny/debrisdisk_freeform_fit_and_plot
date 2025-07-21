@@ -126,7 +126,7 @@ def relative_l2(params_all):
 
 
 @partial(jax.jit, static_argnames=["unravel_fn","total_pixels", "isRDI"])
-def loss_function(ravel_params, unravel_fn, x_arr, y_arr, disk_image, aligned_images,
+def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
                   ref_psfs_stacked, PAs, ref_inds, wdh_PAs,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, mask2generatehalo, mask_skip_models,
@@ -144,7 +144,6 @@ def loss_function(ravel_params, unravel_fn, x_arr, y_arr, disk_image, aligned_im
     Returns:
         Chisquare
     """
-    mod_params = unravel_fn(ravel_params)
     # DM commands scaled to [0,1] fits cubes do like 10 secs of wall clock time
     # Spatil freq. such that speckles end up at 10 lamb/D
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
@@ -229,6 +228,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
     optimizer = optax.lbfgs()
     opt_state =  optimizer.init(params_ravel)
 
+    image_params = unravel_fn(params_ravel)
     loss_history = []
 
     basis_data_unpacked = unpack_basis_data(basis_data)
@@ -281,7 +281,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(params_ravel, unravel_fn, x_arr, y_arr,
+        loss, grads = loss_and_grad(image_params, x_arr, y_arr,
                                     jax_target_image,
                                     aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_inds, wdhPAs,
@@ -297,7 +297,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
         return image_params, opt_state, loss
     
     for step_idx in range(num_steps):
-        image_params, opt_state, loss = step(image_params, opt_state)
+        image_params, opt_state, loss = step(unravel_fn(image_params), opt_state)
         loss_history.append(loss.item())
 
         if step_idx % round(num_steps / 10) == 0:
