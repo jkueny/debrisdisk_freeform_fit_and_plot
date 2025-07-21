@@ -57,11 +57,19 @@ def save_optimization_outputs(save_dir: str,
         Recursively convert NumPy or JAX arrays (or scalars) into
         JSON-friendly Python types.
         """
-        if isinstance(obj, (np.ndarray, jax.Array,        # jax>=0.4
-                            jax.lib.xla_client.ArrayImpl, # older alias
-                            jaxlib.xla_extension.ArrayImpl)):
-            arr = np.asarray(obj)           # pulls to host if it’s on GPU/TPU
-            return arr.item() if arr.ndim == 0 else arr.tolist()
+        try:
+
+            if isinstance(obj, (np.ndarray, jax.Array,        # jax>=0.4
+                                jax.lib.xla_client.ArrayImpl, # older alias
+                                jaxlib.xla_extension.ArrayImpl,
+                                )):
+                arr = np.asarray(obj) # pulls to host if it’s on GPU/TPU
+                return arr.item() if arr.ndim == 0 else arr.tolist()
+        except:
+                arr = np.asarray(obj) # pulls to host if it’s on GPU/TPU
+                if isinstance(obj, (np.ndarray, jax.Array)):
+                    arr = np.asarray(obj) # pulls to host if it’s on GPU/TPU
+                return arr.item() if arr.ndim == 0 else arr.tolist()
 
         if isinstance(obj, (np.generic, jax.core.Tracer)):
             return np.asarray(obj).item()
