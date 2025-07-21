@@ -3,8 +3,7 @@ from pathlib import Path
 from datetime import datetime
 from astropy.io import fits
 import numpy as np
-import jax
-import jaxlib
+import types
 
 def save_optimization_outputs(save_dir: str,
                                file_prefix: str,
@@ -52,33 +51,56 @@ def save_optimization_outputs(save_dir: str,
 
     # Output params into JSON, need to convert JAX types first
 
+    _JAX_ARRAY_TYPES = []                 # will become tuple later
+    try:
+        import jax
+        # jax>=0.4 unified type
+        if hasattr(jax, "Array"):
+            _JAX_ARRAY_TYPES.append(jax.Array)
+        # jax 0.3 / internal alias
+        from jax.core import Tracer
+    except ModuleNotFoundError:
+        jax = None
+        Tracer = types.SimpleNamespace()  # dummy placeholder
+
+        # legacy aliases (<0.4 or still emitted by some C++ paths)
+    for mod_path in (
+            "jaxlib.xla_extension",
+            "jax.lib.xla_client",
+    ):
+        try:
+            mod = __import__(mod_path, fromlist=["ArrayImpl"])
+            _JAX_ARRAY_TYPES.append(mod.ArrayImpl)
+        except (ModuleNotFoundError, AttributeError):
+            pass
+
+    ARRAY_LIKE_TYPES = tuple([np.ndarray] + _JAX_ARRAY_TYPES)
+
+    # ---------------------------------------------------------------------
+    # 2.  Recursive cleaner
+    # ---------------------------------------------------------------------
     def clean(obj):
         """
-        Recursively convert NumPy or JAX arrays (or scalars) into
-        JSON-friendly Python types.
+        Recursively convert NumPy/JAX arrays (and scalars) into
+        JSON-serialisable Python types.
         """
-        try:
 
-            if isinstance(obj, (np.ndarray, jax.Array,        # jax>=0.4
-                                jax.lib.xla_client.ArrayImpl, # older alias
-                                jaxlib.xla_extension.ArrayImpl,
-                                )):
-                arr = np.asarray(obj) # pulls to host if it’s on GPU/TPU
-                return arr.item() if arr.ndim == 0 else arr.tolist()
-        except:
-                arr = np.asarray(obj) # pulls to host if it’s on GPU/TPU
-                if isinstance(obj, (np.ndarray, jax.Array)):
-                    arr = np.asarray(obj) # pulls to host if it’s on GPU/TPU
-                return arr.item() if arr.ndim == 0 else arr.tolist()
+        # ---- (a) arrays or things that can become arrays ----------------
+        if isinstance(obj, ARRAY_LIKE_TYPES) or hasattr(obj, "__array__"):
+            arr = np.asarray(obj)                 # pulls to host if needed
+            return arr.item() if arr.ndim == 0 else arr.tolist()
 
-        if isinstance(obj, (np.generic, jax.core.Tracer)):
+        # ---- (b) NumPy/JAX scalar objects and tracers -------------------
+        if isinstance(obj, (np.generic, Tracer)):
             return np.asarray(obj).item()
 
+        # ---- (c) containers ---------------------------------------------
         if isinstance(obj, dict):
             return {k: clean(v) for k, v in obj.items()}
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, (list, tuple, set)):
             return [clean(v) for v in obj]
 
+        # ---- (d) everything else is assumed JSON ready ------------------
         return obj
         
     clean_params_dict = clean(params_dict)
