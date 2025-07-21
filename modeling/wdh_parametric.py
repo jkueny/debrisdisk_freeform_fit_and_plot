@@ -53,12 +53,12 @@ class ParametricWDH:
         for i in range(1, n_wdhs + 1):
             suffix = "" if i == 1 else str(i)
             wdh = {
-                "beta": self.params_file["wdh_model"][f"beta{suffix}_init"],
+                "beta": float(self.params_file["wdh_model"][f"beta{suffix}_init"]),
                 "a_r": self.params_file["wdh_model"][f"a_r{suffix}_init"],
-                "sig": self.params_file["wdh_model"][f"sig{suffix}_init"],
-                "PA": self.params_file["wdh_model"][f"pa{suffix}_init"],
-                "dx": self.params_file["wdh_model"][f"dx{suffix}_init"],
-                "Norm": self.params_file["wdh_model"][f"Norm{suffix}_init"]
+                "sig": float(self.params_file["wdh_model"][f"sig{suffix}_init"]),
+                "PA": float(self.params_file["wdh_model"][f"pa{suffix}_init"]),
+                "dx": float(self.params_file["wdh_model"][f"dx{suffix}_init"]),
+                "Norm": float(self.params_file["wdh_model"][f"Norm{suffix}_init"])
             }
             ps_indiv.append(wdh)
 

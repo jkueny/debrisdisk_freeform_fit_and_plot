@@ -37,9 +37,6 @@ default_parameter_file = 'HR4796_g_camsci2_20230312_13.yaml'  # name of the para
 # you can also call it with the python function argument -p
 
 
-import glob
-import re
-
 import time
 
 
@@ -53,10 +50,6 @@ from functools import partial
 import numpy as np
 
 import astropy.io.fits as fits
-# from astropy.convolution import convolve
-# from scipy.signal import convolve
-# from scipy.signal import fftconvolve
-import matplotlib.pyplot as plt
 
 
 from dev.pyklip.fmlib.funcs_JDFM import update_wind, fm_from_eigen_adi, \
@@ -76,6 +69,7 @@ import jax
 import jax.numpy as jnp
 # import jax.profiler
 import optax
+from optax.losses import huber_loss
 
 LAMBDA_REG = 0.1
 
@@ -110,20 +104,21 @@ def relative_l2(params_all):
     a_r_dom = wdh_dom["a_r"]
     sig_dom = wdh_dom["sig"]
 
-    additional_models = n_wdh_params[1:]
-
     
-    differences = []
+    penalties = []
     # In this setup we're also computing the differences b/w the dominant
     # model params and themselves, but who cares
     for i in n_wdh_params:
         diff_beta = jnp.square((i["beta"] - beta_dom) / (0.1 * beta_dom))
         diff_a_r = jnp.square((i["a_r"] - a_r_dom) / (0.1 * a_r_dom))
         diff_sig = jnp.square((i["sig"] - sig_dom) / (0.1 * sig_dom))
-        differences.append(diff_beta + diff_a_r + diff_sig)
+        penalties.append(diff_beta + diff_a_r + diff_sig)
+
+    # reg_a_r = jnp.square(a_r_dom - 1.0) / jnp.square(2.0) #this params needs more reg...
+    # penalties.append(reg_a_r)
     # Now grab the a_r and beta params from the secondary
     # and (if applic) tertiary models
-    diff_jax = jnp.array(differences)
+    diff_jax = jnp.array(penalties)
 
 
     return jnp.sum(diff_jax) / diff_jax.size
@@ -156,9 +151,10 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
 
     # if we're only fitting one model, we out
     reg = jnp.where(len(mod_params["ps_indiv"]) > 1, #if more than one WDH model
-                    relative_l2(mod_params), #regularize
                     0., #otherwise, we're good
+                    relative_l2(mod_params), #regularize
                     )
+    # reg = 0.
     
     # Ensure that the model pixel values range [0,1]
     full_model_images = gen_multiwdh_image(x_arr, y_arr, mod_params, mask2generatehalo)
@@ -206,9 +202,11 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
     # disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
-    mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
+    # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
+    # mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image))
+    mse = jnp.mean(huber_loss(freeform_fm_full, disk_image))
 
-    # jax.debug.print("print(mse) -> {x}", x=mse)
+    # jax.debug.print("print(mse) -> {x}", x=jnp.max(disk_image))
 
     return mse + LAMBDA_REG * reg
 
@@ -217,7 +215,7 @@ loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, params_init, x_arr, y_arr,
                    total_pixels, basis_data, num_steps, mask2generatehalo,
-                   mask2minimize_inds, mask_skip_images, lr=1e-2):
+                   mask2minimize_inds, mask_skip_images, lr=1e-3):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
@@ -228,6 +226,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
 
     # Set up optimizer, use adaptive stochastic grad descent
     optimizer = optax.adam(lr)
+    # optimizer = optax.lbfgs()
     opt_state =  optimizer.init(image_params)
 
     loss_history = []
@@ -293,6 +292,8 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
                                     mode, mask2generatehalo, mask_skip_images, mask2minimize_inds)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
+        # jax.debug.print("a_r = {x:.3e}", x=image_params["ps_indiv"][0]["a_r"])
+        # jax.debug.print("grad a_r = {x:.3e}", x=grads["ps_indiv"][0]["a_r"])
         return image_params, opt_state, loss
     
     for step_idx in range(num_steps):
@@ -314,6 +315,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
 
 
 def main(config):
+    import matplotlib.pyplot as plt
     # Init the wdh model object
     wdh_obj = ParametricWDH(config)
 
@@ -370,7 +372,7 @@ def main(config):
     image_size = fm_dict["klparam_dict"]["input_img_shape"]
     wdhPAs = fm_dict["wdhPAs_dict"]["PAs"]
     valid_pas_mask = fm_dict["wdhPAs_dict"]["PAmask"]
-    reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
+    reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))[0]
     reduced_data[reduced_data != reduced_data] = 0.
 
     mask2generate_indices = jnp.flatnonzero(jnp.array(mask2generatehalo))[jnp.newaxis, :]
@@ -378,7 +380,8 @@ def main(config):
     total_pixels = np.prod(reduced_data.shape)
 
     # model_mask_indices = jnp.vstack((mask_indices, mask_indices, mask_indices))
-
+    # plt.imshow(reduced_data * mask2minimize, origin="lower")
+    # plt.show()
     init_models = jnp.array(wdh_models_init)
     # For 3 models, shape is e.g. (3, 50176)
     init_models_flat = init_models.reshape(init_models.shape[0],
@@ -387,6 +390,7 @@ def main(config):
     reduced_data_flat = reduced_data.flatten()
     reduced_flat_interest = reduced_data_flat[mask2minimize_indices]
 
+    # print(np.max(reduced_flat_interest))
     # testing_data_masking = insert_section_into_full_image(jnp.array(reduced_flat_interest), reduced_data.shape,
     #                                                       mask2minimize_indices)
     
@@ -394,7 +398,8 @@ def main(config):
 
 
 
-    opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_flat_interest,
+    # opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_flat_interest,
+    opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_data,
                                                    params_init=params_init,
                                                    x_arr=xx, y_arr=yy,
                                                    total_pixels=total_pixels,

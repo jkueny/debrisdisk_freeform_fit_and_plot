@@ -1,6 +1,4 @@
-import os
 import json
-import shutil
 from pathlib import Path
 from datetime import datetime
 from astropy.io import fits

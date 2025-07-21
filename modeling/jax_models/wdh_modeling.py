@@ -27,15 +27,16 @@ def render_wdh_model(x, y, params, mask, fwhm):
     # Unpack
     beta = params["beta"]
     h0 = params["a_r"]
+    # h0 = 0.5
     sigma = params["sig"]
     PA_deg = params["PA"]
     x0 = params["dx"]
-    scaling = params["Norm"]
+    scaling = jnp.exp(params["Norm"])
     R1 = 5 #At pixel scale 0.012"/pixel this is the IWA at g', about 4 lamb/D
     # Rotate to disk PA
-    PA_rad = jnp.deg2rad(PA_deg)
-    x_rot =  jnp.cos(PA_rad) * x + jnp.sin(PA_rad) * y
-    y_rot = -jnp.sin(PA_rad) * x + jnp.cos(PA_rad) * y
+    PA_rad = -jnp.deg2rad(PA_deg)
+    x_rot =  jnp.sin(PA_rad) * x + jnp.cos(PA_rad) * y
+    y_rot =  jnp.cos(PA_rad) * x - jnp.sin(PA_rad) * y
 
     r = jnp.sqrt((x_rot - x0)**2 + (y_rot)**2)
 
@@ -56,7 +57,8 @@ def render_wdh_model(x, y, params, mask, fwhm):
     # I_image = convolve_fft_xy(I_coron, kernel_1d)
     sig2 = 2 * sigma_pix * sigma_pix
     window = jnp.exp(-(x**2 + y**2) / sig2)
-    I_image = jsp.signal.convolve2d(I_coron,window, mode="same")
+    g = window #/ window.sum()
+    I_image = jsp.signal.fftconvolve(I_coron, g, mode="same")
     # else:
     #     I_image = I_coron
 

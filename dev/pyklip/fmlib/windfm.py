@@ -5,7 +5,6 @@ import multiprocessing as mp
 from copy import deepcopy
 import ctypes
 
-import pickle
 import h5py
 
 import numpy as np
@@ -890,6 +889,7 @@ class WindFM(NoFM):
                 parang=self.PAs[img_num],
                 numbasis=self.numbasis,
                 fmout=fmout_np,
+                flipx=False,
                 mode=mode)
 
         # put any finishing touches on the FM Output

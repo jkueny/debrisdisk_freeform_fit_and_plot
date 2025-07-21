@@ -111,7 +111,7 @@ g3_state: 0
 alpha2_state: 0
 
 wdh_model:
-  N_WIND_LAYERS: 2
+  N_WIND_LAYERS: 1
   # WIND PARAMETERS
   hr1_init: 0.1 #include just for initializing the mask function
   hr2_init: 60 #include just for initializing the mask function
@@ -124,7 +124,7 @@ wdh_model:
   dx_init: -0.1
   # dy_init: -1.8994364349294457
   dz_init: 0.01
-  Norm_init: 100.
+  Norm_init: 12.
   dtheta_init: 1.0
   fwhm_init: 3.0
   
@@ -135,7 +135,7 @@ wdh_model:
   dx2_init: 0.1
   # dy2_init: 2.7432967701360966
   # dz2_init: 0.01
-  Norm2_init: 100.
+  Norm2_init: 3.
   
   beta3_init: 2.0
   a_r3_init: 0.1

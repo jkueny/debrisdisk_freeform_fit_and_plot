@@ -10,14 +10,12 @@ def parang_sort(filename):
         return float(match.group(1))  # Convert extracted string to float
     return float('inf')  # Assign an arbitrary large value if no match is found
 
-import numpy as np
-import pandas as pd
-from astropy.io import fits
 
 
 
 def prep_image_frames_parangs(filelist,
                               csv_file,
+                              pa_offset: float = 150,
                               n_models: int = 1,
                               time_bin_sz: str = "1s"):
     """
@@ -41,8 +39,7 @@ def prep_image_frames_parangs(filelist,
     """
     SENTINEL = -1.0          # <-- safe “empty” value for JAX
     VALID_RANGE = (0.0, 360.0)
-    # ------- sanity ---------------------------------------------------------
-    n_models = int(n_models)
+    # sanity check
     if not (1 <= n_models <= 3):
         raise ValueError("n_models must be 1, 2, or 3")
 
