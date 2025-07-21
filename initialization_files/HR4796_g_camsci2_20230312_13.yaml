@@ -113,33 +113,33 @@ wdh_model:
   hr2_init: 60 #include just for initializing the mask function
   
   rscale_init: 1.01
-  beta_init: 2.3618783950844
-  a_r_init: 0.208078
-  sig_init: 14.20258
+  beta_init: 0.8084442615509033
+  a_r_init: 0.06391473114490509
+  sig_init: 15.901426315307617
   # pa_init:  150.1568
-  pa_init:  0.1
-  dx_init: 0.8703481628
+  pa_init:  -5.205978870391846
+  dx_init: -0.8060217499732971
   # dy_init: -1.8994364349294457
   dz_init: 0.01
-  Norm_init: 11.091232299804688
+  Norm_init: 12.175117492675781
   dtheta_init: 1.0
-  fwhm_init: 2.0032997131347656
+  fwhm_init: 2.6372523307800293
   
-  beta2_init: 2.3330676555633545
-  a_r2_init: 0.04365
-  sig2_init: 14.6317
+  beta2_init: 2.3507564067840576
+  a_r2_init: 0.019288217648863792
+  sig2_init: 14.61565113067627
   # pa2_init: 189.47532
-  pa2_init: 0.1
-  dx2_init: 0.40733668
+  pa2_init: 0.11112072318792343
+  dx2_init: 0.39111465215682983
   # dy2_init: 2.7432967701360966
   # dz2_init: 0.01
-  Norm2_init: 10.6258115768
+  Norm2_init: 10.61
   
-  beta3_init: 2.17
-  a_r3_init: 0.1
-  sig3_init: 15.
-  pa3_init: 0.1
-  dx3_init: 1.1
+  beta3_init: 2.2127208709716797
+  a_r3_init: 0.027034686878323555
+  sig3_init: 14.951623916625977
+  pa3_init: 0.14915461838245392
+  dx3_init: 1.0615967512130737
   Norm3_init: 10.
 
 RPROFSUB: True
