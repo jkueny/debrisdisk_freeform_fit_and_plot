@@ -125,7 +125,7 @@ def relative_l2(params_all):
     return jnp.sum(diff_jax) / diff_jax.size
 
 
-@partial(jax.jit, static_argnames=["unravel_fn","total_pixels", "isRDI"])
+@partial(jax.jit, static_argnames=["total_pixels", "isRDI"])
 def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
                   ref_psfs_stacked, PAs, ref_inds, wdh_PAs,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
