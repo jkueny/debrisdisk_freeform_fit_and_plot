@@ -107,7 +107,7 @@ g3_state: 0
 alpha2_state: 0
 
 wdh_model:
-  N_WIND_LAYERS: 2
+  N_WIND_LAYERS: 3
   # WIND PARAMETERS
   hr1_init: 0.1 #include just for initializing the mask function
   hr2_init: 60 #include just for initializing the mask function
@@ -116,7 +116,8 @@ wdh_model:
   beta_init: 2.3618783950844
   a_r_init: 0.208078
   sig_init: 14.20258
-  pa_init:  150.1568
+  # pa_init:  150.1568
+  pa_init:  0.1
   dx_init: 0.8703481628
   # dy_init: -1.8994364349294457
   dz_init: 0.01
@@ -127,7 +128,8 @@ wdh_model:
   beta2_init: 2.3330676555633545
   a_r2_init: 0.04365
   sig2_init: 14.6317
-  pa2_init: 189.47532
+  # pa2_init: 189.47532
+  pa2_init: 0.1
   dx2_init: 0.40733668
   # dy2_init: 2.7432967701360966
   # dz2_init: 0.01
@@ -136,9 +138,9 @@ wdh_model:
   beta3_init: 2.17
   a_r3_init: 0.1
   sig3_init: 15.
-  pa3_init: 90.
+  pa3_init: 0.1
   dx3_init: 1.1
-  Norm3_init: 100.
+  Norm3_init: 10.
 
 RPROFSUB: True
 

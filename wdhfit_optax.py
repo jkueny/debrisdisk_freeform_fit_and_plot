@@ -109,9 +109,9 @@ def relative_l2(params_all):
     # In this setup we're also computing the differences b/w the dominant
     # model params and themselves, but who cares
     for i in n_wdh_params:
-        diff_beta = jnp.square((i["beta"] - beta_dom) / (0.1 * beta_dom))
-        diff_a_r = jnp.square((i["a_r"] - a_r_dom) / (0.1 * a_r_dom))
-        diff_sig = jnp.square((i["sig"] - sig_dom) / (0.1 * sig_dom))
+        diff_beta = jnp.square((i["beta"] - beta_dom) / (0.5 * beta_dom))
+        diff_a_r = jnp.square((i["a_r"] - a_r_dom) / (0.5 * a_r_dom))
+        diff_sig = jnp.square((i["sig"] - sig_dom) / (0.5 * sig_dom))
         penalties.append(diff_beta + diff_a_r + diff_sig)
 
     # reg_a_r = jnp.square(a_r_dom - 1.0) / jnp.square(2.0) #this params needs more reg...

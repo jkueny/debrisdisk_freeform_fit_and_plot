@@ -15,7 +15,6 @@ def parang_sort(filename):
 
 def prep_image_frames_parangs(filelist,
                               csv_file,
-                              pa_offset: float = 150,
                               n_models: int = 1,
                               time_bin_sz: str = "1s"):
     """

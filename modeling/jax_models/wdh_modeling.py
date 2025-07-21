@@ -30,6 +30,7 @@ def render_wdh_model(x, y, params, mask, fwhm):
     # h0 = 0.5
     sigma = params["sig"]
     PA_deg = params["PA"]
+    # PA_deg = 0.
     x0 = params["dx"]
     scaling = jnp.exp(params["Norm"])
     R1 = 5 #At pixel scale 0.012"/pixel this is the IWA at g', about 4 lamb/D
