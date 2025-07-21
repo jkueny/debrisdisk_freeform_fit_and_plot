@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: False
+FIRST_TIME: True
 FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
@@ -107,23 +107,23 @@ g3_state: 0
 alpha2_state: 0
 
 wdh_model:
-  N_WIND_LAYERS: 3
+  N_WIND_LAYERS: 1
   # WIND PARAMETERS
   hr1_init: 0.1 #include just for initializing the mask function
   hr2_init: 60 #include just for initializing the mask function
   
   rscale_init: 1.01
-  beta_init: 0.8084442615509033
-  a_r_init: 0.06391473114490509
-  sig_init: 15.901426315307617
+  beta_init: 1.2631982564926147
+  a_r_init: 0.46272116899490356
+  sig_init: 15.745817184448242
   # pa_init:  150.1568
-  pa_init:  -5.205978870391846
-  dx_init: -0.8060217499732971
+  pa_init:  65.12960052490234
+  dx_init: -0.6411792039871216
   # dy_init: -1.8994364349294457
   dz_init: 0.01
-  Norm_init: 12.175117492675781
+  Norm_init: 12.019906044006348
   dtheta_init: 1.0
-  fwhm_init: 2.6372523307800293
+  fwhm_init: 2.479628086090088
   
   beta2_init: 2.3507564067840576
   a_r2_init: 0.019288217648863792
