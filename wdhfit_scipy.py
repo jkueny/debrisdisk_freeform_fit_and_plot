@@ -125,8 +125,8 @@ def relative_l2(params_all):
     return jnp.sum(diff_jax) / diff_jax.size
 
 
-@partial(jax.jit, static_argnames=["total_pixels", "isRDI"])
-def loss_function(ravel_params, unravel_params, x_arr, y_arr, disk_image, aligned_images,
+@partial(jax.jit, static_argnames=["unravel_fn","total_pixels", "isRDI"])
+def loss_function(ravel_params, unravel_fn, x_arr, y_arr, disk_image, aligned_images,
                   ref_psfs_stacked, PAs, ref_inds, wdh_PAs,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, mask2generatehalo, mask_skip_models,
@@ -144,7 +144,7 @@ def loss_function(ravel_params, unravel_params, x_arr, y_arr, disk_image, aligne
     Returns:
         Chisquare
     """
-    mod_params = unravel_params(ravel_params)
+    mod_params = unravel_fn(ravel_params)
     # DM commands scaled to [0,1] fits cubes do like 10 secs of wall clock time
     # Spatil freq. such that speckles end up at 10 lamb/D
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
@@ -204,8 +204,8 @@ def loss_function(ravel_params, unravel_params, x_arr, y_arr, disk_image, aligne
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
     # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
-    # mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image))
-    mse = jnp.mean(huber_loss(freeform_fm_full, disk_image))
+    mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image))
+    # mse = jnp.mean(huber_loss(freeform_fm_full, disk_image))
 
     # jax.debug.print("print(mse) -> {x}", x=jnp.max(disk_image))
 
@@ -224,7 +224,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
     # Initialize the initial image
     image_params = params_init
     # image_params = initialize_freeform_model_reduced()
-    params_ravel, unravel_params = ravel_pytree(image_params) #second return is undo func
+    params_ravel, unravel_fn = ravel_pytree(image_params) #second return is undo func
     # Set up optimizer, use adaptive stochastic grad descent
     optimizer = optax.lbfgs()
     opt_state =  optimizer.init(params_ravel)
@@ -281,7 +281,7 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(params_ravel, unravel_params, x_arr, y_arr,
+        loss, grads = loss_and_grad(params_ravel, unravel_fn, x_arr, y_arr,
                                     jax_target_image,
                                     aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_inds, wdhPAs,
@@ -398,8 +398,8 @@ def main(config):
 
 
 
-    # opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_flat_interest,
-    opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_data,
+    opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_flat_interest,
+    # opt_models, loss_hist, bestfit_ps = optimize_model(target_image=reduced_data,
                                                    params_init=params_init,
                                                    x_arr=xx, y_arr=yy,
                                                    total_pixels=total_pixels,
