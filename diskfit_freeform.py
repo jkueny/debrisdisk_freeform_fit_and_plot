@@ -69,7 +69,7 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
-def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=1e6):
+def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=1e4):
     # Compute where freeform power exceeds math model power
     excess_mask = model_ps > ref_model_ps
     excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
@@ -234,7 +234,7 @@ def loss_function(mod_pix_params, disk_image, psf, ref_model_ps, aligned_images,
     model_ps = fft_power_spectrum(full_model_norm)
     hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps)
 
-    jax.debug.print("print(hsf_penalty) -> {x}", x=hsf_penalty)
+    # jax.debug.print("print(hsf_penalty) -> {x}", x=hsf_penalty)
 
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
     # freeform_model = jax.nn.sigmoid(full_model_image)
