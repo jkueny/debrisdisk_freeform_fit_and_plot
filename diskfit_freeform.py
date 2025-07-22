@@ -69,7 +69,7 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
-def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=1e4):
+def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=1e2):
     # Compute where freeform power exceeds math model power
     excess_mask = model_ps > ref_model_ps
     excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
