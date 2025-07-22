@@ -191,7 +191,7 @@ def save_ffdfit_outputs(save_dir: str,
         # "forward_model_file": "forward_model.fits"
     }
 
-    plt.plot(loss_history, linewidth=4)
+    plt.plot(loss_history, linewidth=3, alpha=0.8)
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.grid()
