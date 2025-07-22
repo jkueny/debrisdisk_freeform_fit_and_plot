@@ -356,8 +356,8 @@ def optimize_model(target_image, model_init, mask_indices,
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        # if step_idx % round(num_steps / 100) == 0:
-        #     print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+        if step_idx % round(num_steps / 100) == 0:
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")

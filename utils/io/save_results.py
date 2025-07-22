@@ -158,6 +158,7 @@ def save_ffdfit_outputs(save_dir: str,
     model_version : str, optional
         Optional version tag or hash for the model code used.
     '''
+    import matplotlib.pyplot as plt
     
 
     run_root = Path(save_dir)
@@ -189,6 +190,13 @@ def save_ffdfit_outputs(save_dir: str,
         # "model_file": "wdh_model.fits",
         # "forward_model_file": "forward_model.fits"
     }
+
+    plt.plot(loss_history, linewidth=4)
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
+    plt.grid()
+    plt.savefig(f"{run_dir}/loss_history.png")
+    plt.savefig(f"{run_dir}/loss_history.pdf")
 
     with open(run_dir / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
