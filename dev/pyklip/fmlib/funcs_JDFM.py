@@ -213,7 +213,7 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
     the triangular matrix.
 
     Calculate what the PSF looks up post-KLIP using knowledge of the input PSF, assumed spectrum of the science target,
-    and the partially calculated KL modes (Delta Z_k^\lambda in Laurent's paper). If inputflux is None,
+    and the partially calculated KL modes (Delta Z_k^{lambda} in Laurent's paper). If inputflux is None,
     the spectral dependence has already been folded into delta_KL_nospec (treat it as delta_KL).
 
     Note: if inputflux is None and delta_KL_nospec has three dimensions (ie delta_KL_nospec was calculated using

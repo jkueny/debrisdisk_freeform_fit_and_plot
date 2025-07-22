@@ -54,7 +54,7 @@ import matplotlib.pyplot as plt
 import yaml
 
 
-from dev.pyklip.instruments.Instrument import GenericData
+from modeling.disk_freeform import FreeFormDisk
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
 from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
@@ -199,7 +199,7 @@ def convolve_model_lax(input_model, psf):
 @partial(jax.jit, static_argnames=["fixed_refs","aligned_center",
                                    "total_pixels", "isRDI"])
 def loss_function(mod_pix_params, disk_image, psf, aligned_images,
-                  ref_psfs_stacked, PAs, ref_PAs, fixed_refs, aligned_center,
+                  ref_psfs_stacked, PAs, ref_PAs, fixed_refs, mask_indices,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
@@ -272,7 +272,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     freeform_fm_full = jnp.mean(derotated_postklip_psfs, axis=0)
     freeform_fm_flat = jnp.reshape(freeform_fm_full, psf.shape[0] * psf.shape[1])
-    freeform_fm_interest = freeform_fm_flat[MASK_INDICES]
+    freeform_fm_interest = freeform_fm_flat[mask_indices]
 
     # freeform_fm_interest = jnp.where(MASK, freeform_fm_full, jnp.nan)
     # disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
@@ -290,7 +290,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, model_init,
+def optimize_model(target_image, model_init, mask_indices,
                    psf, basis_data, total_pixels, num_steps, lr=0.1):
     
     # dimension = img_dim
@@ -355,7 +355,7 @@ def optimize_model(target_image, model_init,
         loss, grads = loss_and_grad(image_params, jax_target_image, psf,
                                     aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
-                                    aligned_center, section_inds,
+                                    mask_indices, section_inds,
                                     klmodes_sections, evals, evecs, total_pixels, mode)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
@@ -375,126 +375,88 @@ def optimize_model(target_image, model_init,
     optimized_model = image_params
     return optimized_model, loss_history
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='run diskierFM autodiff')
-    parser.add_argument('-p',
-                        '--param-file',
-                        required=False,
-                        help='parameter file name')
-    parser.add_argument(
-                        '--iterations',
-                        type=int,
-                        required=True,
-                        help='Num. iterations')
-    parser.add_argument(
-                        '--initial-model',
-                        type=str,
-                        required=True,
-                        help='Path to starting model fits file')
-    args = parser.parse_args()
-    if args.param_file is None: #grab param file if no command line input, JKK
-        str_yaml = f'initialization_files/{default_parameter_file}'
-    else:
-        str_yaml = args.param_file
-        str_yaml_prefix = str_yaml.split("/")[-1]
-        save_to_dir = str_yaml_prefix.split(".")[0]
-
-    print("Read " + str_yaml + " parameter file")
-    # open the parameter file
-    yaml_path_file = os.path.join(os.getcwd(), str_yaml)
-    with open(yaml_path_file, 'r') as yaml_file:
-        params_mcmc_yaml = yaml.safe_load(yaml_file)
+def main(config, num_iterations, init_model):
     # Grab the info from the yaml file
-    FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
-    KLIPDIR = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'],
-                           'klip_fm_files')
-    RESULTS_DIR = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'],
-                           'results_freeform')
-    # load DISTANCE_STAR & PIXSCALE_INS and make them global
-    DISTANCE_STAR = params_mcmc_yaml['DISTANCE_STAR']
-    PIXSCALE_INS = params_mcmc_yaml['PIXSCALE_INS']
-    ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
-    FIRST_TIME = params_mcmc_yaml["FIRST_TIME"]
-    MODE = params_mcmc_yaml["MODE"]
+
     # if MODE.upper() == "ADI":
     #     mode = 0
     # elif MODE.upper() == "RDI":
     #     mode = 1
-    BASIS_FILE = f"{KLIPDIR}/{FILE_PREFIX}_klbasis.h5"
+    ffd_obj = FreeFormDisk(config)
 
-    
-    # load wheremask2generatedisk
-    print(f"Loading mask: {os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits')}")
-    WHEREMASK2GENERATEDISK = fits.getdata(
-        os.path.join(KLIPDIR, FILE_PREFIX + '_mask2generatedisk.fits'))
+    klipdir = ffd_obj.klipdir
+    file_prefix = ffd_obj.file_prefix
+    aligned_center = ffd_obj.aligned_center
+    mode = ffd_obj.mode
 
+    basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
+    mask2generatedisk = ffd_obj.prep_binary_masks()
+
+    # Get the initial model
+
+    model_firstguess = ffd_obj.get_initial_model(init_model)
 
     # load PSF
-    psf = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
-    JAX_PSF = jnp.array(psf)
-    JAX_PSF /= jnp.sum(JAX_PSF)
+    psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
+    psf = ffd_obj.psf
+    jax_psf = jnp.array(psf)
+    # jax_psf /= jnp.sum(jax_psf)
 
     # measure the size of images DIMENSION and make it global
-    DIMENSION = round(ALIGNED_CENTER[0]) * 2
 
-    if FIRST_TIME:
-        print(FIRST_TIME)
+
+
+    if ffd_obj.params_file["FIRST_TIME"]:
         # initialize_diskfm and make diskobj global
-        # DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
-        #                             params_mcmc_yaml,
-        #                             psf=JAX_PSF,
-        #                             psflib=psflib,
-        #                             quietklip=True)
+        dataset = ffd_obj.prep_dataset()
+        
+
+        ffd_obj.initialize_diskfm(dataset, model_init=model_firstguess)
+
         print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
         sys.exit(0)
-    else:
-        # Read in the basis data
-        fm_dict = load_kl_basis(BASIS_FILE)
-        # fm_dict contains 
-        # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
-        # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
-        REDUCED_DATA = fits.getdata(os.path.join(KLIPDIR,
-                                                FILE_PREFIX + '-klipped-KLmodes-all.fits'))[0]
-        # DISKOBJ, REDUCED_DATA = initialize_diskfm(dataset,
-        #                             params_mcmc_yaml,
-        #                             psf=JAX_PSF,
-        #                             psflib=psflib,
-        #                             quietklip=True)
+    # Read in the basis data
+    fm_dict = load_kl_basis(basis_path)
+    # fm_dict contains 
+    # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
+    # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
+    reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))[0]
+    reduced_data[reduced_data != reduced_data] = 0.
+
+    mask2generate_indices = jnp.flatnonzero(jnp.array(mask2generatedisk))[jnp.newaxis, :]
     
-    # mask the disk image
-    TARGET_IMAGE = np.asarray(REDUCED_DATA * WHEREMASK2GENERATEDISK)# * 1e4
-    TOTAL_PIXELS = np.prod(TARGET_IMAGE.shape)
-    # print(TOTAL_PIXELS)
-    TARGET_IMAGE[TARGET_IMAGE != TARGET_IMAGE] = 0.
-    # print(INIT_MODEL_FLAT.shape)
+    total_pixels = np.prod(reduced_data.shape)
 
-    disk_mask = np.array(WHEREMASK2GENERATEDISK)  # convert to JAX array if needed
+    # model_mask_indices = jnp.vstack((mask_indices, mask_indices, mask_indices))
+    # plt.imshow(reduced_data * mask2minimize, origin="lower")
+    # plt.show()
+    # For 3 models, shape is e.g. (3, 50176)
+
+    reduced_data_flat = reduced_data.flatten()
+    reduced_flat_interest = reduced_data_flat[mask2generate_indices]
+
+    disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
     annular_mask = make_annular_mask(disk_mask.shape, 10, 112)
-    MASK = disk_mask * annular_mask
-    MASK_INDICES = jnp.flatnonzero(MASK)  # 1D indices of nonzero (True) entries
-    NUM_FREE = MASK_INDICES.shape[0]
 
-    STARTING_DISK = fits.getdata(args.initial_model)
     # STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
-    STARTING_DISK *= MASK
-    INIT_MODEL = jnp.array(STARTING_DISK)
-    INIT_MODEL_FLAT = INIT_MODEL.reshape(INIT_MODEL.shape[0] * INIT_MODEL.shape[1])
-    INIT_MODEL_INTEREST = INIT_MODEL_FLAT[MASK_INDICES]
-    TARGET_IMAGE_FLAT = TARGET_IMAGE.reshape(TARGET_IMAGE.shape[0] * TARGET_IMAGE.shape[1])
-    TARGET_MODEL_INTEREST = TARGET_IMAGE_FLAT[MASK_INDICES]
+    model_firstguess *= mask2generatedisk
+    init_model = jnp.array(model_firstguess)
+    init_model_flat = init_model.reshape(init_model.shape[0] * init_model.shape[1])
+    init_model_interest = init_model_flat[mask2generate_indices]
+
     # print(INIT_MODEL_INTEREST.shape)
 
     # plt.imshow(STARTING_DISK,origin="lower")
     # plt.colorbar()
     # plt.show()
     # sys.exit()
-    optimized_model, loss_history = optimize_model(target_image=TARGET_MODEL_INTEREST,
-                                                   model_init=INIT_MODEL_INTEREST,
-                                                   psf=JAX_PSF, basis_data=fm_dict,
-                                                   total_pixels=TOTAL_PIXELS,
-                                                   num_steps=args.iterations,
+    optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
+                                                   model_init=init_model_interest,
+                                                   psf=jax_psf, basis_data=fm_dict,
+                                                   total_pixels=total_pixels,
+                                                   num_steps=num_iterations,
                                                    )
-    optimized_model_image = reconstruct_full_image(optimized_model, TOTAL_PIXELS)
+    optimized_model_image = reconstruct_full_image(optimized_model, total_pixels)
     os.makedirs(save_to_dir, exist_ok=True)
     fits.writeto(f"{save_to_dir}/freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
     # --- Visualization ---
@@ -515,3 +477,38 @@ if __name__ == "__main__":
     ax[2].grid()
 
     plt.show()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='run diskierFM autodiff')
+    parser.add_argument('-p',
+                        '--param-file',
+                        required=False,
+                        help='parameter file name')
+    parser.add_argument(
+                        '--iterations',
+                        type=int,
+                        required=True,
+                        help='Num. iterations')
+    parser.add_argument(
+                        '--initial-model',
+                        type=str,
+                        required=False,
+                        help='Path to starting model fits file')
+    args = parser.parse_args()
+    if args.param_file is None: #grab param file if no command line input, JKK
+        str_yaml = f'initialization_files/{default_parameter_file}'
+    else:
+        str_yaml = args.param_file
+        str_yaml_prefix = str_yaml.split("/")[-1]
+        save_to_dir = str_yaml_prefix.split(".")[0]
+
+    # print("Read " + str_yaml + " parameter file")
+    # # open the parameter file
+    # yaml_path_file = os.path.join(os.getcwd(), str_yaml)
+    # with open(yaml_path_file, 'r') as yaml_file:
+    #     yaml_cfg = yaml.safe_load(yaml_file)
+
+    main(config=str_yaml,
+         num_iterations=args.iterations,
+         init_model=args.initial_model)
+    

@@ -316,7 +316,6 @@ def optimize_model(target_image, params_init, x_arr, y_arr,
 
 
 def main(config):
-    import matplotlib.pyplot as plt
     # Init the wdh model object
     wdh_obj = ParametricWDH(config)
 

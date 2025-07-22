@@ -13,7 +13,7 @@ def parang_sort(filename):
 
 
 
-def prep_image_frames_parangs(filelist,
+def wdhprep_image_frames_parangs(filelist,
                               csv_file,
                               n_models: int = 1,
                               time_bin_sz: str = "1s"):
@@ -96,3 +96,28 @@ def prep_image_frames_parangs(filelist,
             np.asarray(derot_angs, dtype=float),
             wind_dirs,
             valid_mask)
+
+
+def diskprep_image_frames_parangs(filelist):
+    """
+    Parameters
+    ----------
+    filelist : list[str]
+        Paths to science thumbnails (FITS files).
+    """
+
+    derot_angs, frames = [], []
+
+    # ------- loop through science frames -----------------------------------
+    for each, fname in enumerate(filelist):
+        data, hdr = fits.getdata(fname, header=True)
+        frames.append(data)
+        derot_angs.append(hdr["PARANG"])
+
+
+    # pack up the outputs
+    # wind_dirs shape (n_models, n_images)
+    # valid mask same shape; (n_models, n_images)
+
+    return (np.asarray(frames),
+            np.asarray(derot_angs, dtype=float))

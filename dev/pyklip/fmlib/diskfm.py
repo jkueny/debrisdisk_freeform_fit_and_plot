@@ -15,7 +15,7 @@ import scipy.ndimage as ndimage
 
 from dev.pyklip.fmlib.nofm import NoFM
 import dev.pyklip.fm as fm
-from dev.pyklip.klip import rotate_image
+from dev.pyklip.klip import rotate, rotate_image
 
 # import matplotlib.pyplot as plt
 # define the global variables for that code
@@ -145,21 +145,36 @@ class DiskFM(NoFM):
             save_basis = False
 
         if self.save_basis is True:
-            manager = mp.Manager()
-            self.klmodes_dict = manager.dict()
-            self.evecs_dict = manager.dict()
-            self.evals_dict = manager.dict()
-            self.aligned_images_dict = manager.dict()
-            self.ref_psfs_indicies_dict = manager.dict()
-            self.section_ind_dict = manager.dict()
+            # manager = mp.Manager()
+            # self.klmodes_dict = manager.dict()
+            # self.evecs_dict = manager.dict()
+            # self.evals_dict = manager.dict()
+            # self.aligned_images_dict = manager.dict()
+            # self.ref_psfs_indicies_dict = manager.dict()
+            # self.section_ind_dict = manager.dict()
 
-            self.radstart_dict = manager.dict()
-            self.radend_dict = manager.dict()
-            self.phistart_dict = manager.dict()
-            self.phiend_dict = manager.dict()
-            self.input_img_num_dict = manager.dict()
+            # self.radstart_dict = manager.dict()
+            # self.radend_dict = manager.dict()
+            # self.phistart_dict = manager.dict()
+            # self.phiend_dict = manager.dict()
+            # self.input_img_num_dict = manager.dict()
 
-            self.klparam_dict = manager.dict()
+            # self.klparam_dict = manager.dict()
+
+            self.klmodes_dict = {}
+            self.evecs_dict = {}
+            self.evals_dict = {}
+            self.aligned_images_dict = {}
+            self.ref_psfs_indicies_dict = {}
+            self.section_ind_dict = {}
+
+            self.radstart_dict = {}
+            self.radend_dict = {}
+            self.phistart_dict = {}
+            self.phiend_dict = {}
+            self.input_img_num_dict = {}
+
+            self.klparam_dict = {}
         # Coords where align_and_scale places model center
 
         if self.load_from_basis is True:  # We want to load the FM basis
@@ -396,7 +411,7 @@ class DiskFM(NoFM):
                     klmodes,
                     refs,
                     model_ref,
-                    return_perturb_covar=False,
+                    # return_perturb_covar=False,
                 )
             else:
                 # in the case of load_from_basis, the images are already saved in the
@@ -409,7 +424,7 @@ class DiskFM(NoFM):
                     self.aligned_images_dict[wlstrkey][ref_psfs_indicies, :]
                     [:, section_ind[0]],
                     model_ref,
-                    return_perturb_covar=False,
+                    # return_perturb_covar=False,
                 )
 
         # calculate postklip_psf using delta_KL

@@ -10,7 +10,8 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "-p initialization_files/HR4796_g_camsci2_20230312_13.yaml --iterations 10"
+            // "args": "-p initialization_files/HR4796_g_camsci2_20230312_13.yaml --iterations 10"
+            "args": "-p initialization_files/HR4796a_z_lco2023a_magao-x_20230309_10.yaml --iterations 10"
         }
     ]
 }

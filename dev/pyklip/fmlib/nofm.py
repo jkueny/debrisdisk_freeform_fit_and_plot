@@ -9,7 +9,7 @@ class NoFM(object):
     Super class for all forward modelling classes. Has fall-back functions for all fm dependent calls so that each FM class does
     not need to implement functions it doesn't want to. Should do no forward modelling and just do regular KLIP by itself
     """
-    def __init__(self, inputs_shape, numbasis, save_basis):
+    def __init__(self, inputs_shape, numbasis):
         """
         Initializes the NoFM class
 
@@ -24,7 +24,6 @@ class NoFM(object):
         self.numbasis = numbasis
         self.outputs_shape = inputs_shape #+ numbasis.shape
         self.need_aux = False
-        self.save_basis = save_basis
         # Use float64
         # self.data_type = ctypes.c_double
         # Use float32

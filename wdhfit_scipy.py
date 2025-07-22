@@ -68,11 +68,19 @@ from utils.io.save_results import save_optimization_outputs
 import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
+from jax.scipy import optimize as jsp_opt
 # import jax.profiler
 import optax
 from optax.losses import huber_loss
 
 LAMBDA_REG = 0.1
+
+def huber_loss(residual, delta: float = 1.0):
+    """Vectorised Huber loss identical to optax.losses.huber_loss."""
+    abs_r = jnp.abs(residual)
+    quadratic = 0.5 * residual ** 2
+    linear     = delta * (abs_r - 0.5 * delta)
+    return jnp.where(abs_r <= delta, quadratic, linear)
 
 def relative_l2(params_all):
     """
@@ -125,8 +133,8 @@ def relative_l2(params_all):
     return jnp.sum(diff_jax) / diff_jax.size
 
 
-@partial(jax.jit, static_argnames=["total_pixels", "isRDI"])
-def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
+# @partial(jax.jit, static_argnames=["unravel_fn","total_pixels", "isRDI"])
+def loss_function(image_params_arr, unravel_fn, x_arr, y_arr, disk_image, aligned_images,
                   ref_psfs_stacked, PAs, ref_inds, wdh_PAs,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, mask2generatehalo, mask_skip_models,
@@ -144,6 +152,7 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
     Returns:
         Chisquare
     """
+    mod_params = unravel_fn(image_params_arr)
     # DM commands scaled to [0,1] fits cubes do like 10 secs of wall clock time
     # Spatil freq. such that speckles end up at 10 lamb/D
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
@@ -214,103 +223,72 @@ def loss_function(mod_params, x_arr, y_arr, disk_image, aligned_images,
 loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, params_init, x_arr, y_arr,
-                   total_pixels, basis_data, num_steps, mask2generatehalo,
-                   mask2minimize_inds, mask_skip_images, lr=1e-3):
-    
-    # dimension = img_dim
+                   total_pixels, basis_data, num_steps,
+                   mask2generatehalo, mask2minimize_inds,
+                   mask_skip_images):
+    """
+    L-BFGS-B optimisation driven by jax.scipy.optimize.minimize.
+    Returns
+    -------
+    best_params  : pytree    –  parameters in their original structure
+    loss_history : list[float]
+    result_obj   : OptimizeResult  (full SciPy-style record)
+    """
+    # ----------- static data & helpers ---------------------------------
+    # target_image = jnp.asarray(target_image)
+    params0, unravel = ravel_pytree(params_init)
+
     jax_target_image = jnp.array(target_image)
 
-    # Initialize the initial image
-    image_params = params_init
-    # image_params = initialize_freeform_model_reduced()
-    params_ravel, unravel_fn = ravel_pytree(image_params) #second return is undo func
-    # Set up optimizer, use adaptive stochastic grad descent
-    optimizer = optax.lbfgs()
-    opt_state =  optimizer.init(params_ravel)
+    bd = unpack_basis_data(basis_data)
+    section_inds     = bd["section_inds"][0]
+    aligned_image_sections = jnp.take(bd["aligned_images"],
+                                      section_inds[-1],
+                                      axis=1,
+                                      fill_value=0.)
+    ref_psfs_sections = jnp.take(bd["ref_psfs"],
+                                 section_inds[-1],
+                                 axis=2,
+                                 fill_value=0.)
+    position_angles  = jnp.array(basis_data["klparam_dict"]["PAs"])
+    ref_inds         = bd["ref_inds"]
+    wdhPAs           = bd["wdhPAs"]
+    klmodes_sections = jnp.take(bd["klmodes"],
+                                section_inds[-1],
+                                axis=2,
+                                fill_value=0.)
+    evals, evecs     = bd["evals"], bd["evecs"]
+    mode             = 1 if bd["klparams"]["isRDI"] else 0
 
-    image_params = unravel_fn(params_ravel)
+    # ----------- objective closure -------------------------------------
+    def objective(p_flat):
+        return loss_function(
+            p_flat, unravel, x_arr, y_arr,
+            jax_target_image, aligned_image_sections, ref_psfs_sections,
+            position_angles, ref_inds, wdhPAs,
+            section_inds, klmodes_sections, evals, evecs,
+            total_pixels, mode, mask2generatehalo,
+            mask_skip_images, mask2minimize_inds,
+        )
+
+    # ----------- callback for progress & history -----------------------
     loss_history = []
 
-    basis_data_unpacked = unpack_basis_data(basis_data)
 
-    # num_input_images = int(jax.device_get(basis_data["klparam_dict"]["nfiles"]))
-    aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
-    section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
-    aligned_image_sections = jnp.take(aligned_image_data, section_inds[-1], axis=1, fill_value=0.)
+    # ----------- run the optimiser ------------------------------------
+    t0 = time.time()
+    result = jsp_opt.minimize(
+                            objective,          # your scalar loss closure
+                            params0,            # 1-D ravelled initial guess
+                            method="BFGS",      # <- the only method jax.scipy has today
+                            options={"maxiter": num_steps}
+                        )
+    best_params = unravel(result.x)
+    loss_history = None     # jax.scipy doesn't expose per-iter losses
+    print(f"Finished in {time.time() - t0:.1f}s - success = {result.success}")
 
-    klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
-    klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
-
-    evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
-    # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
-    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 2)
-    # evecs have been unpacked, stacked, and ready to be BATCHED!
-    # input_img_nums = basis_data_unpacked["input_img_nums"]
-    # These are the images used for the basis for every image in the dataset.
-    ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
-    ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
-
-    # ref_PAs = basis_data_unpacked["ref_PAs"]
-    wdhPAs = basis_data_unpacked["wdhPAs"]
-    # valid_PA_mask = basis_data_unpacked["PAmask"]
-    ref_inds = basis_data_unpacked["ref_inds"]
-
-
-    if bool(basis_data_unpacked["klparams"]["isRDI"]):
-        fixed_refs = klmodes.shape[1]
-        mode = 1
-    elif not bool(basis_data_unpacked["klparams"]["isRDI"]):
-        fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number
-        mode = 0
-
-    # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
-    # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
-    # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
-    position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
-    # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
-    #                             basis_data["klparam_dict"]["aligned_center_y"]])))
-    # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
-
-    del aligned_image_data
-    del klmodes
-    del ref_psfs
-
-    time_now = time.time()
-    # jax.profiler.start_trace("/tmp/tensorboard")
-    # jax.config.update("jax_debug_nans", True)
-
-    @jax.jit
-    def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, x_arr, y_arr,
-                                    jax_target_image,
-                                    aligned_image_sections, ref_psfs_sections,
-                                    position_angles, ref_inds, wdhPAs,
-                                    # fixed_refs,
-                                    # aligned_center,
-                                    section_inds,
-                                    klmodes_sections, evals, evecs, total_pixels,
-                                    mode, mask2generatehalo, mask_skip_images, mask2minimize_inds)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        image_params = optax.apply_updates(image_params, updates)
-        # jax.debug.print("a_r = {x:.3e}", x=image_params["ps_indiv"][0]["a_r"])
-        # jax.debug.print("grad a_r = {x:.3e}", x=grads["ps_indiv"][0]["a_r"])
-        return image_params, opt_state, loss
-    
-    for step_idx in range(num_steps):
-        image_params, opt_state, loss = step(unravel_fn(image_params), opt_state)
-        loss_history.append(loss.item())
-
-        if step_idx % round(num_steps / 10) == 0:
-            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
-
-    # jax.profiler.stop_trace()
-    print(f"This run took {(time.time() - time_now):.6f} seconds.")
-    # print(loss_history)
-    
-    # optimized_model = jax.nn.sigmoid(image_params)
-    optimized_wdh_models = gen_multiwdh_image(x=x_arr, y=y_arr, all_params=image_params,
-                                         mask=mask2generatehalo)
-    return optimized_wdh_models, loss_history, image_params
+    best_params = unravel(result.x)
+    return best_params, loss_history, result
 
 
 
@@ -410,6 +388,8 @@ def main(config):
                                                    mask_skip_images=valid_pas_mask
                                                    )
     
+    # print(opt_models)
+
     optimized_model = jnp.sum(opt_models, axis=0)
     opt_model_np = np.asarray(optimized_model)
     opt_model_fm = wdh_obj.single_fm(np.asarray(opt_models))

@@ -13,6 +13,9 @@ def read_config(path_yaml):
         print("Read " + path_yaml + " config file")
         return config_file
     except:
+        if isinstance(path_yaml, dict):
+            raise TypeError(f"""path_yaml is not a file path; 
+                            type(path_yaml) -> {type(path_yaml)}""")
         raise FileNotFoundError(
                     'The registration yaml file is missing!'
                     f"{path_yaml}")
