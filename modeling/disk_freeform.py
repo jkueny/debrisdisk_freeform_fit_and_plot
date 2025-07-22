@@ -15,16 +15,13 @@ from astropy.io import fits
 import numpy as np
 from scipy.signal import convolve2d
 
-import jax.numpy as jnp
 from datetime import datetime
 
 from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
-from utils.masks import control_region_mask
 from utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
 from dev.pyklip.instruments.Instrument import GenericData
 from dev.pyklip.fmlib.diskfm import DiskFM
-from dev.pyklip.fmlib.nofm import NoFM, BasisOnly
 import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
 import utils.astro_unit_conversion as convert

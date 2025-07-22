@@ -115,39 +115,42 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
     # Apply sectioning to each global rotated disk.
     global_rot_section_flat = jax.vmap(_apply_section, in_axes=(0, None))(global_rot_flat, section_inds)
 
-    if isRDI:
+    # def _one_frame_rot_flat(model_disk, PA):
+    #     rot = rotate_image(model_disk, PA)
+    #     rot_flat = rot.reshape(global_disks.shape[0], -1)
+    #     rot_flat_sec = rot_flat[section_inds]
+    #     fin_rot_flat_sec = jnp.squeeze(rot_flat_sec)
+    #     fin_rot_flat_sec_pad = pad_array_to_fixed_first_dim(fin_rot_flat_sec,
+    #                                                         min_num_models,
+    #                                                         pad_value=0)
+    #     return fin_rot_flat_sec_pad
+    
+    
+    if not isRDI:
+        # ref_rotated = jax.vmap(_one_frame_rot_flat)(global_disks, ref_PAs)
+        # Reference rotations.
+        ref_rotated_list = []
+        for i in range(N_global):
+            # For global image i, ref_PAs[i] is a 1D array of reference angles.
+            ref_angles = ref_PAs[i]
+            # Rotate model_disk for each reference angle.
+            # Note: We rotate the same model_disk for each reference PA.
+            ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle))(ref_angles)
+            # ref_rot has shape (L, height, width), where L = len(ref_angles).
+            # Now, apply the section for global image i.
+            # Flatten each sectioned reference model.
+            ref_rot_flat = ref_rot.reshape((ref_rot.shape[0], -1)) # (78,50176) or (N_refs, N_pixels)
+            ref_rot_sec = jax.vmap(lambda img: img[section_inds])(ref_rot_flat)
+            ref_rot_sec_flat = jnp.squeeze(ref_rot_sec)
+            # Pad along axis 0 so that each global image has min_num_models models.
+            ref_rot_sec_flat_padded = pad_array_to_fixed_first_dim(ref_rot_sec_flat, min_num_models, pad_value=0)
+            ref_rotated_list.append(jnp.squeeze(ref_rot_sec_flat_padded))
+        # Stack the results to obtain shape (N_global, min_num_models, N_pixels_section).
+        ref_rotated = jnp.stack(ref_rotated_list)
+
+        return global_rot_section_flat, ref_rotated
+    elif isRDI:
         return global_rot_section_flat
-
-    # 2) Build a padded ref_PAs array of shape (N_global, min_num_models)
-    #    and a mask of which slots are real
-    #    We do this once in Python; JAX won’t trace this.
-    padded_angles = jnp.zeros((N_global, min_num_models), dtype=jnp.float32)
-    valid_counts  = jnp.zeros((N_global,),       dtype=jnp.int32)
-    for i, rp in enumerate(ref_PAs):
-        L = rp.shape[0]
-        padded_angles = padded_angles.at[i, :L].set(rp)
-        valid_counts  = valid_counts.at[i].set(L)
-    # mask[i, j] = True iff j < valid_counts[i]
-    mask = jnp.arange(min_num_models)[None, :] < valid_counts[:, None]  # shape (N_global, min_num_models)
-
-    # 3) Double‐vmap over frame index and ref‐slot index
-    def rotate_frame_refs(angles_row):
-        # angles_row: shape (min_num_models,)
-        def rotate_one(angle):
-            return jnp.take(
-                rotate_image(model_disk, angle).reshape(-1),
-                section_inds
-            )  # returns shape (Nsec,)
-        return jax.vmap(rotate_one)(angles_row)  # (min_num_models, Nsec)
-
-    # now get (N_global, min_num_models, Nsec)
-    refs_rot = jax.vmap(rotate_frame_refs)(padded_angles)
-
-    # 4) Zero out all the padded slots
-    #    mask[..., None] broadcast to (N_global, min_num_models, Nsec)
-    ref_rotated = jnp.squeeze(refs_rot) * mask[..., None]
-
-    return global_rot_section_flat, ref_rotated
     
 def update_wind(model_wdhs, PAs, ref_inds, section_inds,
                 mask_skip_models, isRDI):
