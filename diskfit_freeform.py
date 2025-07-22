@@ -69,7 +69,22 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
+def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=1e-3):
+    # Compute where freeform power exceeds math model power
+    excess_mask = model_ps > ref_model_ps
+    excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
 
+    # Return total excess as a scalar penalty
+    penalty = jnp.mean(excess_power)
+    return reg_lambda * penalty
+
+def fft_power_spectrum(image):
+    """
+    Compute the 2D power spectrum of an image (shifted so DC is at center).
+    """
+    fft = jnp.fft.fftshift(jnp.fft.fft2(image))
+    power = jnp.abs(fft) ** 2
+    return power
 
 # jax.config.update("jax_enable_x64", True)
 
@@ -188,7 +203,7 @@ def convolve_model_lax(input_model, psf):
 
 
 @partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI"])
-def loss_function(mod_pix_params, disk_image, psf, aligned_images,
+def loss_function(mod_pix_params, disk_image, psf, ref_model_ps, aligned_images,
                   ref_psfs_stacked, PAs, ref_PAs, fixed_refs, mask_indices,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI):
@@ -215,11 +230,14 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     
     # Ensure that the model pixel values range [0,1]
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, mask_indices)
+    full_model_norm = full_model_image / jnp.sum(full_model_image)
+    model_ps = fft_power_spectrum(full_model_norm)
+    hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps)
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
     # freeform_model = jax.nn.sigmoid(full_model_image)
 
-    # freeform_image = convolve_model(full_model_image, psf)
-    freeform_image = convolve_model_lax(full_model_image, psf)
+    freeform_image = convolve_model(full_model_image, psf)
+    # freeform_image = convolve_model_lax(full_model_image, psf)
     # freeform_image = full_model_image
 
 
@@ -273,7 +291,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
-    return mse
+    return mse + hsf_penalty
 
 
 
@@ -281,7 +299,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, model_init, mask_indices,
+def optimize_model(target_image, model_init, ref_ps, mask_indices,
                    psf, basis_data, total_pixels, num_steps, lr=0.1):
     
     # dimension = img_dim
@@ -343,7 +361,7 @@ def optimize_model(target_image, model_init, mask_indices,
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, jax_target_image, psf,
+        loss, grads = loss_and_grad(image_params, jax_target_image, psf, ref_ps,
                                     aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
                                     mask_indices, section_inds,
@@ -387,6 +405,9 @@ def main(config, num_iterations, init_model):
     # Get the initial model
 
     model_firstguess = ffd_obj.get_initial_model(init_model)
+
+    model_init_norm = model_firstguess / np.sum(model_firstguess)
+    ps_ref_model = fft_power_spectrum(model_init_norm)
 
     # load PSF
     # psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
@@ -443,7 +464,7 @@ def main(config, num_iterations, init_model):
     # plt.show()
     # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
-                                                   model_init=init_model_interest,
+                                                   model_init=init_model_interest, ref_ps=ps_ref_model,
                                                    mask_indices=mask2generate_indices,
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
