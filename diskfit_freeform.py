@@ -32,9 +32,6 @@ default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name o
 # you can also call it with the python function argument -p
 
 
-import glob
-import re
-
 import time
 
 
@@ -49,34 +46,29 @@ import astropy.io.fits as fits
 # from astropy.convolution import convolve
 # from scipy.signal import convolve
 # from scipy.signal import fftconvolve
-import matplotlib.pyplot as plt
-
-import yaml
+# import matplotlib.pyplot as plt
 
 
 from modeling.disk_freeform import FreeFormDisk
+from utils.io.save_results import save_ffdfit_outputs
 
 from dev.pyklip.fmlib.jax_diskfm import JDFM
 from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
                                         fm_from_eigen_rdi, \
                                         insert_section_into_full_image, \
                                         mass_derotation
-from dev.pyklip.fmlib.diskfm import DiskFM
-from dev.pyklip.j_klip import rotate_image
-import dev.pyklip.fm as fm
 
 
-import utils.make_gpi_psf_for_disks as gpidiskpsf
-import utils.astro_unit_conversion as convert
 from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 
 import jax
 from jax import lax
 import jax.numpy as jnp
-import jax.profiler
+# import jax.profiler
 from jax.scipy.signal import convolve2d
 import optax
+from optax.losses import huber_loss
 
 
 
@@ -121,7 +113,7 @@ def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
     return mask
 
 
-def reconstruct_full_image(free_params, total_pixels):
+def reconstruct_full_image(free_params, total_pixels, mask_indices):
     """
     Given the free parameters (for the unmasked region) and the full image shape,
     create a full image (flattened) where the free parameters are inserted at the positions
@@ -129,16 +121,16 @@ def reconstruct_full_image(free_params, total_pixels):
     """
     full_shape = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
     full_flat = jnp.zeros(total_pixels)
-    full_flat = full_flat.at[MASK_INDICES].set(free_params)
+    full_flat = full_flat.at[mask_indices].set(free_params)
     return full_flat.reshape(full_shape)
 
-def initialize_freeform_model_reduced():
-    """Initialize freeform model parameters for the unmasked region."""
-    rng = jax.random.PRNGKey(42)
-    # Instead of full image dimensions, only initialize num_free parameters.
-    free_params = jax.random.normal(rng, (NUM_FREE,))
+# def initialize_freeform_model_reduced():
+#     """Initialize freeform model parameters for the unmasked region."""
+#     rng = jax.random.PRNGKey(42)
+#     # Instead of full image dimensions, only initialize num_free parameters.
+#     free_params = jax.random.normal(rng, (NUM_FREE,))
 
-    return free_params
+#     return free_params
 
 
 # @jax.jit
@@ -196,8 +188,7 @@ def convolve_model_lax(input_model, psf):
 # @jax.jit(static_argnames=["full_shape", "section_inds"])
 
 
-@partial(jax.jit, static_argnames=["fixed_refs","aligned_center",
-                                   "total_pixels", "isRDI"])
+@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI"])
 def loss_function(mod_pix_params, disk_image, psf, aligned_images,
                   ref_psfs_stacked, PAs, ref_PAs, fixed_refs, mask_indices,
                   section_inds_arr, klmodes_stacked, evals, evecs_stacked,
@@ -224,7 +215,7 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
 
     
     # Ensure that the model pixel values range [0,1]
-    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels)
+    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, mask_indices)
     # freeform_model = jax.nn.sigmoid(mod_pix_params)
     # freeform_model = jax.nn.sigmoid(full_model_image)
 
@@ -278,7 +269,8 @@ def loss_function(mod_pix_params, disk_image, psf, aligned_images,
     # disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
-    mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
+    # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
+    mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image))
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
@@ -365,8 +357,8 @@ def optimize_model(target_image, model_init, mask_indices,
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        if step_idx % round(num_steps / 100) == 0:
-            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+        # if step_idx % round(num_steps / 100) == 0:
+        #     print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
@@ -385,6 +377,7 @@ def main(config, num_iterations, init_model):
     ffd_obj = FreeFormDisk(config)
 
     klipdir = ffd_obj.klipdir
+    resultsdir = ffd_obj.resultsdir
     file_prefix = ffd_obj.file_prefix
     aligned_center = ffd_obj.aligned_center
     mode = ffd_obj.mode
@@ -397,7 +390,7 @@ def main(config, num_iterations, init_model):
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
     # load PSF
-    psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
+    # psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
     psf = ffd_obj.psf
     jax_psf = jnp.array(psf)
     # jax_psf /= jnp.sum(jax_psf)
@@ -452,31 +445,26 @@ def main(config, num_iterations, init_model):
     # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest,
+                                                   mask_indices=mask2generate_indices,
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
                                                    num_steps=num_iterations,
                                                    )
-    optimized_model_image = reconstruct_full_image(optimized_model, total_pixels)
-    os.makedirs(save_to_dir, exist_ok=True)
-    fits.writeto(f"{save_to_dir}/freeform_run.fits", np.asarray(optimized_model_image), overwrite=True)
-    # --- Visualization ---
-    fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+    optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
+    optimized_model_image = np.asarray(convolve2d(optimized_model, psf, mode="same"))
+    optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
-    ax[0].imshow(np.asarray(TARGET_IMAGE), cmap='inferno', origin="lower")
-    ax[0].set_title("Target Image (Ground Truth)")
-    ax[0].axis("off")
+    residuals = np.asarray(reduced_data - optimized_fm)
 
-    ax[1].imshow(np.array(optimized_model_image), cmap='viridis', origin="lower")
-    ax[1].set_title("Optimized Freeform Model")
-    ax[1].axis("off")
+    save_ffdfit_outputs(resultsdir,
+                        file_prefix,
+                        optimized_model,
+                        optimized_model_image,
+                        optimized_fm,
+                        residuals,
+                        loss_history
+                        )
 
-    ax[2].plot(loss_history)
-    ax[2].set_title("Loss Over Time")
-    ax[2].set_xlabel("Iteration")
-    ax[2].set_ylabel("MSE Loss")
-    ax[2].grid()
-
-    plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='run diskierFM autodiff')

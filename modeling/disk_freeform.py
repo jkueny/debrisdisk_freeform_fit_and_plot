@@ -234,7 +234,7 @@ class FreeFormDisk:
 
         save_fits(saveto_masked, reduced_data_masked)
 
-        model_fm_init = self.single_fm(np.asarray(model_init))
+        model_fm_init = self.single_fm(np.asarray(model_convolved))
 
         model_fm_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel_FM.fits")
 
@@ -245,18 +245,18 @@ class FreeFormDisk:
         #                                         self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
         # self.reduced_data = reduced_data
 
-    def single_fm(self, model_disk):
+    def single_fm(self, model_image):
         # Refresh the windFM object
         basis_file_path = os.path.join(self.klipdir, f"{self.file_prefix}_klbasis.h5")
 
         diskfm = DiskFM(inputs_shape=None,
                             numbasis=None,
                             dataset=None,
-                            model_disk=model_disk,
+                            model_disk=model_image,
                             basis_filename=basis_file_path,
                             load_from_basis=True)
         
-        diskfm.update_disk(model_disk)
+        diskfm.update_disk(model_image)
 
         model_fm = diskfm.fm_parallelized()[0]
 

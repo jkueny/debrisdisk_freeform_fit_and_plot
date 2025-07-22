@@ -5,15 +5,15 @@ from astropy.io import fits
 import numpy as np
 import types
 
-def save_optimization_outputs(save_dir: str,
-                               file_prefix: str,
-                               params_dict: dict,
-                               model_image: np.ndarray,
-                               forward_model_image: np.ndarray,
-                               residuals_image: np.ndarray,
-                               loss_value: float,
-                               optimizer_name: str = "Optax Adam",
-                               model_version: str = None):
+def save_wdhfit_outputs(save_dir: str,
+                        file_prefix: str,
+                        params_dict: dict,
+                        model_image: np.ndarray,
+                        forward_model_image: np.ndarray,
+                        residuals_image: np.ndarray,
+                        loss_value: float,
+                        optimizer_name: str = "Optax Adam",
+                        model_version: str = None):
     '''
     Dumps relevant outputs from WDH optimization run into a JSON file.
 
@@ -121,6 +121,73 @@ def save_optimization_outputs(save_dir: str,
         "param_file": "bestfit_params.json",
         "model_file": "wdh_model.fits",
         "forward_model_file": "forward_model.fits"
+    }
+
+    with open(run_dir / "metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    print(f"Done; optimization results saved to: {run_dir}")
+    return run_dir
+
+def save_ffdfit_outputs(save_dir: str,
+                        file_prefix: str,
+                        model_opt: np.ndarray,
+                        model_image_opt: np.ndarray,
+                        forward_model_opt: np.ndarray,
+                        residuals_image: np.ndarray,
+                        loss_history: list,
+                        optimizer_name: str = "Optax Adam",
+                        model_version: str = None):
+    '''
+    Saves all output from the freeform diskfit code.
+
+    Parameters
+    ----------
+    run_dir_root : str
+        Base directory where result folders are created (e.g. "results_freeform").
+    params_dict : dict
+        Nested dictionary of best-fit parameters.
+    model_image : ndarray
+        Optimized WDH model image.
+    forward_model_image : ndarray
+        Final forward-modeled image.
+    loss_value : float
+        Final loss achieved during optimization.
+    optimizer_name : str
+        Name of the optimizer used (default: "Optax AdamW").
+    model_version : str, optional
+        Optional version tag or hash for the model code used.
+    '''
+    
+
+    run_root = Path(save_dir)
+    run_root.mkdir(exist_ok=True)
+
+    # auto-increment run number
+    existing = [p for p in run_root.glob("opt_run_*") if p.is_dir()]
+    run_id = 0
+    if existing:
+        nums = [int(p.name.split("_")[-1]) for p in existing if p.name.split("_")[-1].isdigit()]
+        if nums:
+            run_id = max(nums) + 1
+    run_dir = run_root / f"opt_run_{run_id:04d}"
+    run_dir.mkdir()
+
+
+
+    fits.writeto(run_dir / f"{file_prefix}_BestModel.fits", model_opt, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_BestModel_Conv.fits", model_image_opt, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_FM.fits", forward_model_opt, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_Res.fits", residuals_image, overwrite=True)
+
+    metadata = {
+        "timestamp_utc": str(datetime.now()),
+        "loss": float(loss_history[-1]),
+        "optimizer": optimizer_name,
+        "model_version": model_version or "unknown",
+        # "param_file": "bestfit_params.json",
+        # "model_file": "wdh_model.fits",
+        # "forward_model_file": "forward_model.fits"
     }
 
     with open(run_dir / "metadata.json", "w") as f:

@@ -62,7 +62,7 @@ from modeling.jax_models.wdh_modeling import gen_multiwdh_image
 
 
 from utils.klip_basis import load_kl_basis, unpack_basis_data
-from utils.io.save_results import save_optimization_outputs
+from utils.io.save_results import save_wdhfit_outputs
 
 
 import jax
@@ -416,7 +416,7 @@ def main(config):
     opt_model_fm_np = np.asarray(opt_model_fm)
     residuals_image = reduced_data - opt_model_fm_np
     
-    save_optimization_outputs(save_dir=resultsdir,
+    save_wdhfit_outputs(save_dir=resultsdir,
                               file_prefix=file_prefix,
                               params_dict=bestfit_ps,
                               model_image=opt_model_np,

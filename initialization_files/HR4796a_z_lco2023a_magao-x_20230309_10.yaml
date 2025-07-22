@@ -7,7 +7,7 @@ pyklip:
   mode: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
   do_rdi_correlation: False # Measure the correlation matrix of the RDI PSF lib. Very long.
   # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-  klmode_number: 16 # number of KL modes used in the reduction < nb images in the basis
+  klmode_number: 3 # number of KL modes used in the reduction < nb images in the basis
   annuli: 1 # number of annuli in the KLIP reduction
 
   # KLIP params optimized for ctrl region speckles, minor axis, 2x2 binning, 08/04/24 JKK
