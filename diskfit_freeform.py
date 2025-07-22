@@ -52,7 +52,6 @@ import astropy.io.fits as fits
 from modeling.disk_freeform import FreeFormDisk
 from utils.io.save_results import save_ffdfit_outputs
 
-from dev.pyklip.fmlib.jax_diskfm import JDFM
 from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
                                         fm_from_eigen_rdi, \
                                         insert_section_into_full_image, \
@@ -66,7 +65,7 @@ import jax
 from jax import lax
 import jax.numpy as jnp
 # import jax.profiler
-from jax.scipy.signal import convolve2d
+from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
@@ -143,7 +142,7 @@ def convolve_model(input_model, psf):
     #                                (kernel_size//2, kernel_size//2)], mode='reflect')
 
     # Apply convoluted convolution
-    model_convolved = convolve2d(input_model, psf, mode="same")
+    model_convolved = fftconvolve(input_model, psf, mode="same")
     
     return model_convolved
 
@@ -451,7 +450,7 @@ def main(config, num_iterations, init_model):
                                                    num_steps=num_iterations,
                                                    )
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
-    optimized_model_image = np.asarray(convolve2d(optimized_model, psf, mode="same"))
+    optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
     residuals = np.asarray(reduced_data - optimized_fm)
