@@ -69,7 +69,9 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
-def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=1e2):
+REG_LAMBDA = 1.
+
+def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=REG_LAMBDA):
     # Compute where freeform power exceeds math model power
     excess_mask = model_ps > ref_model_ps
     excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
@@ -505,6 +507,11 @@ if __name__ == "__main__":
                         type=str,
                         required=False,
                         help='Path to starting model fits file')
+    parser.add_argument(
+                        '--reg',
+                        type=float,
+                        required=False,
+                        help='Regularization factor')
     args = parser.parse_args()
     if args.param_file is None: #grab param file if no command line input, JKK
         str_yaml = f'initialization_files/{default_parameter_file}'
@@ -513,6 +520,8 @@ if __name__ == "__main__":
         str_yaml_prefix = str_yaml.split("/")[-1]
         save_to_dir = str_yaml_prefix.split(".")[0]
 
+    if args.reg is not None:
+        REG_LAMBDA = args.reg
     # print("Read " + str_yaml + " parameter file")
     # # open the parameter file
     # yaml_path_file = os.path.join(os.getcwd(), str_yaml)
