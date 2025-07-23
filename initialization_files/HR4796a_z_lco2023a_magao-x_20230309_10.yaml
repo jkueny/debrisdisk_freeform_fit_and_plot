@@ -116,7 +116,7 @@ mask:
   noise_in: 3
   noise_out: 3
   minor: 81 #OWA to isolate minor axis
-  dx: 1.5
+  dx: 0
   dy: -3.6
 
 noise:

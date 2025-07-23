@@ -135,6 +135,8 @@ class FreeFormDisk:
 
         in_scaling = self.params_file["mask"]["in_scaling"]
         out_scaling = self.params_file["mask"]["out_scaling"]
+        noise_in_scaling = self.params_file["mask"]["noise_in"]
+        noise_out_scaling = self.params_file["mask"]["noise_out"]
         mask_speckles = self.params_file["mask"]["speckles"]
         inc_init = self.params_file["disk_model"]['inc_init']
         pa_init = self.params_file["disk_model"]['pa_init']
@@ -152,7 +154,23 @@ class FreeFormDisk:
             out_scaling / np.cos(np.radians(inc_init)),
             aligned_center=mask_center)
         
+        mask_noise_zeros = make_disk_mask(
+            image_size[0],
+            pa_init,
+            inc_init,
+            convert.au_to_pix(self.params_file["disk_model"]['r1_init'],
+                              self.pixscale,
+                              self.distance) -
+            noise_in_scaling / np.cos(np.radians(inc_init)),
+            convert.au_to_pix(self.params_file["disk_model"]['r2_init'],
+                              self.pixscale,
+                              self.distance) +
+            noise_out_scaling / np.cos(np.radians(inc_init)),
+            aligned_center=mask_center)
+        
         mask2generatedisk = 1 - mask_disk_zeros
+
+        mask4noisemap = 1 - mask_noise_zeros
 
 
         ### a few lines to create a circular central mask to hide center regions with a lot
@@ -167,9 +185,13 @@ class FreeFormDisk:
         mask2generatedisk[np.where(mask2generatedisk > 0.5)] = 1
 
         self.mask2generatedisk = mask2generatedisk
+        self.mask4noisemap = mask4noisemap
 
         fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
                      mask2generatedisk, overwrite=True)
+        
+        fits.writeto(f"{save_mask_part}_mask4noisemap.fits",
+                     mask4noisemap, overwrite=True)
         return mask2generatedisk
 
     def initialize_diskfm(self, dataset, model_init):
@@ -225,11 +247,15 @@ class FreeFormDisk:
         path_rd = os.path.join(self.klipdir, f"{self.file_prefix}-klipped-KLmodes-all.fits")
         reduced_data = fits.getdata(path_rd)
 
-        reduced_data_masked = reduced_data * self.mask2generatedisk
-        
-        saveto_masked = os.path.join(self.klipdir, f"{self.file_prefix}_masked_data.fits")
+        reduced_disk_masked = reduced_data * self.mask2generatedisk
 
-        save_fits(saveto_masked, reduced_data_masked)
+        reduced_noise_masked = reduced_data * self.mask4noisemap
+        
+        saveto_masked_data = os.path.join(self.klipdir, f"{self.file_prefix}_masked_data.fits")
+        saveto_masked_noise = os.path.join(self.klipdir, f"{self.file_prefix}_use4noisemap.fits")
+
+        save_fits(saveto_masked_data, reduced_disk_masked)
+        save_fits(saveto_masked_noise, reduced_noise_masked)
 
         model_fm_init = self.single_fm(np.asarray(model_convolved))
 
@@ -238,9 +264,12 @@ class FreeFormDisk:
         save_fits(model_fm_saveto, model_fm_init)
 
         sys.stdout = sys.__stdout__
-        # reduced_data = fits.getdata(os.path.join(self.klipdir,
-        #                                         self.file_prefix + '-klipped-KLmodes-all.fits'))[0]
-        # self.reduced_data = reduced_data
+        
+        # Make the noisemap now, to inspect after initialization in case changes need to occur
+        noise_map = self.make_noise_map_rings(reduced_data_no_disk=reduced_noise_masked)
+
+        noise_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_noisemap.fits")
+        fits.writeto(noise_saveto, noise_map, overwrite=True)
 
     def single_fm(self, model_image):
         # Refresh the windFM object
@@ -260,4 +289,24 @@ class FreeFormDisk:
 
 
         return model_fm
+    
+    def make_noise_map_rings(self, reduced_data_no_disk, delta_radii=1):
+        if len(reduced_data_no_disk.shape) > 2:
+            reduced_data_no_disk = np.squeeze(reduced_data_no_disk)
+        h, w = reduced_data_no_disk.shape
+        image_center = (h / 2 - 0.5, w / 2 - 0.5)
+        # print('Generating noise cube...')
+        # nodisk_data[nodisk_data != nodisk_data] = 0
+        # create rho2D for the rings
+        x = np.arange(h, dtype=np.float64)[None, :] - image_center[0]
+        y = np.arange(w, dtype=np.float64)[:, None] - image_center[1]
+        rho2d = np.sqrt(x**2 + y**2)
+
+        noise_map = np.zeros((h, w))
+        for i_ring in range(0,
+                            int(np.floor(image_center[0] / delta_radii)) - 2):
+            wh_rings = (rho2d >= i_ring * delta_radii) & (rho2d < (i_ring + 1) * delta_radii)
+            noise_map[wh_rings] = np.nanstd(reduced_data_no_disk[wh_rings])
+        
+        return noise_map
 

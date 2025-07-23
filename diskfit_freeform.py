@@ -205,9 +205,10 @@ def convolve_model_lax(input_model, psf):
 
 
 @partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI"])
-def loss_function(mod_pix_params, disk_image, psf, ref_model_ps, aligned_images,
-                  ref_psfs_stacked, PAs, ref_PAs, fixed_refs, mask_indices,
-                  section_inds_arr, klmodes_stacked, evals, evecs_stacked,
+def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
+                  aligned_images, ref_psfs_stacked, PAs, ref_PAs,
+                  fixed_refs, mask_indices, section_inds_arr,
+                  klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
@@ -292,7 +293,7 @@ def loss_function(mod_pix_params, disk_image, psf, ref_model_ps, aligned_images,
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
     # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
-    mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image))
+    mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image) / noise_map)
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
@@ -304,11 +305,13 @@ def loss_function(mod_pix_params, disk_image, psf, ref_model_ps, aligned_images,
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
-def optimize_model(target_image, model_init, ref_ps, mask_indices,
+def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                    psf, basis_data, total_pixels, num_steps, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
+
+    jax_noise_map = jnp.array(noise_map)
 
     # Initialize the initial image
     image_params = model_init
@@ -366,8 +369,8 @@ def optimize_model(target_image, model_init, ref_ps, mask_indices,
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, jax_target_image, psf, ref_ps,
-                                    aligned_image_sections, ref_psfs_sections,
+        loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
+                                    ref_ps, aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
                                     mask_indices, section_inds,
                                     klmodes_sections, evals, evecs, total_pixels, mode)
@@ -441,6 +444,9 @@ def main(config, num_iterations, init_model):
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))[0]
     reduced_data[reduced_data != reduced_data] = 0.
 
+    noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
+    noise_map_flat = noise_map.flatten()
+
     mask2generate_indices = jnp.flatnonzero(jnp.array(mask2generatedisk))[jnp.newaxis, :]
     
     total_pixels = np.prod(reduced_data.shape)
@@ -462,6 +468,8 @@ def main(config, num_iterations, init_model):
     init_model_flat = init_model.reshape(init_model.shape[0] * init_model.shape[1])
     init_model_interest = init_model_flat[mask2generate_indices]
 
+    noise_interest = noise_map_flat[mask2generate_indices]
+
     # print(INIT_MODEL_INTEREST.shape)
 
     # plt.imshow(STARTING_DISK,origin="lower")
@@ -470,6 +478,7 @@ def main(config, num_iterations, init_model):
     # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_ps=ps_ref_model,
+                                                   noise_map=noise_interest,
                                                    mask_indices=mask2generate_indices,
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
