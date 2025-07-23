@@ -122,7 +122,7 @@ def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
     """
     H, W = dimensions
     if center is None:
-        center = (H / 2, W / 2)
+        center = (H / 2 - 0.5, W / 2 - 0.5)
     
     # Create coordinate grid
     y, x = np.indices((H, W))
@@ -464,19 +464,23 @@ def main(config, num_iterations, init_model):
     # plt.show()
     # For 3 models, shape is e.g. (3, 50176)
 
-    reduced_data_flat = reduced_data.flatten()
-    reduced_flat_interest = reduced_data_flat[mask2generate_indices]
 
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
     annular_mask = make_annular_mask(disk_mask.shape, 10, 112)
+    disk_mask *= annular_mask
+    disk_mask[disk_mask != disk_mask] = 0.
+    disk_mask_indices = jnp.flatnonzero(disk_mask)
 
+    reduced_data_flat = reduced_data.flatten()
+    reduced_flat_interest = reduced_data_flat[disk_mask_indices]
     # STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
-    model_firstguess *= mask2generatedisk
+    # model_firstguess *= mask2generatedisk
+    model_firstguess *= disk_mask
     init_model = jnp.array(model_firstguess)
     init_model_flat = init_model.reshape(init_model.shape[0] * init_model.shape[1])
-    init_model_interest = init_model_flat[mask2generate_indices]
+    init_model_interest = init_model_flat[disk_mask_indices]
 
-    noise_interest = noise_map_flat[mask2generate_indices]
+    noise_interest = noise_map_flat[disk_mask_indices]
 
     # print(INIT_MODEL_INTEREST.shape)
 
@@ -487,7 +491,8 @@ def main(config, num_iterations, init_model):
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_ps=ps_ref_model,
                                                    noise_map=noise_interest,
-                                                   mask_indices=mask2generate_indices,
+                                                #    mask_indices=mask2generate_indices,
+                                                   mask_indices=disk_mask_indices,
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
                                                    num_steps=num_iterations,
