@@ -382,7 +382,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         image_params, opt_state, loss = step(image_params, opt_state)
         loss_history.append(loss.item())
 
-        if step_idx % round(num_steps / 100) == 0:
+        if step_idx % round(num_steps / 10) == 0:
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
@@ -445,6 +445,7 @@ def main(config, num_iterations, init_model):
     reduced_data[reduced_data != reduced_data] = 0.
 
     noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
+    noise_map += 1. #get rid of any zeros
     noise_map_flat = noise_map.flatten()
     noise_map_flat[noise_map_flat != noise_map_flat] = 1.
 
