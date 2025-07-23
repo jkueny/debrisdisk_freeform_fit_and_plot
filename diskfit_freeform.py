@@ -446,6 +446,7 @@ def main(config, num_iterations, init_model):
 
     noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
     noise_map_flat = noise_map.flatten()
+    noise_map_flat[noise_map_flat != noise_map_flat] = 1.
 
     mask2generate_indices = jnp.flatnonzero(jnp.array(mask2generatedisk))[jnp.newaxis, :]
     
