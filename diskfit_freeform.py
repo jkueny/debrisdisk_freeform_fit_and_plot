@@ -72,7 +72,12 @@ from optax.losses import huber_loss
 REG_LAMBDA = 1.
 
 def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=REG_LAMBDA):
-    # Compute where freeform power exceeds math model power
+    '''
+    We have an ideal scattered light disk model from a prior MCMC analysis.
+
+    We can use this as a power spectrum reference to penalize high spatial frequencies.
+    '''
+    # Compute where freeform power exceeds ref model power
     excess_mask = model_ps > ref_model_ps
     excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
 
@@ -293,7 +298,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
     # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
-    mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image) / noise_map**2)
+    raw_loss = (freeform_fm_interest - disk_image) / noise_map
+    mse = jnp.mean(huber_loss(raw_loss, 0.))
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
