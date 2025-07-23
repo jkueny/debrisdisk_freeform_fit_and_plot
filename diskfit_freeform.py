@@ -293,7 +293,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
     # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
-    mse = jnp.mean(huber_loss(freeform_fm_interest, disk_image) / noise_map)
+    mse = jnp.sum(huber_loss(freeform_fm_interest, disk_image) / noise_map)
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
