@@ -77,7 +77,7 @@ def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=REG_LAMBDA):
     excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
 
     # Return total excess as a scalar penalty
-    penalty = jnp.sum(excess_power)
+    penalty = jnp.mean(excess_power)
     return reg_lambda * penalty
 
 def fft_power_spectrum(image):
