@@ -78,11 +78,13 @@ def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=REG_LAMBDA):
     We can use this as a power spectrum reference to penalize high spatial frequencies.
     '''
     # Compute where freeform power exceeds ref model power
-    excess_mask = model_ps > ref_model_ps
-    excess_power = jnp.where(excess_mask, model_ps - ref_model_ps, 0.0)
+    excess_mask = model_ps > (ref_model_ps)
+    excess_power = jnp.where(excess_mask, 
+                             model_ps - ref_model_ps, #grab power at high freqs
+                             0.0) #zero everything else
 
     # Return total excess as a scalar penalty
-    penalty = jnp.sum(excess_power)
+    penalty = jnp.mean(excess_power)
     return reg_lambda * penalty
 
 def fft_power_spectrum(image):
@@ -497,7 +499,8 @@ def main(config, num_iterations, init_model):
                                                    total_pixels=total_pixels,
                                                    num_steps=num_iterations,
                                                    )
-    optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
+    # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
+    optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
     optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
