@@ -135,8 +135,8 @@ def save_ffdfit_outputs(save_dir: str,
                         model_image_opt: np.ndarray,
                         forward_model_opt: np.ndarray,
                         residuals_image: np.ndarray,
-                        hsf_regularization: float,
                         loss_history: list,
+                        hsf_regularization: float,
                         optimizer_name: str = "Optax Adam",
                         model_version: str = None):
     '''
