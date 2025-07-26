@@ -69,9 +69,8 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
-REG_LAMBDA = 1.
 
-def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=REG_LAMBDA):
+def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
     '''
     We have an ideal scattered light disk model from a prior MCMC analysis.
 
@@ -84,6 +83,7 @@ def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=REG_LAMBDA):
                              0.0) #zero everything else
 
     # Return total excess as a scalar penalty
+    # jax.debug.print("print(reg_lambda) -> {x}", x=reg_lambda)
     penalty = jnp.mean(excess_power)
     return reg_lambda * penalty
 
@@ -211,12 +211,12 @@ def convolve_model_lax(input_model, psf):
 # @jax.jit(static_argnames=["full_shape", "section_inds"])
 
 
-@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI"])
+@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"])
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                   aligned_images, ref_psfs_stacked, PAs, ref_PAs,
                   fixed_refs, mask_indices, section_inds_arr,
                   klmodes_stacked, evals, evecs_stacked,
-                  total_pixels, isRDI):
+                  total_pixels, isRDI, reg_lambda):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
         create disk
         convolve by the PSF (psf is global)
@@ -242,7 +242,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, mask_indices)
     full_model_norm = full_model_image / jnp.sum(full_model_image)
     model_ps = fft_power_spectrum(full_model_norm)
-    hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps)
+    hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=reg_lambda)
 
     # jax.debug.print("print(hsf_penalty) -> {x}", x=hsf_penalty)
 
@@ -314,7 +314,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 loss_and_grad = jax.value_and_grad(loss_function)
 
 def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
-                   psf, basis_data, total_pixels, num_steps, lr=0.1):
+                   psf, basis_data, total_pixels, num_steps, reg_lambda, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image)
@@ -381,7 +381,8 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                                     ref_ps, aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
                                     mask_indices, section_inds,
-                                    klmodes_sections, evals, evecs, total_pixels, mode)
+                                    klmodes_sections, evals, evecs, total_pixels,
+                                    mode, reg_lambda)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
@@ -400,7 +401,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     optimized_model = image_params
     return optimized_model, loss_history
 
-def main(config, num_iterations, init_model):
+def main(config, num_iterations, init_model, reg_lambda=1.):
     # Grab the info from the yaml file
 
     # if MODE.upper() == "ADI":
@@ -498,6 +499,7 @@ def main(config, num_iterations, init_model):
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
                                                    num_steps=num_iterations,
+                                                   reg_lambda=reg_lambda,
                                                    )
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
@@ -547,15 +549,22 @@ if __name__ == "__main__":
         str_yaml_prefix = str_yaml.split("/")[-1]
         save_to_dir = str_yaml_prefix.split(".")[0]
 
+    # print(args.reg)
     if args.reg is not None:
-        REG_LAMBDA = args.reg
+        main(config=str_yaml,
+            num_iterations=args.iterations,
+            init_model=args.initial_model,
+            reg_lambda=args.reg
+            )
+    else:
+        main(config=str_yaml,
+            num_iterations=args.iterations,
+            init_model=args.initial_model,
+            )
     # print("Read " + str_yaml + " parameter file")
     # # open the parameter file
     # yaml_path_file = os.path.join(os.getcwd(), str_yaml)
     # with open(yaml_path_file, 'r') as yaml_file:
     #     yaml_cfg = yaml.safe_load(yaml_file)
 
-    main(config=str_yaml,
-         num_iterations=args.iterations,
-         init_model=args.initial_model)
     
