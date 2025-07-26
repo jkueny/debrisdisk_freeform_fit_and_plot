@@ -93,7 +93,7 @@ def fft_power_spectrum(image):
     """
     fft = jnp.fft.fftshift(jnp.fft.fft2(image))
     power = jnp.abs(fft) ** 2
-    return power
+    return power #TODO the sum of this should be the variance of the mean-subbed image (Parseval's theorem)
 
 # jax.config.update("jax_enable_x64", True)
 
@@ -305,7 +305,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
-    return mse + hsf_penalty
+    return mse + hsf_penalty #counts**2 units for both (kinda)
 
 
 
@@ -501,6 +501,7 @@ def main(config, num_iterations, init_model):
                                                    )
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
+    optimized_model = np.roll(optimized_model, (-1,-1))
     optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
