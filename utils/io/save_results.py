@@ -135,6 +135,7 @@ def save_ffdfit_outputs(save_dir: str,
                         model_image_opt: np.ndarray,
                         forward_model_opt: np.ndarray,
                         residuals_image: np.ndarray,
+                        hsf_regularization: float,
                         loss_history: list,
                         optimizer_name: str = "Optax Adam",
                         model_version: str = None):
@@ -184,6 +185,7 @@ def save_ffdfit_outputs(save_dir: str,
     metadata = {
         "timestamp_utc": str(datetime.now()),
         "loss": float(loss_history[-1]),
+        "lambda_reg": float(hsf_regularization)
         "optimizer": optimizer_name,
         "model_version": model_version or "unknown",
         # "param_file": "bestfit_params.json",

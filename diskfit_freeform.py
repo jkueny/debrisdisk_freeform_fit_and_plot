@@ -513,7 +513,8 @@ def main(config, num_iterations, init_model):
                         optimized_model_image,
                         optimized_fm,
                         residuals,
-                        loss_history
+                        loss_history,
+                        LAMBDA_REG
                         )
 
 
