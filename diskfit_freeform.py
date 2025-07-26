@@ -516,7 +516,7 @@ def main(config, num_iterations, init_model, reg_lambda=1.):
                         optimized_fm,
                         residuals,
                         loss_history,
-                        REG_LAMBDA,
+                        reg_lambda,
                         )
 
 
