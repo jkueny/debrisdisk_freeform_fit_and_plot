@@ -501,7 +501,7 @@ def main(config, num_iterations, init_model):
                                                    )
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
-    optimized_model = np.roll(optimized_model, (-1,-1))
+    # optimized_model = np.roll(optimized_model, (-1,-1))
     optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
