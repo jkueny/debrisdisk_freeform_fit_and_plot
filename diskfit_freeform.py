@@ -300,7 +300,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 
     # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
     # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
-    raw_loss = (freeform_fm_interest - disk_image) / noise_map
+    raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
     mse = jnp.mean(huber_loss(raw_loss, 0.))
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
@@ -469,7 +469,7 @@ def main(config, num_iterations, init_model, reg_lambda=1.):
 
 
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
-    annular_mask = make_annular_mask(disk_mask.shape, 10, 112)
+    annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
     disk_mask *= annular_mask
     disk_mask[disk_mask != disk_mask] = 0.
     disk_mask_indices = jnp.flatnonzero(disk_mask)

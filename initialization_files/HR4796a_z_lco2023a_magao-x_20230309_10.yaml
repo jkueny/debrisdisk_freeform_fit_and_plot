@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: True
+FIRST_TIME: False
 FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
@@ -16,7 +16,7 @@ pyklip:
   IWA: 10 # pixels
   # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-  OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+  OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   move_here: 7  #minrot in PyKLIP ADI
   hp_filter: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
   #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
