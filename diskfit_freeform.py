@@ -58,6 +58,7 @@ from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
                                         mass_derotation
 
 
+
 from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 
@@ -69,6 +70,10 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
+fm_from_eigen_adi_jit = jax.jit(
+    fm_from_eigen_adi,
+    donate_argnums=(1,2,3,4),
+)
 
 def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
     '''
@@ -211,7 +216,8 @@ def convolve_model_lax(input_model, psf):
 # @jax.jit(static_argnames=["full_shape", "section_inds"])
 
 
-@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"])
+@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
+         donate_argnums=(3,4))
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                   aligned_images, ref_psfs_stacked, PAs, ref_PAs,
                   fixed_refs, mask_indices, section_inds_arr,
