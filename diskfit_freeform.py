@@ -290,7 +290,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     jax_noise_map = jnp.array(noise_map)
 
     # Initialize the initial image
-    image_params = model_init
+    image_params = model_init.astype(jnp.float32)
     # image_params = initialize_freeform_model_reduced()
 
     # Set up optimizer, use adaptive stochastic grad descent (Adam)
@@ -306,10 +306,11 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
     section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
     aligned_image_sections = jnp.take(aligned_image_data, section_inds[-1], axis=1, fill_value=0.)
-    aligned_image_secs_reduced = aligned_image_sections.astype(jnp.float16)
+
 
     klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
     klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
+    klmodes_secs_lite = klmodes_sections.astype(jnp.bfloat16)
 
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
     # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
@@ -319,8 +320,14 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # These are the images used for the basis for every image in the dataset.
     ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
     ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
-    ref_psfs_secs_reduced = ref_psfs_sections.astype(jnp.float16)
 
+    #lighten the memory load
+    aligned_image_secs_lite = aligned_image_sections.astype(jnp.bfloat16)
+    evals_lite = evals.astype(jnp.bfloat16)
+    evecs_lite = evecs.astype(jnp.bfloat16)
+    ref_psfs_secs_lite = ref_psfs_sections.astype(jnp.bfloat16)
+
+    PAs = jnp.array((basis_data["klparam_dict"]["PAs"]))
     ref_PAs = basis_data_unpacked["ref_PAs"]
 
     if bool(basis_data_unpacked["klparams"]["isRDI"]):
@@ -332,13 +339,12 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
-    position_angles = jnp.array((basis_data["klparam_dict"]["PAs"]))
-    aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
-                                basis_data["klparam_dict"]["aligned_center_y"]])))
+    # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
+    #                             basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
     del aligned_image_data, aligned_image_sections
-    del klmodes
+    del klmodes, evecs, evals, klmodes_sections
     del ref_psfs, ref_psfs_sections
 
     time_now = time.time()
@@ -348,10 +354,10 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     @jax.jit
     def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
-                                    ref_ps, aligned_image_secs_reduced, ref_psfs_secs_reduced,
-                                    position_angles, ref_PAs, fixed_refs,
+                                    ref_ps, aligned_image_secs_lite, ref_psfs_secs_lite,
+                                    PAs, ref_PAs, fixed_refs,
                                     mask_indices, section_inds,
-                                    klmodes_sections, evals, evecs, total_pixels,
+                                    klmodes_secs_lite, evals_lite, evecs_lite, total_pixels,
                                     mode, reg_lambda)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
