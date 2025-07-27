@@ -175,49 +175,10 @@ def convolve_model(input_model, psf):
     
     return model_convolved
 
-# @jax.jit
-def convolve_model_lax(input_model, psf):
-    """
-    Convolve a 2D input image with a 2D PSF using lax.conv_general_dilated,
-    mimicking the behavior of jax.scipy.signal.convolve2d(mode="same").
-
-    Args:
-        input_model: 2D array of shape (H, W).
-        psf: 2D array of shape (kH, kW). Should be square; if not, adjust accordingly.
-
-    Returns:
-        2D convolved image of shape (H, W).
-    """
-    # Ensure PSF is square.
-    assert psf.shape[0] == psf.shape[1], "PSF must be square."
-
-    # Expand dimensions: add a batch dimension and a channel dimension.
-    # New shape: (1, H, W, 1)
-    input_model_exp = input_model[None, ..., None]
-
-    # To perform true convolution (not cross-correlation), flip the kernel along both axes.
-    psf_flipped = jnp.flip(psf, axis=(0, 1))
-    # Expand kernel dimensions: shape (kH, kW, in_channels, out_channels)
-    psf_kernel = psf_flipped[..., None, None]
-
-    # Call the convolution primitive with stride 1 and 'SAME' padding.
-    # Using dimension_numbers 'NHWC' for inputs and outputs, and 'HWIO' for the kernel.
-    convolved = lax.conv_general_dilated(
-        input_model_exp,
-        psf_kernel,
-        window_strides=(1, 1),
-        padding="SAME",
-        dimension_numbers=('NHWC', 'HWIO', 'NHWC')
-    )
-
-    # Squeeze out the added batch and channel dimensions.
-    return jnp.squeeze(convolved, axis=(0, 3))
-
-# @jax.jit(static_argnames=["full_shape", "section_inds"])
 
 
-@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
-         donate_argnums=(5,6,12,13,14))
+# @partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
+#          donate_argnums=(5,6,12,13,14))
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                   aligned_images, ref_psfs_stacked, PAs, ref_PAs,
                   fixed_refs, mask_indices, section_inds_arr,
@@ -319,6 +280,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function)
 
+
 def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                    psf, basis_data, total_pixels, num_steps, reg_lambda, lr=0.1):
     
@@ -381,8 +343,13 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
-    @jax.jit
-    def step(image_params, opt_state):
+    def _step(image_params, jax_target_image, psf, jax_noise_map,
+              ref_ps, aligned_image_sections, ref_psfs_sections,
+              position_angles, ref_PAs, fixed_refs,
+              mask_indices, section_inds,
+              klmodes_sections, evals, evecs, total_pixels,
+              mode, reg_lambda,
+              optimizer, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
                                     ref_ps, aligned_image_sections, ref_psfs_sections,
                                     position_angles, ref_PAs, fixed_refs,
@@ -393,8 +360,25 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
     
+    step = jax.jit(_step,
+                   static_argnames=["fixed_refs",
+                                    "total_pixels",
+                                    "mode",
+                                    "reg_lambda",
+                                    "optimizer",
+                                    ],
+                    # donate_argnums=(1,2,3,5,6,12,13,14),
+                    )
     for step_idx in range(num_steps):
-        image_params, opt_state, loss = step(image_params, opt_state)
+        image_params, opt_state, loss = step(
+            image_params, jax_target_image, psf, jax_noise_map,
+            ref_ps, aligned_image_sections, ref_psfs_sections,
+            position_angles, ref_PAs, fixed_refs,
+            mask_indices, section_inds,
+            klmodes_sections, evals, evecs, total_pixels,
+            mode, reg_lambda,
+            optimizer, opt_state)
+        
         loss_history.append(loss.item())
 
         if step_idx % round(num_steps / 10) == 0:
