@@ -177,8 +177,8 @@ def convolve_model(input_model, psf):
 
 
 
-# @partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
-#          donate_argnums=(5,6,12,13,14))
+@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
+         donate_argnums=(5,6,12,13,14))
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                   aligned_images, ref_psfs_stacked, PAs, ref_PAs,
                   fixed_refs, mask_indices, section_inds_arr,
@@ -306,6 +306,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
     section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
     aligned_image_sections = jnp.take(aligned_image_data, section_inds[-1], axis=1, fill_value=0.)
+    aligned_image_secs_reduced = aligned_image_sections.astype(jnp.float16)
 
     klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
     klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
@@ -318,6 +319,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # These are the images used for the basis for every image in the dataset.
     ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
     ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
+    ref_psfs_secs_reduced = ref_psfs_sections.astype(jnp.float16)
 
     ref_PAs = basis_data_unpacked["ref_PAs"]
 
@@ -335,23 +337,18 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
     # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
 
-    del aligned_image_data
+    del aligned_image_data, aligned_image_sections
     del klmodes
-    del ref_psfs
+    del ref_psfs, ref_psfs_sections
 
     time_now = time.time()
     # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
-    def _step(image_params, jax_target_image, psf, jax_noise_map,
-              ref_ps, aligned_image_sections, ref_psfs_sections,
-              position_angles, ref_PAs, fixed_refs,
-              mask_indices, section_inds,
-              klmodes_sections, evals, evecs, total_pixels,
-              mode, reg_lambda,
-              optimizer, opt_state):
+    @jax.jit
+    def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
-                                    ref_ps, aligned_image_sections, ref_psfs_sections,
+                                    ref_ps, aligned_image_secs_reduced, ref_psfs_secs_reduced,
                                     position_angles, ref_PAs, fixed_refs,
                                     mask_indices, section_inds,
                                     klmodes_sections, evals, evecs, total_pixels,
@@ -359,25 +356,9 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
-    
-    step = jax.jit(_step,
-                   static_argnames=["fixed_refs",
-                                    "total_pixels",
-                                    "mode",
-                                    "reg_lambda",
-                                    "optimizer",
-                                    ],
-                    # donate_argnums=(1,2,3,5,6,12,13,14),
-                    )
+
     for step_idx in range(num_steps):
-        image_params, opt_state, loss = step(
-            image_params, jax_target_image, psf, jax_noise_map,
-            ref_ps, aligned_image_sections, ref_psfs_sections,
-            position_angles, ref_PAs, fixed_refs,
-            mask_indices, section_inds,
-            klmodes_sections, evals, evecs, total_pixels,
-            mode, reg_lambda,
-            optimizer, opt_state)
+        image_params, opt_state, loss = step(image_params, opt_state)
         
         loss_history.append(loss.item())
 
