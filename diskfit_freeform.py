@@ -72,7 +72,7 @@ from optax.losses import huber_loss
 
 fm_from_eigen_adi_jit = jax.jit(
     fm_from_eigen_adi,
-    donate_argnums=(1,2,3,4),
+    donate_argnums=(1,2,3,4,5,6),
 )
 
 def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
@@ -217,7 +217,7 @@ def convolve_model_lax(input_model, psf):
 
 
 @partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
-         donate_argnums=(3,4))
+         donate_argnums=(5,6,12,13,14))
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                   aligned_images, ref_psfs_stacked, PAs, ref_PAs,
                   fixed_refs, mask_indices, section_inds_arr,
