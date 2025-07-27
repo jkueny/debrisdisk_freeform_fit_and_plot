@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: False
+FIRST_TIME: True
 FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
@@ -60,7 +60,7 @@ disk_model:
   beta_init: 12.3
   a_r_init: 0.01
   inc_init: 76.8 #trying 45. init for the mask2minimize
-  pa_init: 24.9
+  pa_init: 24.5
   dx_init: -4.2
   dy_init: 1.5
   N_init: 895.2
@@ -109,8 +109,8 @@ CONV_FACTOR: 2.4693741506195597e-07 # Jy
 
 mask:
   # MASKING PARAMETERS
-  in_scaling: 7 #bigger means shrink inner bound
-  out_scaling: 7 #bigger means expand outer bound
+  in_scaling: 3 #bigger means shrink inner bound
+  out_scaling: 6 #bigger means expand outer bound
   speckles: 10 #central circle mask
   # Make a tight mask for the noisemap calculation
   noise_in: 3
