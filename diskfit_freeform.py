@@ -236,7 +236,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                                                                 isRDI=isRDI
                                                                 )
         
-        flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
+        flat_postklip_psfs = jax.vmap(fm_from_eigen_adi_jit
                             )(aligned_images, ref_psfs_stacked,
                                 global_models_prepped,ref_models_stacked,
                                 klmodes_stacked, evals, evecs_stacked,
