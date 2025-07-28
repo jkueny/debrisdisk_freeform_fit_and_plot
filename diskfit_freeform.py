@@ -285,9 +285,9 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                    psf, basis_data, total_pixels, num_steps, reg_lambda, lr=0.1):
     
     # dimension = img_dim
-    jax_target_image = jnp.array(target_image)
+    jax_target_image = jnp.array(target_image).astype(jnp.bfloat16)
 
-    jax_noise_map = jnp.array(noise_map)
+    jax_noise_map = jnp.array(noise_map).astype(jnp.bfloat16)
 
     # Initialize the initial image
     image_params = model_init.astype(jnp.float32)
