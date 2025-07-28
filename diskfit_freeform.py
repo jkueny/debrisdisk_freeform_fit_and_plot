@@ -20,7 +20,8 @@ import sys
 # import copy
 import argparse
 
-
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.5"
 
 basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
 # your data (using OS environnement variable allow to use same code on
@@ -63,7 +64,6 @@ from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 
 import jax
-from jax import lax
 import jax.numpy as jnp
 # import jax.profiler
 from jax.scipy.signal import fftconvolve

@@ -3,8 +3,6 @@
 import numpy as np
 import jax
 import jax.numpy as jnp
-from jax.scipy.ndimage import map_coordinates
-import jax.lax as lax
 
 from dev.pyklip.j_klip import rotate_image
 
