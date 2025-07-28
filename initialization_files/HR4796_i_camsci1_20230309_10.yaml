@@ -1,68 +1,48 @@
 # PYKLIP PARAMETERS
 FIRST_TIME: False
-FIRST_TIME_GS: True #first time doing pyklip gridsearch, for SNR analysis mask check
+FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
-MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
-DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
-# KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 2 # number of KL modes used in the reduction < nb images in the basis
-ANNULI: 1 # number of annuli in the KLIP reduction
-# IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-IWA: 12 # pixels
-# OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-# OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-# OWA: 48 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-OWA: 68 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-MOVE_HERE: 10  #minrot in PyKLIP ADI
-HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
-#use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
-# ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
-ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
+pyklip:
+  mode: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
+  do_rdi_correlation: False # Measure the correlation matrix of the RDI PSF lib. Very long.
+  # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
+  klmode_number: 8 # number of KL modes used in the reduction < nb images in the basis
+  annuli: 1 # number of annuli in the KLIP reduction
 
-#  In the KLIP do you want to remove the images where the disk is on the satspots 
-# if True: frames are removed
-# if False: frames are not removed
-RM_FILE_DISK_CROSS_SATSPOTS: False 
-# The images where the disk is on the satspots are autonatically remove to measure the PSF
-INSTRUMENT: MagAO-X  # SPHERE or GPI
+  # KLIP params optimized for ctrl region speckles, minor axis, 2x2 binning, 08/04/24 JKK
+  # Fixing minrot to 6, bc minor axis flux optimization favors
+  # very high minrot, outer disk suffers greatly, harder to subtract artifacts.
+  IWA: 10 # pixels
+  # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+  # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+  OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+  move_here: 14  #minrot in PyKLIP ADI
+  hp_filter: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
+  #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
+  # ALIGNED_CENTER: [112.5,112.5]  #image center in your model, also use to center the image before KLIP
+  aligned_center: [111.5,111.5] #image center in your model, also use to center the image before KLIP
+
+
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
-RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
+band_dir: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
-FILE_PREFIX: camsci1_i_20230309_10 #prefix for all saved files (carefull not to erase your results)
-BAND_NAME: 2023 Mar 9, $i'$ band #for plot titles uniquely
-WIND_LOOKUP_PREFIX: camwfs_20230309_10_wind_lookup.csv
+file_prefix: camsci1_i_20230309_10 #prefix for all saved files (carefull not to erase your results)
+rdi_dir: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 
-METADATA:
+
+
+metadata:
+  instrument: MagAO-X  # SPHERE or GPI
+  band_name: 2023 Mar 9, $z'$ band #for plot titles uniquely
   # STAR OBSERVATION PARAMETERS
-  DISTANCE_STAR: 72.8   #distance of the disk in pc
-  PIXSCALE_INS: 0.012  #picscale of your data
-  WL: 0.762 #wavelength in microns
-  FILTER_NAME: $i'$
-  PRIM_MIRR_SZ: 6.5 #meters
+  distance_star: 72.8   #distance of the disk in pc
+  pixscale_ins: 0.012  #picscale of your data
+  wl: 0.908 #wavelength in microns
+  filter_name: $z'$
+  prim_mirror_sz: 6.5 #meters
 
-# GRIDSEARCH PARAMS
-GRIDSEARCH_DIR: pyklip_reduced
-IWA_MIN: 5
-IWA_MAX: 16
-MINROT_MIN: 10
-MINROT_MAX: 18
-PARANG_MIN: 72
-PARANG_MAX: 88
-HP_MIN: 0
-HP_MAX: 0
-
-# MCMC PARAMETERS
-NEW_BACKEND: True
-#if NEW_BACKEND=0, reset the backend, if not, start where you stopped
-NWALKERS: 100 #Number of walkers (should be at least twice the # parameters)
-#~530 iter w/ 94 cpus in 24 hr
-N_ITER_MCMC: 3000 #Number of interation
-NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
-USE_NOISE: False
-# There is no burn-in phase here, the burnin only intervened when reading the data
 
 # INITIAL MODEL PARAMETERS
 disk_model:
@@ -74,7 +54,7 @@ disk_model:
   beta_init: 14.8
   a_r_init: 0.015
   inc_init: 76.6 #trying 45. init for the mask2minimize
-  pa_init: 24.9
+  pa_init: 24.5
   dx_init: -4.8
   dy_init: 1.4
   N_init: 609.33
@@ -155,20 +135,21 @@ STAR_FLUX_DENSITY: 12.729412304271893 # Jy
 CONV_FACTOR: 1.6192783494243498e-07 # Jy / Ang.
 
 
-# MASKING PARAMETERS
-MASK:
-  IN_SCALING: 28 #bigger means shrink inner bound, nominally 4
-  OUT_SCALING: 7 #bigger means expand outer bound, nominally 6
-  SPECKLES: 12 #central circle mask
-  MINOR: 68 #OWA to isolate minor axis
-  DX: 0
-  DY: -3
+mask:
+  # MASKING PARAMETERS
+  in_scaling: 2 #bigger means shrink inner bound
+  out_scaling: 6 #bigger means expand outer bound
+  speckles: 10 #central circle mask
   # Make a tight mask for the noisemap calculation
-  MASK_NOISE_IN: 3
-  MASK_NOISE_OUT: 3
+  noise_in: 2
+  noise_out: 3
+  minor: 81 #OWA to isolate minor axis
+  dx: 0
+  dy: -3.6
+
 noise:
-  DELTA_RADII: 1 #width of noisemap rings
-# Fit only half the disk at a time
+  use: true
+  delta_radii: 1 #width of noisemap rings
 
 
 DISK_MIN_SC_ANG: 13 #degrees, the geometry of the disk scattering

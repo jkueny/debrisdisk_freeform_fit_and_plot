@@ -296,7 +296,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # Set up optimizer, use adaptive stochastic grad descent (Adam)
     optimizer = optax.adam(lr)
     # initialize the internal state to track 1st and 2nd moments of the gradients
-    opt_state =  optimizer.init(image_params) #this is all zeros initially
+    opt_state =  optimizer.init(image_params).astype(jnp.float32) #this is all zeros initially
 
     loss_history = []
 
