@@ -20,9 +20,6 @@ import sys
 # import copy
 import argparse
 
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.5"
-
 basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
 # your data (using OS environnement variable allow to use same code on
 # different computer without changing this).
