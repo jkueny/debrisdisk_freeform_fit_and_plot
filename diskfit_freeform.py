@@ -378,9 +378,10 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     optimized_model = image_params
     return optimized_model, loss_history
 
-def main(config, num_iterations, init_model, reg_lambda=1.):
+def main(config, num_iterations, init_model, reg_lambda, first_time):
     # Grab the info from the yaml file
-
+    if reg_lambda is None: #default
+        reg_lambda = 1.
     # if MODE.upper() == "ADI":
     #     mode = 0
     # elif MODE.upper() == "RDI":
@@ -412,8 +413,7 @@ def main(config, num_iterations, init_model, reg_lambda=1.):
     # measure the size of images DIMENSION and make it global
 
 
-
-    if ffd_obj.params_file["FIRST_TIME"]:
+    if ffd_obj.params_file["FIRST_TIME"] or bool(first_time):
         # initialize_diskfm and make diskobj global
         dataset = ffd_obj.prep_dataset()
         
@@ -518,6 +518,12 @@ if __name__ == "__main__":
                         type=float,
                         required=False,
                         help='Regularization factor')
+    parser.add_argument(
+                        '--first-time',
+                        action="store_true",
+                        required=False,
+                        # default=False,
+                        help='Startup procedure only')
     args = parser.parse_args()
     if args.param_file is None: #grab param file if no command line input, JKK
         str_yaml = f'initialization_files/{default_parameter_file}'
@@ -527,17 +533,13 @@ if __name__ == "__main__":
         save_to_dir = str_yaml_prefix.split(".")[0]
 
     # print(args.reg)
-    if args.reg is not None:
-        main(config=str_yaml,
-            num_iterations=args.iterations,
-            init_model=args.initial_model,
-            reg_lambda=args.reg
-            )
-    else:
-        main(config=str_yaml,
-            num_iterations=args.iterations,
-            init_model=args.initial_model,
-            )
+    main(config=str_yaml,
+        num_iterations=args.iterations,
+        init_model=args.initial_model,
+        reg_lambda=args.reg,
+        first_time=args.first_time,
+        )
+
     # print("Read " + str_yaml + " parameter file")
     # # open the parameter file
     # yaml_path_file = os.path.join(os.getcwd(), str_yaml)
