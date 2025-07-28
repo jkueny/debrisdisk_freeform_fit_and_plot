@@ -70,10 +70,10 @@ from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
 
-fm_from_eigen_adi_jit = jax.jit(
-    fm_from_eigen_adi,
-    donate_argnums=(1,2,3,4,5,6),
-)
+# fm_from_eigen_adi_jit = jax.jit(
+#     fm_from_eigen_adi,
+#     donate_argnums=(1,2,3,4,5,6),
+# )
 
 def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
     '''
@@ -236,7 +236,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                                                                 isRDI=isRDI
                                                                 )
         
-        flat_postklip_psfs = jax.vmap(fm_from_eigen_adi_jit
+        flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
                             )(aligned_images, ref_psfs_stacked,
                                 global_models_prepped,ref_models_stacked,
                                 klmodes_stacked, evals, evecs_stacked,
