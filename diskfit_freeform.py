@@ -3,9 +3,6 @@ Fit a pixel-by-pixel freeform model disk to a KLIP reduced image.
 
 Using JAX.
 
-To prepare, need to normalize the image data bc we're doing this exercise
-just to learn the dust morphology of the disk such that we can fit functions
-to it later.
 
 Steps to develop:
 1. Generate the KLIP image and save the basis for DiskFM.
@@ -17,7 +14,6 @@ optimizer function.
 
 import os
 import sys
-# import copy
 import argparse
 
 basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
@@ -323,7 +319,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         fixed_refs = klmodes.shape[1]
         mode = 1
     elif not bool(basis_data_unpacked["klparams"]["isRDI"]):
-        fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number
+        fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number smaller than N_images
         mode = 0
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
@@ -357,8 +353,8 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         
         loss_history.append(loss.item())
 
-        # if step_idx % round(num_steps / 10) == 0:
-        #     print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+        if step_idx % round(num_steps / 10) == 0:
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
@@ -371,18 +367,15 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     # Grab the info from the yaml file
     if reg_lambda is None: #default
         reg_lambda = 1.
-    # if MODE.upper() == "ADI":
-    #     mode = 0
-    # elif MODE.upper() == "RDI":
-    #     mode = 1
+
+    # Initialize the freeform disk object
     ffd_obj = FreeFormDisk(config)
 
+    # define needed variables
     klipdir = ffd_obj.klipdir
     resultsdir = ffd_obj.resultsdir
-    file_prefix = ffd_obj.file_prefix
+    file_prefix = ffd_obj.file_prefix # Ex. camsci1_i_20230309_10
     aligned_center = ffd_obj.aligned_center
-    mode = ffd_obj.mode
-
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
     mask2generatedisk = ffd_obj.prep_binary_masks()
 
@@ -458,6 +451,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
                                                    num_steps=num_iterations,
                                                    reg_lambda=reg_lambda,
                                                    )
+    # Let's save what pyklip params were used with the outputs
     pyklip_params_dict = record_pyklip_params(ffd_obj.numbasis,
                                               ffd_obj.iwa,
                                               ffd_obj.owa,
@@ -467,7 +461,9 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
     # optimized_model = np.roll(optimized_model, (-1,-1))
+
     optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
+
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
     residuals = np.asarray(reduced_data - optimized_fm)

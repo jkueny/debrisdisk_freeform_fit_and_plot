@@ -421,6 +421,7 @@ def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
     postklip_psf, _, _ = calculate_fm(delta_KL, klmodes,
                                       sci_data, model_disk_sci)
 
+    # TODO figure out why this flip across x is needed
     postklip_psf_corrected = jnp.flip(postklip_psf, axis=1)
     # postklip_psf_corrected = postklip_psf
     # Save the rotated section.
