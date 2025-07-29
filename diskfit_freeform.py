@@ -12,7 +12,7 @@ Steps to develop:
 2. Read in and save the instr. PSF to use for the FM.
 3. Generate an image of random numbers as an intial guess and feed it to the
 optimizer function.
-4. 
+4. ????
 '''
 
 import os
@@ -41,10 +41,7 @@ from functools import partial
 import numpy as np
 
 import astropy.io.fits as fits
-# from astropy.convolution import convolve
-# from scipy.signal import convolve
-# from scipy.signal import fftconvolve
-# import matplotlib.pyplot as plt
+
 
 
 from modeling.disk_freeform import FreeFormDisk
@@ -62,7 +59,6 @@ from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 import jax
 import jax.numpy as jnp
-# import jax.profiler
 from jax.scipy.signal import fftconvolve
 import optax
 from optax.losses import huber_loss
@@ -137,6 +133,17 @@ def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
     mask = np.where((r >= inner_radius) & (r <= outer_radius), 1, 0)
     return mask
 
+def record_pyklip_params(n_klmodes, iwa, owa, minrot, centering):
+    params = {}
+
+    params["n_KLmodes"] = n_klmodes
+    params["IWA"] = iwa
+    params["OWA"] = owa
+    params["minrot"] = minrot
+    params["aligned_center"] = centering
+
+    return params
+
 
 def reconstruct_full_image(free_params, total_pixels, mask_indices):
     """
@@ -210,20 +217,10 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 
     # jax.debug.print("print(hsf_penalty) -> {x}", x=hsf_penalty)
 
-    # freeform_model = jax.nn.sigmoid(mod_pix_params)
-    # freeform_model = jax.nn.sigmoid(full_model_image)
 
     freeform_image = convolve_model(full_model_image, psf)
-    # freeform_image = convolve_model_lax(full_model_image, psf)
-    # freeform_image = full_model_image
 
 
-    # confirmed shape of model_images_prepped (84, 50176)
-    # flat_postklip_psfs = fm_jaxed(aligned_images,
-    #                        global_models_prepped,
-    #                        ref_models_stacked, ref_psfs_stacked,
-    #                        klmodes_stacked, evals, evecs_stacked,
-    #                        PAs)
     if not isRDI:
         global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
                                                                 PAs=PAs, ref_PAs=ref_PAs,
@@ -238,7 +235,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                                 global_models_prepped,ref_models_stacked,
                                 klmodes_stacked, evals, evecs_stacked,
                                 )
-    elif isRDI:
+    elif isRDI: #currently not working with RDI datasets, but the option is here
         global_models_prepped = update_disk(model_disk=freeform_image,
                                             PAs=PAs, ref_PAs=ref_PAs,
                                             # aligned_center=aligned_center,
@@ -259,17 +256,12 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     freeform_fm_flat = jnp.reshape(freeform_fm_full, psf.shape[0] * psf.shape[1])
     freeform_fm_interest = freeform_fm_flat[mask_indices]
 
-    # freeform_fm_interest = jnp.where(MASK, freeform_fm_full, jnp.nan)
-    # disk_image_interest = jnp.where(MASK, disk_image, jnp.nan)
-
-    # mse = jnp.nanmean((disk_image_interest - freeform_fm_interest) ** 2)
-    # mse = jnp.mean((disk_image - freeform_fm_interest) ** 2)
     raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
-    mse = jnp.mean(huber_loss(raw_loss, 0.))
+    mean_huber = jnp.mean(huber_loss(raw_loss, 0.))
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
 
-    return mse + hsf_penalty #counts**2 units for both (kinda)
+    return mean_huber + hsf_penalty #counts**2 units for both (kinda)
 
 
 
@@ -282,9 +274,9 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                    psf, basis_data, total_pixels, num_steps, reg_lambda, lr=0.1):
     
     # dimension = img_dim
-    jax_target_image = jnp.array(target_image).astype(jnp.bfloat16)
+    jax_target_image = jnp.array(target_image).astype(jnp.float32)
 
-    jax_noise_map = jnp.array(noise_map).astype(jnp.bfloat16)
+    jax_noise_map = jnp.array(noise_map).astype(jnp.float32)
 
     # Initialize the initial image
     image_params = model_init.astype(jnp.float32)
@@ -307,7 +299,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
 
     klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
     klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
-    klmodes_secs_lite = klmodes_sections.astype(jnp.bfloat16)
+    klmodes_secs_lite = klmodes_sections.astype(jnp.float32)
 
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
     # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
@@ -319,10 +311,10 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
 
     #lighten the memory load
-    aligned_image_secs_lite = aligned_image_sections.astype(jnp.bfloat16)
-    evals_lite = evals.astype(jnp.bfloat16)
-    evecs_lite = evecs.astype(jnp.bfloat16)
-    ref_psfs_secs_lite = ref_psfs_sections.astype(jnp.bfloat16)
+    aligned_image_secs_lite = aligned_image_sections.astype(jnp.float32)
+    evals_lite = evals.astype(jnp.float32)
+    evecs_lite = evecs.astype(jnp.float32)
+    ref_psfs_secs_lite = ref_psfs_sections.astype(jnp.float32)
 
     PAs = jnp.array((basis_data["klparam_dict"]["PAs"]))
     ref_PAs = basis_data_unpacked["ref_PAs"]
@@ -365,8 +357,8 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         
         loss_history.append(loss.item())
 
-        if step_idx % round(num_steps / 10) == 0:
-            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+        # if step_idx % round(num_steps / 10) == 0:
+        #     print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
 
     # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
@@ -436,10 +428,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     
     total_pixels = np.prod(reduced_data.shape)
 
-    # model_mask_indices = jnp.vstack((mask_indices, mask_indices, mask_indices))
-    # plt.imshow(reduced_data * mask2minimize, origin="lower")
-    # plt.show()
-    # For 3 models, shape is e.g. (3, 50176)
 
 
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
@@ -459,12 +447,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
     noise_interest = noise_map_flat[disk_mask_indices]
 
-    # print(INIT_MODEL_INTEREST.shape)
 
-    # plt.imshow(STARTING_DISK,origin="lower")
-    # plt.colorbar()
-    # plt.show()
-    # sys.exit()
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_ps=ps_ref_model,
                                                    noise_map=noise_interest,
@@ -475,6 +458,12 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
                                                    num_steps=num_iterations,
                                                    reg_lambda=reg_lambda,
                                                    )
+    pyklip_params_dict = record_pyklip_params(ffd_obj.numbasis,
+                                              ffd_obj.iwa,
+                                              ffd_obj.owa,
+                                              ffd_obj.minrot,
+                                              ffd_obj.aligned_center
+                                              )
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
     # optimized_model = np.roll(optimized_model, (-1,-1))
@@ -483,14 +472,15 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
     residuals = np.asarray(reduced_data - optimized_fm)
 
-    save_ffdfit_outputs(resultsdir,
-                        file_prefix,
-                        optimized_model,
-                        optimized_model_image,
-                        optimized_fm,
-                        residuals,
-                        loss_history,
-                        reg_lambda,
+    save_ffdfit_outputs(save_dir=resultsdir,
+                        file_prefix=file_prefix,
+                        model_opt=optimized_model,
+                        model_image_opt=optimized_model_image,
+                        forward_model_opt=optimized_fm,
+                        residuals_image=residuals,
+                        loss_history=loss_history,
+                        hsf_regularization=reg_lambda,
+                        pyklip_params=pyklip_params_dict
                         )
 
 
@@ -536,11 +526,5 @@ if __name__ == "__main__":
         reg_lambda=args.reg,
         first_time=args.first_time,
         )
-
-    # print("Read " + str_yaml + " parameter file")
-    # # open the parameter file
-    # yaml_path_file = os.path.join(os.getcwd(), str_yaml)
-    # with open(yaml_path_file, 'r') as yaml_file:
-    #     yaml_cfg = yaml.safe_load(yaml_file)
 
     

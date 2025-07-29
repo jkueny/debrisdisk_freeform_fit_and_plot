@@ -70,16 +70,19 @@ def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0.0):
 
 def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
     """
+    The terminology here is the global dataset is the set of individual images,
+    each individual image has its own basis set of reference images.
+
     Takes a 2D model disk and produces two outputs:
     
       1. global_rotated: A JAX array of flattened disk models rotated by the global PAs,
-         then sectioned using section_inds.
+         then sectioned using section_inds (grab the region of interest only).
          Shape: (N_global, N_pixels_section), where N_pixels_section is the number
          of pixels in the region-of-interest.
          
       2. ref_rotated: A JAX array of flattened disk models rotated by each reference PA
          for each global image. For each global image, if the number of reference angles
-         is less than min_num_models, the output is zero-padded along that axis.
+         is less than min_num_models, the output is zero-padded along that axis for vmap.
          Final shape: (N_global, min_num_models, N_pixels_section)
          
     Args:
@@ -97,6 +100,10 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
                       sectioned, globally rotated disk models.
       ref_rotated: JAX array of shape (N_global, min_num_models, N_pixels_section) containing
                    the flattened, sectioned disk models rotated by each reference PA (padded as needed).
+
+    NOTE: I tried replacing the for-loop for a vmap procedure, and runtime went *up*. Apparently vmaps
+    for vmaps sometimes isn't better.
+
     """
     # Global rotations.
     N_global = PAs.shape[0]
@@ -128,25 +135,29 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
         # ref_rotated = jax.vmap(_one_frame_rot_flat)(global_disks, ref_PAs)
         # Reference rotations.
         ref_rotated_list = []
-        for i in range(N_global):
+        for i in range(N_global): #N global typically between 84 and 234 images
             # For global image i, ref_PAs[i] is a 1D array of reference angles.
             ref_angles = ref_PAs[i]
             # Rotate model_disk for each reference angle.
             # Note: We rotate the same model_disk for each reference PA.
             ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle))(ref_angles)
             # ref_rot has shape (L, height, width), where L = len(ref_angles).
-            # Now, apply the section for global image i.
+
             # Flatten each sectioned reference model.
             ref_rot_flat = ref_rot.reshape((ref_rot.shape[0], -1)) # (78,50176) or (N_refs, N_pixels)
+
+            # Now, apply the section for global image i.
             ref_rot_sec = jax.vmap(lambda img: img[section_inds])(ref_rot_flat)
             ref_rot_sec_flat = jnp.squeeze(ref_rot_sec)
-            # Pad along axis 0 so that each global image has min_num_models models.
+
+            # Pad along axis 0 so that each global image has min_num_models models for later vmapping.
             ref_rot_sec_flat_padded = pad_array_to_fixed_first_dim(ref_rot_sec_flat, min_num_models, pad_value=0)
             ref_rotated_list.append(jnp.squeeze(ref_rot_sec_flat_padded))
         # Stack the results to obtain shape (N_global, min_num_models, N_pixels_section).
         ref_rotated = jnp.stack(ref_rotated_list)
 
         return global_rot_section_flat, ref_rotated
+    # if we're doing RDI, we don't need reference disk models
     elif isRDI:
         return global_rot_section_flat
     

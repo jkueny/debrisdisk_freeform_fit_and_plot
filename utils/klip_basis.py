@@ -146,7 +146,7 @@ def unpack_basis_data(basis_data):
       "input_img_nums": JAX int array of shape (N_keys,)
       "section_inds": tuple of section index values (as provided in basis_data).
       "ref_psfs": JAX array of shape (N_keys, fixed_refs, N_pixels_section)
-      "ref_PAs": a tuple of 1D JAX arrays (ragged) with the reference PAs.
+      "ref_PAs": a tuple of 1D JAX arrays (padded) with the reference PAs.
       "klparams": original klparam_dict.
     """
     out = {}
@@ -214,8 +214,7 @@ def unpack_basis_data(basis_data):
         out["wdhPAs"] = wdhPAs
         out["PAmask"] = jnp.array(basis_data["wdhPAs_dict"]["PAmask"])
     
-    # Optionally, check consistency: if later we wish to pad ref_PAs, the fixed_refs for numeric arrays is fixed.
-    # Here, we simply leave ref_PAs as ragged.
+
     
     # klparam_dict remains unchanged.
     out["klparams"] = basis_data["klparam_dict"]

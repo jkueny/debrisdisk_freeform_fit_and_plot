@@ -138,27 +138,24 @@ def save_ffdfit_outputs(save_dir: str,
                         loss_history: list,
                         hsf_regularization: float,
                         optimizer_name: str = "Optax Adam",
-                        model_version: str = None):
-    '''
-    Saves all output from the freeform diskfit code.
+                        pyklip_params: dict = None):
+    """Saves output from the freeform diskfit optimization code.
 
-    Parameters
-    ----------
-    run_dir_root : str
-        Base directory where result folders are created (e.g. "results_freeform").
-    params_dict : dict
-        Nested dictionary of best-fit parameters.
-    model_image : ndarray
-        Optimized WDH model image.
-    forward_model_image : ndarray
-        Final forward-modeled image.
-    loss_value : float
-        Final loss achieved during optimization.
-    optimizer_name : str
-        Name of the optimizer used (default: "Optax AdamW").
-    model_version : str, optional
-        Optional version tag or hash for the model code used.
-    '''
+    Args:
+        save_dir (str): Location to save outputs.
+        file_prefix (str): Prefix for saved FITS.
+        model_opt (np.ndarray): Optimized disk model.
+        model_image_opt (np.ndarray): Convolved optimized model.
+        forward_model_opt (np.ndarray): Optimized FM.
+        residuals_image (np.ndarray): KLIP data minus optimized FM.
+        loss_history (list): loss vs. n_iterations.
+        hsf_regularization (float): Chosen reg_lambda value for run.
+        optimizer_name (str, optional): Chosen optimizer. Defaults to "Optax Adam".
+        pyklip_params (dict, optional): Chosen pyklip parameters for target image.
+
+    Returns:
+        str: path to the save directory.
+    """
     import matplotlib.pyplot as plt
     
 
@@ -187,7 +184,7 @@ def save_ffdfit_outputs(save_dir: str,
         "loss": float(loss_history[-1]),
         "lambda_reg": float(hsf_regularization),
         "optimizer": optimizer_name,
-        "model_version": model_version or "unknown",
+        "pyklip_params": pyklip_params or "unknown",
         # "param_file": "bestfit_params.json",
         # "model_file": "wdh_model.fits",
         # "forward_model_file": "forward_model.fits"
