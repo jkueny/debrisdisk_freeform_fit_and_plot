@@ -7,34 +7,34 @@ pyklip:
   mode: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
   do_rdi_correlation: False # Measure the correlation matrix of the RDI PSF lib. Very long.
   # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-  klmode_number: 11 # number of KL modes used in the reduction < nb images in the basis
+  klmode_number: 5 # number of KL modes used in the reduction < nb images in the basis
   annuli: 1 # number of annuli in the KLIP reduction
   # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-  IWA: 6 # pixels
+  IWA: 14 # pixels
   # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-  move_here: 7  #minrot in PyKLIP ADI
+  move_here: 8  #minrot in PyKLIP ADI
   hp_filter: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
   aligned_center: [111.5,111.5] #image center in your model, also use to center the image before KLIP
 
 
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-band_dir: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+band_dir: HR4796_g_smlyot_20250408_09/raws_g_smlyot_20250408T032957/camsci1/lite_psflib  # name of folder where are the data (from basedir)
 rdi_dir: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
-file_prefix: camsci1_r_20230312_13 #prefix for all saved files (carefull not to erase your results)
+file_prefix: camsci1_g_20250408_09 #prefix for all saved files (carefull not to erase your results)
 
 
 metadata:
   # STAR OBSERVATION PARAMETERS
   distance_star: 72.8   #distance of the disk in pc
   pixscale_ins: 0.012  #picscale of your data
-  filter_name: $r'$
+  filter_name: $g'$
   instrument: MagAO-X  # SPHERE or GPI
-  wl: 0.615 #wavelength in microns
-  band_name: 2023 Mar 13, $r'$ band #for plot titles uniquely
+  wl: 0.527 #wavelength in microns
+  band_name: 2025 Apr 09, $g'$ band #for plot titles uniquely
   prim_mirror_sz: 6.5 #meters
 
 

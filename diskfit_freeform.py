@@ -161,7 +161,6 @@ def reconstruct_full_image(free_params, total_pixels, mask_indices):
 #     return free_params
 
 
-# @jax.jit
 def convolve_model(input_model, psf):
     # psf = jnp.asarray(psf)
     assert psf.shape[0] == psf.shape[1], "Instr. PSF image is not square. How can this be?!"
