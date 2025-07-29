@@ -208,7 +208,10 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     # Ensure that the model pixel values range [0,1]
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, mask_indices)
     full_model_norm = full_model_image / jnp.sum(full_model_image)
+
+    # Compute the model power spectrum and use it to regularize high spatial freq.
     model_ps = fft_power_spectrum(full_model_norm)
+    # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=reg_lambda)
 
     # jax.debug.print("print(hsf_penalty) -> {x}", x=hsf_penalty)
@@ -388,7 +391,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
     # load PSF
     # psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
-    psf = ffd_obj.psf
+    psf = ffd_obj.psf #psf gets normalized in the class
     jax_psf = jnp.array(psf)
     # jax_psf /= jnp.sum(jax_psf)
 
@@ -410,7 +413,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
     # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))[0]
-    reduced_data[reduced_data != reduced_data] = 0.
+    reduced_data[reduced_data != reduced_data] = 0. #zero out the NaNs
 
     noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
     noise_map += 1. #get rid of any zeros
@@ -494,7 +497,7 @@ if __name__ == "__main__":
     parser.add_argument(
                         '--initial-model',
                         type=str,
-                        required=False,
+                        required=True,
                         help='Path to starting model fits file')
     parser.add_argument(
                         '--reg',
