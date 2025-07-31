@@ -176,12 +176,12 @@ def convolve_model(input_model, psf):
     
     return model_convolved
 
-def fm_scan_func(carry_models, input_pt, full_sample_refs, full_sample_models):
+def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     flat_model_here = input_pt["models"]
-    ref_psf_inds = input_pt["inds"]
-    ref_psfs_here = input_pt["refs"]
+    # ref_psf_inds = input_pt["inds"]
+    # ref_psfs_here = input_pt["refs"]
     aligned_image = input_pt["images"]
-    flat_model_refs_here = carry_models[ref_psf_inds,:]
+    # flat_model_refs_here = carry_models[ref_psf_inds,:]
     klmodes = input_pt["modes"]
     evals = input_pt["evals"]
     evecs = input_pt["evecs"]
@@ -189,9 +189,7 @@ def fm_scan_func(carry_models, input_pt, full_sample_refs, full_sample_models):
 
     flat_postklip_psf_i = fm_from_eigen_adi(
             aligned_image,
-            ref_psfs_here,
             flat_model_here,
-            flat_model_refs_here,
             klmodes,
             evals,
             evecs,
@@ -200,7 +198,7 @@ def fm_scan_func(carry_models, input_pt, full_sample_refs, full_sample_models):
             full_sample_models,
         )
     
-    return carry_models, jnp.array(flat_postklip_psf_i)
+    return _, jnp.array(flat_postklip_psf_i)
 
 
 
@@ -298,8 +296,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     # Make the pytreeeee for jax.lax.scan
     fm_calc_inputs = {
         "models": global_models_prepped,
-        "refs": ref_psfs_stacked,
-        "inds": ref_psf_inds,
+        # "refs": ref_psfs_stacked,
+        # "inds": ref_psf_inds,
         "images": aligned_images,
         "modes": klmodes_stacked,
         "evals": evals,
@@ -318,7 +316,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
         full_sample_refs=aligned_images,
         full_sample_models=global_models_prepped
     )
-    _, flat_postklip_psfs = lax.scan(scan_func, global_models_prepped, fm_calc_inputs)
+    _, flat_postklip_psfs = lax.scan(scan_func, None, fm_calc_inputs)
 
     # Reshape the postKLIP PSFs into 2D images and derotate them
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
