@@ -43,13 +43,9 @@ import astropy.io.fits as fits
 from modeling.disk_freeform import FreeFormDisk
 from utils.io.save_results import save_ffdfit_outputs
 
-from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
-                                        fm_from_eigen_rdi, \
-                                        insert_section_into_full_image, \
-                                        mass_derotation, \
-                                        perturb_KLmodes
-
-
+from dev.pyklip.fmlib.funcs_JDFM import (
+    update_disk, fm_from_eigen_adi, derotate_and_average
+)
 
 from utils.klip_basis import load_kl_basis, unpack_basis_data
 
@@ -202,12 +198,9 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
 
 
 
-@partial(jax.jit, static_argnames=["total_pixels", "isRDI", "reg_lambda"],
-         donate_argnums=(5,6,11,13),#aligned_images, ref_psfs_stacked, klmodes_stacked, evecs_stacked
-         )
+@partial(jax.jit, static_argnames=["total_pixels", "isRDI", "reg_lambda"])
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
-                  aligned_images, ref_psfs_stacked, PAs,
-                  disk_mask_inds, iowa_sec_inds_arr, ref_psf_inds,
+                  aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, ref_psf_inds,
                   klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, reg_lambda):
     """ measure the huber loss for a given disk freeform disk model.
@@ -227,12 +220,10 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
      - mod_pix_params: free pixel params in the 2D disk ROI.
      - disk_image: 2D KLIP-reduced image
      - psf: 2D empirical instrument PSF, L1 normalized
+     - noise_map
      - ref_model_ps: power spectrum of the reference disk model for reg.
      - aligned_images: dataset of centered images, flattened (N_images, n_pixels)
-     - ref_psfs_stacked: references used for each image, flattened, zero padded 
-     (N_images, max_num_refs, n_pixels) 
      - PAs: PARANG header values for each image.
-     - max_num_refs (int): most number of references used as a basis for any image
      - disk_mask_inds: indices for the disk ROI, flattened (1, m_pixels)
      - iowa_sec_inds_arr: inner-outer-working angle ROI indices, flattened (1, n_pixels)
      - ref_psf_inds: aligned_images indices for refs assoc. w/ each image (N_images, max_num_refs)
@@ -252,8 +243,6 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
     isRDI = bool(isRDI)
 
-
-    
     # Ensure that the model pixel values range [0,1]
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
     full_model_norm = full_model_image / jnp.sum(full_model_image)
@@ -263,53 +252,21 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=reg_lambda)
 
-    # jax.debug.print("print(hsf_penalty) -> {x}", x=hsf_penalty)
-
-
     freeform_image = convolve_model(full_model_image, psf)
-
-
-    # if not isRDI:
-    #     global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
-    #                                                             PAs=PAs, ref_PAs=ref_PAs,
-    #                                                             # aligned_center=aligned_center,
-    #                                                             section_inds=section_inds_arr,
-    #                                                             min_num_models=fixed_refs,
-    #                                                             isRDI=isRDI
-    #                                                             )
-        
-        
-    #     flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
-    #                         )(aligned_images, ref_psfs_stacked,
-    #                             global_models_prepped,ref_models_stacked,
-    #                             klmodes_stacked, evals, evecs_stacked,
-    #                             )
-    # elif isRDI: #currently not working with RDI datasets, but the option is here
     global_models_prepped = update_disk(model_disk=freeform_image,
                                         PAs=PAs,
-                                        # aligned_center=aligned_center,
                                         section_inds=iowa_sec_inds_arr,
-                                        # min_num_models=max_num_refs,
-                                        # isRDI=isRDI
-                                        # isRDI=bool(1)
                                         )
     # Make the pytreeeee for jax.lax.scan
     fm_calc_inputs = {
         "models": global_models_prepped,
-        # "refs": ref_psfs_stacked,
-        # "inds": ref_psf_inds,
         "images": aligned_images,
         "modes": klmodes_stacked,
         "evals": evals,
         "evecs": evecs_stacked,
         "ref_inds": ref_psf_inds,
     }
-    
-    # flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
-    #                     )(aligned_images, 
-    #                         global_models_prepped,
-    #                         klmodes_stacked,
-    #                         )
+
     # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
     scan_func = partial(
         fm_scan_func,
@@ -319,11 +276,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     _, flat_postklip_psfs = lax.scan(scan_func, None, fm_calc_inputs)
 
     # Reshape the postKLIP PSFs into 2D images and derotate them
-    derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
-                                              total_pixels,iowa_sec_inds_arr)
-
-    # Average the derotated postKLIP PSFs and reshape back to 1D
-    freeform_fm_full = jnp.mean(derotated_postklip_psfs, axis=0)
+    freeform_fm_full = derotate_and_average(flat_postklip_psfs, PAs, total_pixels, iowa_sec_inds_arr)
     freeform_fm_flat = jnp.reshape(freeform_fm_full, psf.shape[0] * psf.shape[1])
 
     # Grab just the disk ROI pixels
@@ -332,8 +285,6 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
     # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss, 0.))
-
-    # jax.debug.print("print(mse) -> {x}", x=mse)
 
     return mean_huber + hsf_penalty #counts**2 units for both (kinda)
 
@@ -407,7 +358,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     @jax.jit
     def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
-                                    ref_ps, aligned_image_sections, ref_psfs_sections,
+                                    ref_ps, aligned_image_sections,
                                     PAs,
                                     mask_indices, iowa_sec_inds, ref_psfs_inds,
                                     klmodes_sections, evals, evecs, 
