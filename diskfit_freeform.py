@@ -46,7 +46,8 @@ from utils.io.save_results import save_ffdfit_outputs
 from dev.pyklip.fmlib.funcs_JDFM import update_disk, fm_from_eigen_adi, \
                                         fm_from_eigen_rdi, \
                                         insert_section_into_full_image, \
-                                        mass_derotation
+                                        mass_derotation, \
+                                        perturb_KLmodes
 
 
 
@@ -56,6 +57,7 @@ from utils.klip_basis import load_kl_basis, unpack_basis_data
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import fftconvolve
+from jax import lax
 import optax
 from optax.losses import huber_loss
 
@@ -174,13 +176,35 @@ def convolve_model(input_model, psf):
     
     return model_convolved
 
+def fm_scan_func(carry_models, input_pt):
+    flat_model_here = input_pt["models"]
+    ref_psf_inds = input_pt["inds"]
+    ref_psfs_here = input_pt["refs"]
+    aligned_image = input_pt["images"]
+    flat_model_refs_here = carry_models[ref_psf_inds,:]
+    klmodes = input_pt["modes"]
+    evals = input_pt["evals"]
+    evecs = input_pt["evecs"]
+
+    flat_postklip_psf_i = fm_from_eigen_adi(
+            aligned_image,
+            ref_psfs_here,
+            flat_model_here,
+            flat_model_refs_here,
+            klmodes,
+            evals,
+            evecs
+        )
+    
+    return carry_models, jnp.array(flat_postklip_psf_i)
+
 
 
 @partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
          donate_argnums=(5,6,12,13,14))
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                   aligned_images, ref_psfs_stacked, PAs, ref_PAs,
-                  fixed_refs, mask_indices, section_inds_arr,
+                  fixed_refs, mask_indices, section_inds_arr, ref_psf_inds,
                   klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, reg_lambda):
     """ measure the Chisquare (log of the likelyhood) of the parameter set.
@@ -219,34 +243,47 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     freeform_image = convolve_model(full_model_image, psf)
 
 
-    if not isRDI:
-        global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
-                                                                PAs=PAs, ref_PAs=ref_PAs,
-                                                                # aligned_center=aligned_center,
-                                                                section_inds=section_inds_arr,
-                                                                min_num_models=fixed_refs,
-                                                                isRDI=isRDI
-                                                                )
+    # if not isRDI:
+    #     global_models_prepped, ref_models_stacked = update_disk(model_disk=freeform_image,
+    #                                                             PAs=PAs, ref_PAs=ref_PAs,
+    #                                                             # aligned_center=aligned_center,
+    #                                                             section_inds=section_inds_arr,
+    #                                                             min_num_models=fixed_refs,
+    #                                                             isRDI=isRDI
+    #                                                             )
         
-        flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
-                            )(aligned_images, ref_psfs_stacked,
-                                global_models_prepped,ref_models_stacked,
-                                klmodes_stacked, evals, evecs_stacked,
-                                )
-    elif isRDI: #currently not working with RDI datasets, but the option is here
-        global_models_prepped = update_disk(model_disk=freeform_image,
-                                            PAs=PAs, ref_PAs=ref_PAs,
-                                            # aligned_center=aligned_center,
-                                            section_inds=section_inds_arr,
-                                            min_num_models=fixed_refs,
-                                            isRDI=isRDI
-                                            )
-        flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
-                            )(aligned_images, 
-                                global_models_prepped,
-                                klmodes_stacked,
-                                )
-
+        
+    #     flat_postklip_psfs = jax.vmap(fm_from_eigen_adi
+    #                         )(aligned_images, ref_psfs_stacked,
+    #                             global_models_prepped,ref_models_stacked,
+    #                             klmodes_stacked, evals, evecs_stacked,
+    #                             )
+    # elif isRDI: #currently not working with RDI datasets, but the option is here
+    global_models_prepped = update_disk(model_disk=freeform_image,
+                                        PAs=PAs, ref_PAs=ref_PAs,
+                                        # aligned_center=aligned_center,
+                                        section_inds=section_inds_arr,
+                                        min_num_models=fixed_refs,
+                                        # isRDI=isRDI
+                                        isRDI=bool(1)
+                                        )
+    # Make the pytreeeee for jax.lax.scan
+    fm_calc_inputs = {
+        "models": global_models_prepped,
+        "refs": ref_psfs_stacked,
+        "inds": ref_psf_inds,
+        "images": aligned_images,
+        "modes": klmodes_stacked,
+        "evals": evals,
+        "evecs": evecs_stacked
+    }
+    
+    # flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
+    #                     )(aligned_images, 
+    #                         global_models_prepped,
+    #                         klmodes_stacked,
+    #                         )
+    _, flat_postklip_psfs = lax.scan(fm_scan_func, global_models_prepped, fm_calc_inputs)
     derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
                                               total_pixels,section_inds_arr)
 
@@ -328,7 +365,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
     # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
     #                             basis_data["klparam_dict"]["aligned_center_y"]])))
-    # ref_psfs_indicies = basis_data_unpacked["ref_psfs_indicies"]
+    ref_psfs_indicies = basis_data_unpacked["ref_inds"]
 
     del aligned_image_data, aligned_image_sections
     del klmodes, evecs, evals, klmodes_sections
@@ -343,7 +380,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
                                     ref_ps, aligned_image_secs_lite, ref_psfs_secs_lite,
                                     PAs, ref_PAs, fixed_refs,
-                                    mask_indices, section_inds,
+                                    mask_indices, section_inds, ref_psfs_indicies,
                                     klmodes_secs_lite, evals_lite, evecs_lite, total_pixels,
                                     mode, reg_lambda)
         updates, opt_state = optimizer.update(grads, opt_state)
