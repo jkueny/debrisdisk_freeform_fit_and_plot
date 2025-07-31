@@ -286,8 +286,177 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
 
     return model_sci[None,:] - klipped_oversub - klipped_selfsub, klipped_oversub, klipped_selfsub
 
+def perturb_KLmodes_new(evals, evecs, original_KL, refs, models_ref, ref_inds, full_sample_refs, full_sample_models):
+    """
+    Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
+
+    Args:
+        evals: array of eigenvalues of the reference PSF covariance matrix (array of size numbasis)
+        evecs: corresponding eigenvectors (array of size [pixels, numbasis])
+        orignal_KL: unpertrubed KL modes (array of size [numbasis, pixels])
+        refs: N_images x pixels array of the N reference images that
+                  characterizes the extended source with p pixels
+        models_ref: N x p array of the N models corresponding to reference images.
+                    Each model should contain spectral informatoin
+        model_sci: array of size p corresponding to the PSF of the science frame
+
+    Returns:
+        delta_KL_nospec: perturbed KL modes. Shape is (numKL, wv, pix)
+    """
+    # Here we make a "one-hot" style selector vector to pull columns out of
+    # the full reference sample
+    selector = indices_to_selector(full_sample_refs.shape[0], ref_inds)
+    # print(jnp.arange(full_sample_refs.shape[0])[selector])
+    # print(f"{ref_inds=} {selector.shape=} {selector=}")
+    # print(f"{len(ref_inds)=}")
+    # print(f"{len(ref_inds[ref_inds >= 0])=}")
+    num_valid_refs = jnp.count_nonzero(ref_inds >= 0)
+    # assert jnp.any(selector)
+    # assert jnp.count_nonzero(selector) == num_valid_refs
+
+    masked_sample_refs = jnp.diag(selector) @ full_sample_refs
+    masked_sample_models = jnp.diag(selector) @ full_sample_models
+    # fig,axs = plt.subplots(ncols=2, nrows=3)
+    # axs[0, 0].imshow(full_sample_refs)
+    # axs[0, 1].imshow(full_sample_models)
+    # axs[1, 0].imshow(masked_sample_refs)
+    # axs[1, 1].imshow(masked_sample_models)
+    # axs[2, 0].imshow(refs)
+    # axs[2, 1].imshow(models_ref)
+    # fig.savefig('compare_masked.png')
+    # plt.close(fig)
+    # plt.imsave('full_sample_refs.png', full_sample_refs)
+    # plt.imsave('full_sample_models.png', full_sample_models)
+    # plt.imsave('masked_sample_refs.png', masked_sample_refs)
+    # plt.imsave('masked_sample_models.png', masked_sample_models)
+    # plt.imsave('refs.png', refs)
+    # plt.imsave('models_ref.png', models_ref)
+    
+    # print(f"{evals.shape=} {evecs.shape=} {original_KL.shape=} {refs.shape=} {models_ref.shape=}")
+    max_basis = original_KL.shape[0]
+    N_ref = refs.shape[0]
+    N_images_total = full_sample_refs.shape[0]
+    # print(f"{original_KL.shape=} {max_basis=} {N_ref=}")
+    # N_pix = original_KL.shape[1]
+    
+
+    refs_mean_sub = refs - jnp.nanmean(refs, axis=1, keepdims=True)
+    masked_refs_mean_sub = masked_sample_refs - jnp.nanmean(masked_sample_refs, axis=1, keepdims=True)
+
+    refs_meansub_nonan = jnp.nan_to_num(refs_mean_sub, nan=0.0) 
+    masked_refs_meansub_nonan = masked_refs_mean_sub
+
+    models_mean_sub = models_ref # - np.nanmean(models_ref, axis=1)[:,None] should this be the case?
+    masked_models_mean_sub = masked_sample_models
+    # models_mean_sub[np.where(np.isnan(models_mean_sub))] = 0
+    models_meansub_nonan = jnp.nan_to_num(models_mean_sub, nan=0.0)
+    masked_models_meansub_nonan = masked_models_mean_sub
+    # print(f"{refs.shape=} {models_ref.shape=}")
+    # assert jnp.allclose(masked_refs_mean_sub[selector], refs_mean_sub[:num_valid_refs])
+    
+
+
+    #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
+
+    evals_tiled = jnp.tile(evals,(max_basis,1))
+    evals_nan_diag = jnp.fill_diagonal(evals_tiled, 1., inplace=False)
+    # print(f"{evals.shape=} {evals_tiled.shape=} {evals_nan_diag.shape=}")
+    
+    evals_sqrt = jnp.sqrt(evals)
+    evalse_inv_sqrt = 1./evals_sqrt
+    evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
+    # print(f"{evals_ratio=}")
+    beta_tmp = 1./(evals_nan_diag.transpose() - evals_nan_diag)
+    # print(f"{evals_ratio.shape=} {beta_tmp.shape=}")
+    #print(evals)
+    beta_tmp = beta_tmp.at[np.diag_indices(np.size(evals))].set(-0.5/evals)
+    beta = evals_ratio*beta_tmp #no NaNs confirmed JKK 03/18/2025
+    # print(f"{beta.shape=}")
+
+    C_partial = models_meansub_nonan.dot(refs_meansub_nonan.transpose())
+    C_partial2 = models_meansub_nonan[:76].dot(refs_meansub_nonan[:76].transpose())
+    masked_C_partial = masked_models_meansub_nonan.dot(masked_refs_meansub_nonan.transpose())
+
+    # fig,axs = plt.subplots(ncols=2)
+    # axs[0].imshow(C_partial)
+    # axs[1].imshow(masked_C_partial)
+    # fig.savefig('compare_c_partial.png')
+    # plt.close(fig)
+    # print(f"{C_partial.shape=} {masked_C_partial.shape=}")
+    # print(f"{C_partial=}")
+    # print(f"{C_partial2=}")
+    # print(f"{masked_C_partial=}")
+    C = C_partial+C_partial.transpose()
+    C2 = C_partial2+C_partial2.transpose()
+    # print(f"{C=}")
+    # print(f"{C2=}")
+    masked_C = masked_C_partial + masked_C_partial.transpose()
+    
+    # fig,axs = plt.subplots(ncols=2)
+    # axs[0].imshow(C)
+    # axs[1].imshow(masked_C)
+    # fig.savefig('compare_c.png')
+    # plt.close(fig)
+    # print(f"{C.shape=}")
+    # print(f"{evecs.shape=}")
+    # print(f"{evecs[-1]=}")
+    n_evecs, n_evals = evecs.shape
+    #C =  models_mean_sub.dot(refs_mean_sub.transpose())+refs_mean_sub.dot(models_mean_sub.transpose())
+
+    def _construct_masked_evecs(orig_subset_evecs_idx, selector_flag):
+        # as we scan, we advance the `orig_subset_evecs_idx` index 
+        # only when we have yielded a selected eigenvector
+        carry_out = jnp.where(
+            selector_flag,
+            orig_subset_evecs_idx + 1,
+            orig_subset_evecs_idx
+        )
+        vector = jnp.where(
+            selector_flag,  
+            evecs[orig_subset_evecs_idx],
+            jnp.zeros(n_evals),
+        )
+        return carry_out, vector
+    _, masked_evecs = jax.lax.scan(_construct_masked_evecs, 0, selector)
+    # print(f"{masked_evecs.shape=}")
+    # assert jnp.allclose(jnp.take(masked_evecs, ref_inds, axis=0), evecs)
+
+    alpha_tmp = jnp.dot(evecs.transpose(), C)
+    alpha_tmp2 = jnp.dot(evecs[:76].transpose(), C2)
+    # print(f"{alpha_tmp.shape=} {alpha_tmp2.shape=}")
+    # print(f"{alpha_tmp=}\n{alpha_tmp2=}")
+    alpha_tmp_masked = jnp.dot(masked_evecs.transpose(), masked_C)
+    alpha = jnp.dot(alpha_tmp, evecs)
+    alpha2 = jnp.dot(alpha_tmp2, evecs[:76])
+    alpha_masked = jnp.dot(alpha_tmp_masked, masked_evecs)
+    # print(f"{alpha_tmp_masked.shape=} {alpha_masked.shape=}")
+    # print(f"{alpha=}")
+    # print(f"{alpha2=}")
+    # print(f"{alpha_masked=}")
+
+    first_dotproduct = (beta*alpha).dot(original_KL)
+    first_dotproduct_masked = (beta*alpha_masked).dot(original_KL)
+    # print(f"{first_dotproduct.shape=} {first_dotproduct=}")
+    # print(f"{first_dotproduct_masked.shape=} {first_dotproduct_masked=}")
+    second_dotproduct = (evalse_inv_sqrt[:,None]*evecs.transpose()).dot(models_mean_sub)
+    # print(f"{second_dotproduct.shape=} {evalse_inv_sqrt[:,None].shape=} {evecs.transpose().shape=} {models_mean_sub.shape=}")
+    second_dotproduct_masked = (evalse_inv_sqrt[:,None]*masked_evecs.transpose()).dot(masked_models_meansub_nonan)
+    # print(f"{second_dotproduct_masked.shape=} {masked_evecs.transpose().shape=} {masked_models_meansub_nonan.shape=}")
+    # print(f"{second_dotproduct=} {second_dotproduct_masked=}")
+
+    delta_KL = first_dotproduct + second_dotproduct
+    delta_KL_masked = first_dotproduct_masked + second_dotproduct_masked
+
+    # print(f"{delta_KL=} {delta_KL_masked=}")
+    # print(f"{delta_KL.shape=} {delta_KL_masked.shape=}")
+    # print(f"{jnp.allclose(delta_KL, delta_KL_masked)=}")
+    print(f"{(delta_KL_masked / delta_KL)=}")
+    print("Diagnostic: atol =", jnp.max(jnp.abs(delta_KL - delta_KL_masked)), 
+        "rtol =", jnp.max(jnp.abs(delta_KL - delta_KL_masked) / (jnp.abs(delta_KL) + 1e-12)))
+    return delta_KL_masked
+
 # @jax.jit
-def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
+def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref, ref_inds, full_sample_refs, full_sample_models):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
 
@@ -344,7 +513,7 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
 
 # @jax.jit
 def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
-                         klmodes, evals, evecs):
+                         klmodes, evals, evecs, ref_inds, full_sample_refs, full_sample_models):
     """ 
     Compute the forward model for one disk model image.
 
@@ -384,8 +553,10 @@ def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
 
     # Compute delta_KL (set to zero if mode=='RDI')
     # Ex. shape for delta_KL (2, 39112)
-    delta_KL = perturb_KLmodes(evals, evecs, klmodes,
+    # delta_KL = perturb_KLmodes(evals, evecs, klmodes,
+    delta_KL = perturb_KLmodes_new(evals, evecs, klmodes,
                                 refs_data, model_disk_refs,
+                                ref_inds, full_sample_refs, full_sample_models
                                 # return_perturb_covar=False,
                                 )
 
