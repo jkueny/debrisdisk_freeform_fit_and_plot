@@ -286,6 +286,31 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
 
     return model_sci[None,:] - klipped_oversub - klipped_selfsub, klipped_oversub, klipped_selfsub
 
+
+
+def indices_to_selector(total_count, ref_inds):
+    """Here we make a selector vector of length total_count where
+    the i'th entry is 1 if i appears in ref_inds, or 0 otherwise
+    """
+    def make_selector_cols(col_count, _):
+        def make_selector_col(count, ref_idx):
+            return count + 1, jnp.where(col_count == ref_idx, 1, 0)
+        _, col = jax.lax.scan(make_selector_col, 0, ref_inds)
+        return col_count + 1, col
+    _, selector_cols = jax.lax.scan(make_selector_cols, 0, length=total_count)
+    selector = jnp.any(selector_cols, axis=1)
+    return selector
+
+def test_indices_to_selector():
+    n_refs = 3
+    pix_per_ref = 5
+    subset_refs = 2
+    ref_inds = jnp.arange(n_refs)[:subset_refs]
+    full_sample_refs = jnp.arange(n_refs * pix_per_ref).reshape(n_refs, pix_per_ref)
+    selector = indices_to_selector(full_sample_refs.shape[0], ref_inds)
+    print(f"{selector=}")
+    assert jnp.all(selector == jnp.array([True, True, False]))
+
 def perturb_KLmodes_new(evals, evecs, original_KL, refs, models_ref, ref_inds, full_sample_refs, full_sample_models):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
@@ -307,10 +332,10 @@ def perturb_KLmodes_new(evals, evecs, original_KL, refs, models_ref, ref_inds, f
     # the full reference sample
     selector = indices_to_selector(full_sample_refs.shape[0], ref_inds)
     # print(jnp.arange(full_sample_refs.shape[0])[selector])
-    # print(f"{ref_inds=} {selector.shape=} {selector=}")
+    print(f"{ref_inds.shape=} {selector.shape=} {selector.shape=} {full_sample_refs.shape=} {full_sample_models.shape=}")
     # print(f"{len(ref_inds)=}")
     # print(f"{len(ref_inds[ref_inds >= 0])=}")
-    num_valid_refs = jnp.count_nonzero(ref_inds >= 0)
+    # num_valid_refs = jnp.count_nonzero(ref_inds >= 0)
     # assert jnp.any(selector)
     # assert jnp.count_nonzero(selector) == num_valid_refs
 
@@ -554,7 +579,7 @@ def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
     # Compute delta_KL (set to zero if mode=='RDI')
     # Ex. shape for delta_KL (2, 39112)
     # delta_KL = perturb_KLmodes(evals, evecs, klmodes,
-    delta_KL = perturb_KLmodes_new(evals, evecs, klmodes,
+    delta_KL = perturb_KLmodes(evals, evecs, klmodes,
                                 refs_data, model_disk_refs,
                                 ref_inds, full_sample_refs, full_sample_models
                                 # return_perturb_covar=False,

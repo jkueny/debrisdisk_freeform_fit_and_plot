@@ -176,7 +176,7 @@ def convolve_model(input_model, psf):
     
     return model_convolved
 
-def fm_scan_func(carry_models, input_pt, ref_inds, full_sample_refs, full_sample_models):
+def fm_scan_func(carry_models, input_pt, full_sample_refs, full_sample_models):
     flat_model_here = input_pt["models"]
     ref_psf_inds = input_pt["inds"]
     ref_psfs_here = input_pt["refs"]
@@ -185,6 +185,7 @@ def fm_scan_func(carry_models, input_pt, ref_inds, full_sample_refs, full_sample
     klmodes = input_pt["modes"]
     evals = input_pt["evals"]
     evecs = input_pt["evecs"]
+    ref_inds = input_pt["ref_inds"]
 
     flat_postklip_psf_i = fm_from_eigen_adi(
             aligned_image,
@@ -196,7 +197,7 @@ def fm_scan_func(carry_models, input_pt, ref_inds, full_sample_refs, full_sample
             evecs,
             ref_inds,
             full_sample_refs,
-            full_sample_models
+            full_sample_models,
         )
     
     return carry_models, jnp.array(flat_postklip_psf_i)
@@ -302,7 +303,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
         "images": aligned_images,
         "modes": klmodes_stacked,
         "evals": evals,
-        "evecs": evecs_stacked
+        "evecs": evecs_stacked,
+        "ref_inds": ref_psf_inds,
     }
     
     # flat_postklip_psfs = jax.vmap(fm_from_eigen_rdi
@@ -311,7 +313,11 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     #                         klmodes_stacked,
     #                         )
     # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
-    scan_func = partial(fm_scan_func, ref_inds=ref_psf_inds, full_sample_refs=aligned_images, full_sample_models=global_models_prepped)
+    scan_func = partial(
+        fm_scan_func,
+        full_sample_refs=aligned_images,
+        full_sample_models=global_models_prepped
+    )
     _, flat_postklip_psfs = lax.scan(scan_func, global_models_prepped, fm_calc_inputs)
 
     # Reshape the postKLIP PSFs into 2D images and derotate them
@@ -419,7 +425,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         loss_history.append(loss.item())
 
         # if step_idx % round(num_steps / 10) == 0:
-        print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f}")
+        print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {time.time() - time_now:.6f} sec elapsed")
 
     # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - time_now):.6f} seconds.")
