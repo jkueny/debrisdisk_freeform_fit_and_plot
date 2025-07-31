@@ -200,25 +200,49 @@ def fm_scan_func(carry_models, input_pt):
 
 
 
-@partial(jax.jit, static_argnames=["fixed_refs","total_pixels", "isRDI", "reg_lambda"],
-         donate_argnums=(5,6,12,13,14))
+@partial(jax.jit, static_argnames=["total_pixels", "isRDI", "reg_lambda"],
+         donate_argnums=(5,6,11,13),#aligned_images, ref_psfs_stacked, klmodes_stacked, evecs_stacked
+         )
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
-                  aligned_images, ref_psfs_stacked, PAs, ref_PAs,
-                  fixed_refs, mask_indices, section_inds_arr, ref_psf_inds,
+                  aligned_images, ref_psfs_stacked, PAs,
+                  disk_mask_inds, iowa_sec_inds_arr, ref_psf_inds,
                   klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, reg_lambda):
-    """ measure the Chisquare (log of the likelyhood) of the parameter set.
-        create disk
-        convolve by the PSF (psf is global)
-        do the forward modeling (diskFM obj is global)
-        nan out when it is out of the zone (zone mask is global)
-        subctract from data and divide by noise (data and noise are global)
+    """ measure the huber loss for a given disk freeform disk model.
 
-    Args:
-        theta: list of parameters of the MCMC
+    Steps executed:
+     - create 2D disk model
+     - penalize high spatial frequency using the first guess disk model
+     - 2D convolve by the PSF
+     - For N_images in the dataset, make N copies of model using the passed-
+     in PAs to rotate them to the header parang values.
+     - do the forward modeling using the image, reference images, and bank
+     of rotated disk models.
+     - compute the loss using the residuals of the KLIP image and FM divided
+     by the variance map.
+
+    Args (jnp.Array unless otherwise noted):
+     - mod_pix_params: free pixel params in the 2D disk ROI.
+     - disk_image: 2D KLIP-reduced image
+     - psf: 2D empirical instrument PSF, L1 normalized
+     - ref_model_ps: power spectrum of the reference disk model for reg.
+     - aligned_images: dataset of centered images, flattened (N_images, n_pixels)
+     - ref_psfs_stacked: references used for each image, flattened, zero padded 
+     (N_images, max_num_refs, n_pixels) 
+     - PAs: PARANG header values for each image.
+     - max_num_refs (int): most number of references used as a basis for any image
+     - disk_mask_inds: indices for the disk ROI, flattened (1, m_pixels)
+     - iowa_sec_inds_arr: inner-outer-working angle ROI indices, flattened (1, n_pixels)
+     - ref_psf_inds: aligned_images indices for refs assoc. w/ each image (N_images, max_num_refs)
+     - klmodes_stacked: flattened KL modes array (N_images, num_KL_modes, n_pixels)
+     - evals: the eigenvalues for KLIP (N_images, num_KL_modes)
+     - evecs_stacked: the eigenvectors (N_images, max_num_refs, num_KL_modes)
+     - total_pixels (int): pixel count of the full-size image. Ex. 224**2 = 50176
+     - isRDI (bool): toggle RDI mode
+     - reg_lambda: regularization factor for high spatial frequency penalty
 
     Returns:
-        Chisquare
+        mean huber loss for each pixel param.
     """
 
     # DM commands scaled to [0,1] fits cubes do like 10 secs of wall clock time
@@ -229,7 +253,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 
     
     # Ensure that the model pixel values range [0,1]
-    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, mask_indices)
+    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
     full_model_norm = full_model_image / jnp.sum(full_model_image)
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
@@ -260,12 +284,12 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     #                             )
     # elif isRDI: #currently not working with RDI datasets, but the option is here
     global_models_prepped = update_disk(model_disk=freeform_image,
-                                        PAs=PAs, ref_PAs=ref_PAs,
+                                        PAs=PAs,
                                         # aligned_center=aligned_center,
-                                        section_inds=section_inds_arr,
-                                        min_num_models=fixed_refs,
+                                        section_inds=iowa_sec_inds_arr,
+                                        # min_num_models=max_num_refs,
                                         # isRDI=isRDI
-                                        isRDI=bool(1)
+                                        # isRDI=bool(1)
                                         )
     # Make the pytreeeee for jax.lax.scan
     fm_calc_inputs = {
@@ -283,15 +307,22 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     #                         global_models_prepped,
     #                         klmodes_stacked,
     #                         )
+    # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
     _, flat_postklip_psfs = lax.scan(fm_scan_func, global_models_prepped, fm_calc_inputs)
-    derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
-                                              total_pixels,section_inds_arr)
 
+    # Reshape the postKLIP PSFs into 2D images and derotate them
+    derotated_postklip_psfs = mass_derotation(flat_postklip_psfs,PAs,
+                                              total_pixels,iowa_sec_inds_arr)
+
+    # Average the derotated postKLIP PSFs and reshape back to 1D
     freeform_fm_full = jnp.mean(derotated_postklip_psfs, axis=0)
     freeform_fm_flat = jnp.reshape(freeform_fm_full, psf.shape[0] * psf.shape[1])
-    freeform_fm_interest = freeform_fm_flat[mask_indices]
+
+    # Grab just the disk ROI pixels
+    freeform_fm_interest = freeform_fm_flat[disk_mask_inds]
 
     raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
+    # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss, 0.))
 
     # jax.debug.print("print(mse) -> {x}", x=mse)
@@ -327,49 +358,39 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     basis_data_unpacked = unpack_basis_data(basis_data)
 
     # num_input_images = int(jax.device_get(basis_data["klparam_dict"]["nfiles"]))
-    aligned_image_data = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 50176)
-    section_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
-    aligned_image_sections = jnp.take(aligned_image_data, section_inds[-1], axis=1, fill_value=0.)
+    aligned_image_sections = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 39112)
+    iowa_sec_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
 
 
-    klmodes = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 2, 50176)
-    klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
-    klmodes_secs_lite = klmodes_sections.astype(jnp.float32)
+    klmodes_sections = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 6, 39112)
+    # klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
 
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
     # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
-    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 2)
+    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 6)
     # evecs have been unpacked, stacked, and ready to be BATCHED!
     # input_img_nums = basis_data_unpacked["input_img_nums"]
     # These are the images used for the basis for every image in the dataset.
-    ref_psfs = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
-    ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
+    ref_psfs_sections = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
+    # ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
 
-    #lighten the memory load
-    aligned_image_secs_lite = aligned_image_sections.astype(jnp.float32)
-    evals_lite = evals.astype(jnp.float32)
-    evecs_lite = evecs.astype(jnp.float32)
-    ref_psfs_secs_lite = ref_psfs_sections.astype(jnp.float32)
 
     PAs = jnp.array((basis_data["klparam_dict"]["PAs"]))
-    ref_PAs = basis_data_unpacked["ref_PAs"]
+    # ref_PAs = basis_data_unpacked["ref_PAs"]
 
     if bool(basis_data_unpacked["klparams"]["isRDI"]):
-        fixed_refs = klmodes.shape[1]
+        max_num_refs = klmodes_sections.shape[1]
         mode = 1
     elif not bool(basis_data_unpacked["klparams"]["isRDI"]):
-        fixed_refs = basis_data_unpacked["fixed_refs"] #this is just a number smaller than N_images
+        max_num_refs = basis_data_unpacked["fixed_refs"] #this is just a number smaller than N_images
         mode = 0
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
     # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
     #                             basis_data["klparam_dict"]["aligned_center_y"]])))
-    ref_psfs_indicies = basis_data_unpacked["ref_inds"]
-
-    del aligned_image_data, aligned_image_sections
-    del klmodes, evecs, evals, klmodes_sections
-    del ref_psfs, ref_psfs_sections
+    ref_psfs_inds = basis_data_unpacked["ref_inds"]
+    
 
     time_now = time.time()
     # jax.profiler.start_trace("/tmp/tensorboard")
@@ -378,10 +399,11 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     @jax.jit
     def step(image_params, opt_state):
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
-                                    ref_ps, aligned_image_secs_lite, ref_psfs_secs_lite,
-                                    PAs, ref_PAs, fixed_refs,
-                                    mask_indices, section_inds, ref_psfs_indicies,
-                                    klmodes_secs_lite, evals_lite, evecs_lite, total_pixels,
+                                    ref_ps, aligned_image_sections, ref_psfs_sections,
+                                    PAs,
+                                    mask_indices, iowa_sec_inds, ref_psfs_inds,
+                                    klmodes_sections, evals, evecs, 
+                                    total_pixels,
                                     mode, reg_lambda)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)

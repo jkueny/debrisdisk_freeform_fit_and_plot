@@ -68,7 +68,7 @@ def pad_array_to_fixed_first_dim(arr, fixed_first_dim, pad_value=0.0):
     else:
         return arr
 
-def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
+def update_disk(model_disk, PAs, section_inds):
     """
     The terminology here is the global dataset is the set of individual images,
     each individual image has its own basis set of reference images.
@@ -130,36 +130,8 @@ def update_disk(model_disk, PAs, ref_PAs, section_inds, min_num_models, isRDI):
     #                                                         pad_value=0)
     #     return fin_rot_flat_sec_pad
     
-    
-    if not isRDI:
-        # ref_rotated = jax.vmap(_one_frame_rot_flat)(global_disks, ref_PAs)
-        # Reference rotations.
-        ref_rotated_list = []
-        for i in range(N_global): #N global typically between 84 and 234 images
-            # For global image i, ref_PAs[i] is a 1D array of reference angles.
-            ref_angles = ref_PAs[i]
-            # Rotate model_disk for each reference angle.
-            # Note: We rotate the same model_disk for each reference PA.
-            ref_rot = jax.vmap(lambda angle: rotate_image(model_disk, angle))(ref_angles)
-            # ref_rot has shape (L, height, width), where L = len(ref_angles).
 
-            # Flatten each sectioned reference model.
-            ref_rot_flat = ref_rot.reshape((ref_rot.shape[0], -1)) # (78,50176) or (N_refs, N_pixels)
-
-            # Now, apply the section for global image i.
-            ref_rot_sec = jax.vmap(lambda img: img[section_inds])(ref_rot_flat)
-            ref_rot_sec_flat = jnp.squeeze(ref_rot_sec)
-
-            # Pad along axis 0 so that each global image has min_num_models models for later vmapping.
-            ref_rot_sec_flat_padded = pad_array_to_fixed_first_dim(ref_rot_sec_flat, min_num_models, pad_value=0)
-            ref_rotated_list.append(jnp.squeeze(ref_rot_sec_flat_padded))
-        # Stack the results to obtain shape (N_global, min_num_models, N_pixels_section).
-        ref_rotated = jnp.stack(ref_rotated_list)
-
-        return global_rot_section_flat, ref_rotated
-    # if we're doing RDI, we don't need reference disk models
-    elif isRDI:
-        return global_rot_section_flat
+    return global_rot_section_flat
     
 def update_wind(model_wdhs, PAs, ref_inds, section_inds,
                 mask_skip_models, isRDI):
