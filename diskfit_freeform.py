@@ -369,7 +369,8 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         return image_params, opt_state, loss
 
     for step_idx in range(num_steps):
-        image_params, opt_state, loss = step(image_params, opt_state)
+        with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
+            image_params, opt_state, loss = step(image_params, opt_state)
         
         loss_history.append(loss.item())
 
