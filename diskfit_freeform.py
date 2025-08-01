@@ -465,6 +465,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     trace_dest = os.environ.get('profileJaxTraceTo', False)
     if trace_dest:
         jax.profiler.start_trace(trace_dest)
+        print(f"Tracing to {trace_dest}")
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_ps=ps_ref_model,
                                                    noise_map=noise_interest,
@@ -481,6 +482,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
         print(e)
     if trace_dest:
         jax.profiler.stop_trace()
+        print("Ended profiler trace")
 
     # Let's save what pyklip params were used with the outputs
     pyklip_params_dict = record_pyklip_params(ffd_obj.numbasis,
