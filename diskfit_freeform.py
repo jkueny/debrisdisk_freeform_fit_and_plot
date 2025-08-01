@@ -460,7 +460,10 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
     noise_interest = noise_map_flat[disk_mask_indices]
 
-
+    import jax.profiler
+    trace_dest = os.environ.get('profileJaxTraceTo', False)
+    if trace_dest:
+        jax.profiler.start_trace(trace_dest, create_perfetto_trace=True)
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_ps=ps_ref_model,
                                                    noise_map=noise_interest,
@@ -471,6 +474,13 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
                                                    num_steps=num_iterations,
                                                    reg_lambda=reg_lambda,
                                                    )
+    try:
+        optimized_model.block_until_ready()
+    except Exception as e:
+        print(e)
+    if trace_dest:
+        jax.profiler.stop_trace()
+
     # Let's save what pyklip params were used with the outputs
     pyklip_params_dict = record_pyklip_params(ffd_obj.numbasis,
                                               ffd_obj.iwa,
