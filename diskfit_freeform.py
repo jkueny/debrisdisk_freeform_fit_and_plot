@@ -464,7 +464,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)
     if trace_dest:
-        jax.profiler.start_trace(trace_dest, create_perfetto_trace=True)
+        jax.profiler.start_trace(trace_dest)
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_ps=ps_ref_model,
                                                    noise_map=noise_interest,
