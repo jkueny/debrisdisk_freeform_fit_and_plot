@@ -307,7 +307,7 @@ def test_indices_to_selector():
     assert jnp.all(selector == jnp.array([True, True, False]))
 
 
-def perturb_KLmodes(evals, evecs, original_KL, ref_inds, full_sample_refs, full_sample_models):
+def perturb_KLmodes(evals, evecs, original_KL, selector, full_sample_refs, full_sample_models):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
 
@@ -315,8 +315,8 @@ def perturb_KLmodes(evals, evecs, original_KL, ref_inds, full_sample_refs, full_
         evals: array of eigenvalues of the reference PSF covariance matrix (array of size numbasis)
         evecs: corresponding eigenvectors (array of size [pixels, numbasis])
         orignal_KL: unpertrubed KL modes (array of size [numbasis, pixels])
-        refs: N_images x pixels array of the N reference images that
-                  characterizes the extended source with p pixels
+        reference_images_selector_vec: N_images length vector set to 1 for the entries corresponding to
+            reference images that were used to reduce this frame
         models_ref: N x p array of the N models corresponding to reference images.
                     Each model should contain spectral informatoin
         model_sci: array of size p corresponding to the PSF of the science frame
@@ -324,9 +324,6 @@ def perturb_KLmodes(evals, evecs, original_KL, ref_inds, full_sample_refs, full_
     Returns:
         delta_KL_nospec: perturbed KL modes. Shape is (numKL, wv, pix)
     """
-    # Here we make a "one-hot" style selector vector to pull columns out of
-    # the full reference sample
-    selector = indices_to_selector(full_sample_refs.shape[0], ref_inds)
 
     sample_refs = jnp.diag(selector) @ full_sample_refs
     sample_models = jnp.diag(selector) @ full_sample_models
@@ -377,8 +374,10 @@ def perturb_KLmodes(evals, evecs, original_KL, ref_inds, full_sample_refs, full_
     return delta_KL
 
 # @jax.jit
-def fm_from_eigen_adi(sci_data, model_disk_sci,
-                         klmodes, evals, evecs, ref_inds, full_sample_refs, full_sample_models):
+def fm_from_eigen_adi(
+    sci_data, model_disk_sci, klmodes, evals, evecs,
+    reference_images_selector_vec, full_sample_refs, full_sample_models
+):
     """
     Compute the forward model for one disk model image.
 
@@ -420,7 +419,7 @@ def fm_from_eigen_adi(sci_data, model_disk_sci,
     # Ex. shape for delta_KL (2, 39112)
     # delta_KL = perturb_KLmodes(evals, evecs, klmodes,
     delta_KL = perturb_KLmodes(evals, evecs, klmodes,
-                                ref_inds, full_sample_refs, full_sample_models
+                                reference_images_selector_vec, full_sample_refs, full_sample_models
                                 # return_perturb_covar=False,
                                 )
 

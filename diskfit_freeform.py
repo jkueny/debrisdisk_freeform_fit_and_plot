@@ -181,7 +181,7 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     klmodes = input_pt["modes"]
     evals = input_pt["evals"]
     evecs = input_pt["evecs"]
-    ref_inds = input_pt["ref_inds"]
+    reference_images_selector_vec = input_pt["reference_images_selector_vec"]
 
     flat_postklip_psf_i = fm_from_eigen_adi(
             aligned_image,
@@ -189,7 +189,7 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
             klmodes,
             evals,
             evecs,
-            ref_inds,
+            reference_images_selector_vec,
             full_sample_refs,
             full_sample_models,
         )
@@ -200,7 +200,7 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
 
 @partial(jax.jit, static_argnames=["total_pixels", "isRDI", "reg_lambda"])
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
-                  aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, ref_psf_inds,
+                  aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
                   total_pixels, isRDI, reg_lambda):
     """ measure the huber loss for a given disk freeform disk model.
@@ -226,7 +226,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
      - PAs: PARANG header values for each image.
      - disk_mask_inds: indices for the disk ROI, flattened (1, m_pixels)
      - iowa_sec_inds_arr: inner-outer-working angle ROI indices, flattened (1, n_pixels)
-     - ref_psf_inds: aligned_images indices for refs assoc. w/ each image (N_images, max_num_refs)
+     - all_reference_images_selectors: N_images x N_images vectors that are True/1 where a source image is included in the final dataset and false otherwise
      - klmodes_stacked: flattened KL modes array (N_images, num_KL_modes, n_pixels)
      - evals: the eigenvalues for KLIP (N_images, num_KL_modes)
      - evecs_stacked: the eigenvectors (N_images, max_num_refs, num_KL_modes)
@@ -257,14 +257,14 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
                                         )
-    # Make the pytreeeee for jax.lax.scan
+    # Make the pytree for jax.lax.scan
     fm_calc_inputs = {
         "models": global_models_prepped,
         "images": aligned_images,
         "modes": klmodes_stacked,
         "evals": evals,
         "evecs": evecs_stacked,
-        "ref_inds": ref_psf_inds,
+        "reference_images_selector_vec": all_reference_images_selectors,
     }
 
     # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
@@ -349,9 +349,14 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
     #                             basis_data["klparam_dict"]["aligned_center_y"]])))
     ref_psfs_inds = basis_data_unpacked["ref_inds"]
-    
 
-    time_now = time.time()
+    all_reference_images_selectors = np.zeros((aligned_image_sections.shape[0], aligned_image_sections.shape[0]), dtype=bool)
+    for i in range(aligned_image_sections.shape[0]):
+        for j in ref_psfs_inds[i]:
+            all_reference_images_selectors[i, j] = True
+    all_reference_images_selectors = jax.device_put(all_reference_images_selectors.astype(float))
+
+    run_start_ts = time.time()
     # jax.profiler.start_trace("/tmp/tensorboard")
     # jax.config.update("jax_debug_nans", True)
 
@@ -360,7 +365,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
                                     ref_ps, aligned_image_sections,
                                     PAs,
-                                    mask_indices, iowa_sec_inds, ref_psfs_inds,
+                                    mask_indices, iowa_sec_inds, all_reference_images_selectors,
                                     klmodes_sections, evals, evecs, 
                                     total_pixels,
                                     mode, reg_lambda)
@@ -368,6 +373,8 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss
 
+    first_step = time.time()
+    measure_warmup = True
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
             image_params, opt_state, loss = step(image_params, opt_state)
@@ -375,10 +382,17 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         loss_history.append(loss.item())
 
         # if step_idx % round(num_steps / 10) == 0:
-        print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {time.time() - time_now:.6f} sec elapsed")
+        if measure_warmup:
+            first_step = time.time() - first_step
+            dt = time.time() - run_start_ts
+            measure_warmup = False
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - ? sec / step")
+        else:
+            dt = time.time() - run_start_ts - first_step
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
 
     # jax.profiler.stop_trace()
-    print(f"This run took {(time.time() - time_now):.6f} seconds.")
+    print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     
     # optimized_model = jax.nn.sigmoid(image_params)
     optimized_model = image_params
@@ -527,7 +541,7 @@ if __name__ == "__main__":
     parser.add_argument(
                         '--initial-model',
                         type=str,
-                        required=True,
+                        required=False,
                         help='Path to starting model fits file')
     parser.add_argument(
                         '--reg',
