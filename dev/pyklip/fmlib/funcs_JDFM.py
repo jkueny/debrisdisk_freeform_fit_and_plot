@@ -3,7 +3,9 @@
 import numpy as np
 import jax
 import jax.numpy as jnp
+import jax.profiler
 
+from functools import partial
 from dev.pyklip.j_klip import rotate_image
 
 def derotate_and_average(flat_postklip_psfs, PAs, total_pixels, section_inds):
@@ -12,13 +14,12 @@ def derotate_and_average(flat_postklip_psfs, PAs, total_pixels, section_inds):
     '''
     psf_vecs = jnp.squeeze(flat_postklip_psfs)
     image_dim = int(np.sqrt(total_pixels))
-    def _scan_body(output, xs):
-        current_psf_vector, current_pa = xs
+    def _vmap_body(current_psf_vector, current_pa):
         pre_derotation_img = insert_section_into_full_image(current_psf_vector, (image_dim, image_dim), section_inds)
-        derotated_img = rotate_image(pre_derotation_img, -current_pa)
-        output = output + derotated_img / psf_vecs.shape[0]
-        return output, None
-    output, _ = jax.lax.scan(_scan_body, jnp.zeros((image_dim, image_dim)), (psf_vecs, PAs))
+        return rotate_image(pre_derotation_img, -current_pa)
+    output_all = jax.vmap(_vmap_body)(psf_vecs, PAs)
+    output = jnp.average(output_all, axis=0)
+
     # not sure how we get to needing to flip both axes... TODO investigate
     corrected_postklip_psfs = jnp.flip(output, axis=(0, 1))
     return corrected_postklip_psfs
@@ -116,13 +117,10 @@ def update_disk(model_disk, PAs, section_inds):
     """
     # Global rotations.
     N_global = PAs.shape[0]
-    # Tile the model_disk to get one copy per global image.
-    global_disks = jnp.tile(model_disk, reps=(N_global, 1, 1))
-    # Rotate each copy by its corresponding global PA.
-    def _scan_body(_, xs):
-        one_disk, one_pa = xs
-        return _, rotate_image(one_disk, one_pa)
-    _, global_rot = jax.lax.scan(_scan_body, None, (global_disks, PAs))
+    # Generate N_global copies of the model rotated by the corresponding frame PA.
+    def _vmap_body(one_pa):
+        return rotate_image(model_disk, one_pa)
+    global_rot = jax.vmap(_vmap_body)(PAs)
 
     global_rot_flat = global_rot.reshape((N_global, -1))
     global_rot_section_flat = global_rot_flat[:, section_inds[0]]
@@ -324,9 +322,9 @@ def perturb_KLmodes(evals, evecs, original_KL, selector, full_sample_refs, full_
     Returns:
         delta_KL_nospec: perturbed KL modes. Shape is (numKL, wv, pix)
     """
-
-    sample_refs = jnp.diag(selector) @ full_sample_refs
-    sample_models = jnp.diag(selector) @ full_sample_models
+    # multiplying by a boolean array to avoid constructing diagonal matrix to select columns
+    sample_refs = selector[:, jnp.newaxis] * full_sample_refs
+    sample_models = selector[:, jnp.newaxis] * full_sample_models
 
     max_basis = original_KL.shape[0]
     refs_mean_sub = sample_refs - jnp.nanmean(sample_refs, axis=1, keepdims=True)
@@ -348,23 +346,6 @@ def perturb_KLmodes(evals, evecs, original_KL, selector, full_sample_refs, full_
 
     C_partial = sample_models.dot(refs_meansub_nonan.transpose())
     C = C_partial + C_partial.transpose()
-    _, n_evals = evecs.shape
-
-    def _construct_evecs(orig_subset_evecs_idx, selector_flag):
-        # as we scan, we advance the `orig_subset_evecs_idx` index
-        # only when we have yielded a selected eigenvector
-        carry_out = jnp.where(
-            selector_flag,
-            orig_subset_evecs_idx + 1,
-            orig_subset_evecs_idx
-        )
-        vector = jnp.where(
-            selector_flag,
-            evecs[orig_subset_evecs_idx],
-            jnp.zeros(n_evals),
-        )
-        return carry_out, vector
-    _, evecs = jax.lax.scan(_construct_evecs, 0, selector)
 
     alpha_tmp = jnp.dot(evecs.transpose(), C)
     alpha = jnp.dot(alpha_tmp, evecs)

@@ -11,8 +11,9 @@ Steps to develop:
 optimizer function.
 4. ????
 '''
-
 import os
+import multiprocessing
+multiprocessing.set_start_method('forkserver')
 import sys
 import argparse
 
@@ -83,7 +84,7 @@ def fft_power_spectrum(image):
     """
     Compute the 2D power spectrum of an image (shifted so DC is at center).
     """
-    fft = jnp.fft.fftshift(jnp.fft.fft2(image))
+    fft = jnp.fft.fftshift(jnp.fft.rfft2(image))
     power = jnp.abs(fft) ** 2
     return power #TODO the sum of this should be the variance of the mean-subbed image (Parseval's theorem)
 
@@ -318,6 +319,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
 
     # num_input_images = int(jax.device_get(basis_data["klparam_dict"]["nfiles"]))
     aligned_image_sections = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 39112)
+    n_images = aligned_image_sections.shape[0]
     iowa_sec_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
 
 
@@ -325,8 +327,15 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
 
     evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
-    # the eigenvectors have been zero-padded at the ends to removed ragged-ness....
-    evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 6)
+    n_modes = evals.shape[1]
+    subset_evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 6)
+    evecs = np.zeros((n_images, n_images, n_modes))
+    ref_psfs_inds = basis_data_unpacked["ref_inds"]
+    # doing this in mutable-array-land on CPU is faster
+    # so we pre-fill the per-frame eigenbases in a consistent shape using
+    # the indices from which the ref PSFs were drawn
+    for idx, img_ref_indices in enumerate(ref_psfs_inds):
+        evecs[idx, img_ref_indices] = subset_evecs[idx]
     # evecs have been unpacked, stacked, and ready to be BATCHED!
     # input_img_nums = basis_data_unpacked["input_img_nums"]
     # These are the images used for the basis for every image in the dataset.
@@ -348,7 +357,6 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
     # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
     #                             basis_data["klparam_dict"]["aligned_center_y"]])))
-    ref_psfs_inds = basis_data_unpacked["ref_inds"]
 
     all_reference_images_selectors = np.zeros((aligned_image_sections.shape[0], aligned_image_sections.shape[0]), dtype=bool)
     for i in range(aligned_image_sections.shape[0]):
@@ -497,22 +505,27 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     if trace_dest:
         jax.profiler.stop_trace()
         print("Ended profiler trace")
-
+    print("Saving pyklip params...")
+    
     # Let's save what pyklip params were used with the outputs
     pyklip_params_dict = record_pyklip_params(ffd_obj.numbasis,
-                                              ffd_obj.iwa,
-                                              ffd_obj.owa,
-                                              ffd_obj.minrot,
-                                              ffd_obj.aligned_center
-                                              )
+                                            ffd_obj.iwa,
+                                            ffd_obj.owa,
+                                            ffd_obj.minrot,
+                                            ffd_obj.aligned_center
+                                            )
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
+    print("Reconstructing full image...")
     optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
     # optimized_model = np.roll(optimized_model, (-1,-1))
 
+    print("Convolving optimized model image...")
     optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
 
+    print("Generating the optimized forward model image...")
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
 
+    print("Calculating residuals between reduced data and optimized forward model...")
     residuals = np.asarray(reduced_data - optimized_fm)
 
     save_ffdfit_outputs(save_dir=resultsdir,
