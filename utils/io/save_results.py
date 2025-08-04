@@ -192,13 +192,15 @@ def save_ffdfit_outputs(run_dir: Path,
         # "model_file": "wdh_model.fits",
         # "forward_model_file": "forward_model.fits"
     }
-
-    plt.plot(loss_history, linewidth=3, alpha=0.8)
-    plt.xlabel("Iterations")
-    plt.ylabel("Loss")
-    plt.grid()
-    plt.savefig(f"{run_dir}/loss_history.png")
-    plt.savefig(f"{run_dir}/loss_history.pdf")
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.plot(loss_history, linewidth=3, alpha=0.8)
+    ax.set(xlabel="Iterations")
+    ax.set(ylabel="Loss")
+    ax.set(yscale='log')
+    ax.grid()
+    fig.savefig(f"{run_dir}/loss_history.png")
+    fig.savefig(f"{run_dir}/loss_history.pdf")
+    plt.close(fig)
 
     with open(run_dir / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)

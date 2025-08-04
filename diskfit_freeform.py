@@ -286,14 +286,15 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
     # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss, 0.))
-
-    return mean_huber + hsf_penalty #counts**2 units for both (kinda)
+    loss = mean_huber + hsf_penalty #counts**2 units for both (kinda)
+    aux_data = freeform_fm_full, full_model_norm
+    return loss, aux_data
 
 
 
 # --- JIT-Compiled Gradient Computation ---
 # loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
-loss_and_grad = jax.value_and_grad(loss_function)
+loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 
 def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
@@ -370,7 +371,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
 
     @jax.jit
     def step(image_params, opt_state):
-        loss, grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
+        (loss, aux_data), grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
                                     ref_ps, aligned_image_sections,
                                     PAs,
                                     mask_indices, iowa_sec_inds, all_reference_images_selectors,
@@ -379,14 +380,15 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
                                     mode, reg_lambda)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
-        return image_params, opt_state, loss
+        return image_params, opt_state, loss, aux_data
 
     first_step = time.time()
     measure_warmup = True
+    plot_idx = 0
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
-            image_params, opt_state, loss = step(image_params, opt_state)
-        
+            image_params, opt_state, loss, aux_data = step(image_params, opt_state)
+        freeform_fm_full, full_model_norm = aux_data
         loss_history.append(loss.item())
 
         # if step_idx % round(num_steps / 10) == 0:
@@ -398,6 +400,21 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
         else:
             dt = time.time() - run_start_ts - first_step
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+        if step_idx % 10 == 0:
+            out_filename = f"{run_dir}/training_{plot_idx:05}.png"
+            print('Saving', out_filename, '...', end=' ')
+            import matplotlib.pyplot as plt
+            fig, axs = plt.subplots(ncols=3, figsize=(12, 3))
+            plt.colorbar(axs[0].imshow(reduced_data, origin='lower'))
+            axs[0].set(title='Reduced data')
+            plt.colorbar(axs[1].imshow(freeform_fm_full, origin='lower'))
+            axs[1].set(title='Freeform FM')
+            plt.colorbar(axs[2].imshow(np.log10(full_model_norm), cmap='magma', origin='lower'))
+            axs[2].set(title=r'$\log_{10}$(Model)')
+            fig.savefig(out_filename)
+            plt.close(fig)
+            plot_idx += 1
+            print('Done.')
 
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
 
