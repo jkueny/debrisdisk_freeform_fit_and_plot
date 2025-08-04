@@ -42,7 +42,7 @@ import astropy.io.fits as fits
 
 
 from modeling.disk_freeform import FreeFormDisk
-from utils.io.save_results import save_ffdfit_outputs
+from utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
 
 from dev.pyklip.fmlib.funcs_JDFM import (
     update_disk, fm_from_eigen_adi, derotate_and_average
@@ -297,7 +297,7 @@ loss_and_grad = jax.value_and_grad(loss_function)
 
 
 def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
-                   psf, basis_data, total_pixels, num_steps, reg_lambda, lr=0.1):
+                   psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image).astype(jnp.float32)
@@ -399,10 +399,8 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
             dt = time.time() - run_start_ts - first_step
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
 
-    # jax.profiler.stop_trace()
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
-    
-    # optimized_model = jax.nn.sigmoid(image_params)
+
     optimized_model = image_params
     return optimized_model, loss_history
 
@@ -423,7 +421,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     mask2generatedisk = ffd_obj.prep_binary_masks()
 
     # Get the initial model
-
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
     model_init_norm = model_firstguess / np.sum(model_firstguess)
@@ -441,7 +438,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     if ffd_obj.params_file["FIRST_TIME"] or bool(first_time):
         # initialize_diskfm and make diskobj global
         dataset = ffd_obj.prep_dataset()
-        
 
         ffd_obj.initialize_diskfm(dataset, model_init=model_firstguess)
 
@@ -482,6 +478,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     init_model_interest = init_model_flat[disk_mask_indices]
 
     noise_interest = noise_map_flat[disk_mask_indices]
+    run_dir = get_next_run_dir(resultsdir)
 
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)
@@ -497,6 +494,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
                                                    total_pixels=total_pixels,
                                                    num_steps=num_iterations,
                                                    reg_lambda=reg_lambda,
+                                                   run_dir=run_dir,
+                                                   reduced_data=reduced_data,
                                                    )
     try:
         optimized_model.block_until_ready()
@@ -528,7 +527,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     print("Calculating residuals between reduced data and optimized forward model...")
     residuals = np.asarray(reduced_data - optimized_fm)
 
-    save_ffdfit_outputs(save_dir=resultsdir,
+    save_ffdfit_outputs(run_dir=run_dir,
                         file_prefix=file_prefix,
                         model_opt=optimized_model,
                         model_image_opt=optimized_model_image,

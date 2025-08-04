@@ -129,7 +129,22 @@ def save_wdhfit_outputs(save_dir: str,
     print(f"Done; optimization results saved to: {run_dir}")
     return run_dir
 
-def save_ffdfit_outputs(save_dir: str,
+def get_next_run_dir(save_dir: str):
+    run_root = Path(save_dir)
+    run_root.mkdir(exist_ok=True)
+
+    # auto-increment run number
+    existing = [p for p in run_root.glob("opt_run_*") if p.is_dir()]
+    run_id = 0
+    if existing:
+        nums = [int(p.name.split("_")[-1]) for p in existing if p.name.split("_")[-1].isdigit()]
+        if nums:
+            run_id = max(nums) + 1
+    run_dir = run_root / f"opt_run_{run_id:04d}"
+    run_dir.mkdir()
+    return run_dir
+
+def save_ffdfit_outputs(run_dir: Path,
                         file_prefix: str,
                         model_opt: np.ndarray,
                         model_image_opt: np.ndarray,
@@ -159,18 +174,6 @@ def save_ffdfit_outputs(save_dir: str,
     import matplotlib.pyplot as plt
     
 
-    run_root = Path(save_dir)
-    run_root.mkdir(exist_ok=True)
-
-    # auto-increment run number
-    existing = [p for p in run_root.glob("opt_run_*") if p.is_dir()]
-    run_id = 0
-    if existing:
-        nums = [int(p.name.split("_")[-1]) for p in existing if p.name.split("_")[-1].isdigit()]
-        if nums:
-            run_id = max(nums) + 1
-    run_dir = run_root / f"opt_run_{run_id:04d}"
-    run_dir.mkdir()
 
 
 
