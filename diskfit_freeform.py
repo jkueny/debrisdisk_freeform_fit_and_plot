@@ -148,7 +148,7 @@ def reconstruct_full_image(free_params, total_pixels, mask_indices):
     """
     full_shape = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
     full_flat = jnp.zeros(total_pixels)
-    full_flat = full_flat.at[mask_indices].set(free_params)
+    full_flat = full_flat.at[mask_indices].set(jnp.abs(free_params))
     return full_flat.reshape(full_shape)
 
 # def initialize_freeform_model_reduced():
@@ -244,8 +244,9 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     # So the wind is the rate of change of the phase 2pi v k thing maybe over D
     isRDI = bool(isRDI)
 
-    # Ensure that the model pixel values range [0,1]
+
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
+    # Ensure total intensity is 1.0
     full_model_norm = full_model_image / jnp.sum(full_model_image)
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
