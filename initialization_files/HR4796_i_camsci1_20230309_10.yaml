@@ -7,17 +7,17 @@ pyklip:
   mode: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
   do_rdi_correlation: False # Measure the correlation matrix of the RDI PSF lib. Very long.
   # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-  klmode_number: 8 # number of KL modes used in the reduction < nb images in the basis
+  klmode_number: 22 # number of KL modes used in the reduction < nb images in the basis
   annuli: 1 # number of annuli in the KLIP reduction
 
   # KLIP params optimized for ctrl region speckles, minor axis, 2x2 binning, 08/04/24 JKK
   # Fixing minrot to 6, bc minor axis flux optimization favors
   # very high minrot, outer disk suffers greatly, harder to subtract artifacts.
-  IWA: 10 # pixels
+  IWA: 12 # pixels
   # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-  move_here: 14  #minrot in PyKLIP ADI
+  move_here: 10  #minrot in PyKLIP ADI
   hp_filter: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
   #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
   # ALIGNED_CENTER: [112.5,112.5]  #image center in your model, also use to center the image before KLIP
@@ -25,7 +25,7 @@ pyklip:
 
 
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-band_dir: ../ceph/jkueny/projects/HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+band_dir: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 file_prefix: camsci1_i_20230309_10 #prefix for all saved files (carefull not to erase your results)
