@@ -81,14 +81,15 @@ class FreeFormDisk:
         self.image_size = int(np.ceil(aligned_center[0]) * 2)
         self.image_shape = (self.image_size, self.image_size)
 
-    def get_initial_model(self, loc_init_model=None):
+    def get_initial_model(self, loc_init_model=None, random_seed=0):
+        rng = np.random.default_rng(random_seed)
 
         #load in the model
         if loc_init_model is not None:
             model_init = fits.getdata(loc_init_model)
         else:
             # we init the model fitting with just a noise image
-            model_init = np.random.normal(0,3,self.image_shape)
+            model_init = rng.uniform(0.0, 1.0, self.image_shape)
         
         # model_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
         # save_fits(model_saveto, model_init)
