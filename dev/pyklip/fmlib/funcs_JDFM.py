@@ -3,8 +3,26 @@
 import numpy as np
 import jax
 import jax.numpy as jnp
+import jax.profiler
 
+from functools import partial
 from dev.pyklip.j_klip import rotate_image
+
+def derotate_and_average(flat_postklip_psfs, PAs, total_pixels, section_inds):
+    '''Given (N_images, p_pixels) `flat_postklip_psfs` and (N_images,) PAs
+    make derotated + mean-combined image
+    '''
+    psf_vecs = jnp.squeeze(flat_postklip_psfs)
+    image_dim = int(np.sqrt(total_pixels))
+    def _vmap_body(current_psf_vector, current_pa):
+        pre_derotation_img = insert_section_into_full_image(current_psf_vector, (image_dim, image_dim), section_inds)
+        return rotate_image(pre_derotation_img, -current_pa)
+    output_all = jax.vmap(_vmap_body)(psf_vecs, PAs)
+    output = jnp.average(output_all, axis=0)
+
+    # not sure how we get to needing to flip both axes... TODO investigate
+    corrected_postklip_psfs = jnp.flip(output, axis=(0, 1))
+    return corrected_postklip_psfs
 
 def mass_derotation(flat_postklip_psfs, PAs, total_pixels, section_inds):
     # print(f"image_dim -> {image_dim}")
@@ -88,49 +106,24 @@ def update_disk(model_disk, PAs, section_inds):
     Args:
       model_disk: 2D JAX array of shape (height, width).
       PAs: JAX array of global position angles (in degrees) with shape (N_global,).
-      ref_PAs: Tuple (or list) of 1D JAX arrays; ref_PAs[i] contains the reference angles
-               for the i-th global image (ragged, not padded).
-      aligned_center: Tuple (cx, cy) specifying the center of rotation.
       section_inds: Tuple (or list) of length N_global. Each element is a tuple (row_inds, col_inds)
                     that selects the region-of-interest from an image.
-      min_num_models: Integer; fixed number of reference models to output per global image.
     
     Returns:
       global_rotated: JAX array of shape (N_global, N_pixels_section) containing the flattened,
                       sectioned, globally rotated disk models.
       ref_rotated: JAX array of shape (N_global, min_num_models, N_pixels_section) containing
                    the flattened, sectioned disk models rotated by each reference PA (padded as needed).
-
-    NOTE: I tried replacing the for-loop for a vmap procedure, and runtime went *up*. Apparently vmaps
-    for vmaps sometimes isn't better.
-
     """
     # Global rotations.
     N_global = PAs.shape[0]
-    # Tile the model_disk to get one copy per global image.
-    global_disks = jnp.tile(model_disk, reps=(N_global, 1, 1))
-    # Rotate each copy by its corresponding global PA.
-    global_rot = jax.vmap(rotate_image)(global_disks, PAs)
+    # Generate N_global copies of the model rotated by the corresponding frame PA.
+    def _vmap_body(one_pa):
+        return rotate_image(model_disk, one_pa)
+    global_rot = jax.vmap(_vmap_body)(PAs)
 
-    # global_rot_flipx = jnp.flip(global_rot, axis=2)
-    global_rot_flipx = global_rot
-
-    # Flatten each sectioned image.
-    global_rot_flat = global_rot_flipx.reshape((N_global, -1))
-    # Apply sectioning to each global rotated disk.
-    global_rot_section_flat = jax.vmap(_apply_section, in_axes=(0, None))(global_rot_flat, section_inds)
-
-    # def _one_frame_rot_flat(model_disk, PA):
-    #     rot = rotate_image(model_disk, PA)
-    #     rot_flat = rot.reshape(global_disks.shape[0], -1)
-    #     rot_flat_sec = rot_flat[section_inds]
-    #     fin_rot_flat_sec = jnp.squeeze(rot_flat_sec)
-    #     fin_rot_flat_sec_pad = pad_array_to_fixed_first_dim(fin_rot_flat_sec,
-    #                                                         min_num_models,
-    #                                                         pad_value=0)
-    #     return fin_rot_flat_sec_pad
-    
-
+    global_rot_flat = global_rot.reshape((N_global, -1))
+    global_rot_section_flat = global_rot_flat[:, section_inds[0]]
     return global_rot_section_flat
     
 def update_wind(model_wdhs, PAs, ref_inds, section_inds,
@@ -253,7 +246,7 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
     model_sci_mean_sub = model_sci # should be subtracting off the mean?
 
     # model_sci_meansub_nonans = jnp.nan_to_num(model_sci_mean_sub, nan=0.0)
-    model_sci_mean_sub_rows = np.reshape(model_sci_mean_sub,(1,N_pix))
+    model_sci_mean_sub_rows = jnp.reshape(model_sci_mean_sub,(1,N_pix))
 
 
     # Forward model the PSF
@@ -286,8 +279,33 @@ def calculate_fm(delta_KL, original_KL, sci, model_sci):
 
     return model_sci[None,:] - klipped_oversub - klipped_selfsub, klipped_oversub, klipped_selfsub
 
-# @jax.jit
-def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
+
+
+def indices_to_selector(total_count, ref_inds):
+    """Here we make a selector vector of length total_count where
+    the i'th entry is 1 if i appears in ref_inds, or 0 otherwise
+    """
+    def make_selector_cols(col_count, _):
+        def make_selector_col(count, ref_idx):
+            return count + 1, jnp.where(col_count == ref_idx, 1, 0)
+        _, col = jax.lax.scan(make_selector_col, 0, ref_inds)
+        return col_count + 1, col
+    _, selector_cols = jax.lax.scan(make_selector_cols, 0, length=total_count)
+    selector = jnp.any(selector_cols, axis=1)
+    return selector
+
+def test_indices_to_selector():
+    n_refs = 3
+    pix_per_ref = 5
+    subset_refs = 2
+    ref_inds = jnp.arange(n_refs)[:subset_refs]
+    full_sample_refs = jnp.arange(n_refs * pix_per_ref).reshape(n_refs, pix_per_ref)
+    selector = indices_to_selector(full_sample_refs.shape[0], ref_inds)
+    print(f"{selector=}")
+    assert jnp.all(selector == jnp.array([True, True, False]))
+
+
+def perturb_KLmodes(evals, evecs, original_KL, selector, full_sample_refs, full_sample_models):
     """
     Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
 
@@ -295,8 +313,8 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
         evals: array of eigenvalues of the reference PSF covariance matrix (array of size numbasis)
         evecs: corresponding eigenvectors (array of size [pixels, numbasis])
         orignal_KL: unpertrubed KL modes (array of size [numbasis, pixels])
-        refs: N_images x pixels array of the N reference images that
-                  characterizes the extended source with p pixels
+        reference_images_selector_vec: N_images length vector set to 1 for the entries corresponding to
+            reference images that were used to reduce this frame
         models_ref: N x p array of the N models corresponding to reference images.
                     Each model should contain spectral informatoin
         model_sci: array of size p corresponding to the PSF of the science frame
@@ -304,48 +322,44 @@ def perturb_KLmodes(evals, evecs, original_KL, refs, models_ref):
     Returns:
         delta_KL_nospec: perturbed KL modes. Shape is (numKL, wv, pix)
     """
+    # multiplying by a boolean array to avoid constructing diagonal matrix to select columns
+    sample_refs = selector[:, jnp.newaxis] * full_sample_refs
+    sample_models = selector[:, jnp.newaxis] * full_sample_models
 
     max_basis = original_KL.shape[0]
-    N_ref = refs.shape[0]
-    # N_pix = original_KL.shape[1]
-
-    refs_mean_sub = refs - jnp.nanmean(refs, axis=1, keepdims=True)
-
-    refs_meansub_nonan = jnp.nan_to_num(refs_mean_sub, nan=0.0) 
-
-    models_mean_sub = models_ref # - np.nanmean(models_ref, axis=1)[:,None] should this be the case?
-    # models_mean_sub[np.where(np.isnan(models_mean_sub))] = 0
-    models_meansub_nonan = jnp.nan_to_num(models_mean_sub, nan=0.0)
-
-    #print(evals.shape,evecs.shape,original_KL.shape,refs.shape,models_ref.shape)
+    refs_mean_sub = sample_refs - jnp.nanmean(sample_refs, axis=1, keepdims=True)
+    refs_meansub_nonan = refs_mean_sub
+    models_mean_sub = sample_models
+    models_meansub_nonan = models_mean_sub
 
     evals_tiled = jnp.tile(evals,(max_basis,1))
     evals_nan_diag = jnp.fill_diagonal(evals_tiled, 1., inplace=False)
-    # print(evals_tiled)
-    # sys.exit()
+
     evals_sqrt = jnp.sqrt(evals)
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
-    beta_tmp = 1./(evals_nan_diag.transpose()- evals_nan_diag)
-    #print(evals)
+
+    beta_tmp = 1./(evals_nan_diag.transpose() - evals_nan_diag)
+
     beta_tmp = beta_tmp.at[np.diag_indices(np.size(evals))].set(-0.5/evals)
     beta = evals_ratio*beta_tmp #no NaNs confirmed JKK 03/18/2025
 
-    C_partial = models_meansub_nonan.dot(refs_meansub_nonan.transpose())
-    C = C_partial+C_partial.transpose()
-    #C =  models_mean_sub.dot(refs_mean_sub.transpose())+refs_mean_sub.dot(models_mean_sub.transpose())
+    C_partial = sample_models.dot(refs_meansub_nonan.transpose())
+    C = C_partial + C_partial.transpose()
+
     alpha_tmp = jnp.dot(evecs.transpose(), C)
     alpha = jnp.dot(alpha_tmp, evecs)
-
-    delta_KL = (beta*alpha).dot(original_KL)+(evalse_inv_sqrt[:,None]*evecs.transpose()).dot(models_mean_sub)
-
-
+    first_dotproduct = (beta*alpha).dot(original_KL)
+    second_dotproduct = (evalse_inv_sqrt[:,None]*evecs.transpose()).dot(models_meansub_nonan)
+    delta_KL = first_dotproduct + second_dotproduct
     return delta_KL
 
 # @jax.jit
-def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
-                         klmodes, evals, evecs):
-    """ 
+def fm_from_eigen_adi(
+    sci_data, model_disk_sci, klmodes, evals, evecs,
+    reference_images_selector_vec, full_sample_refs, full_sample_models
+):
+    """
     Compute the forward model for one disk model image.
 
     Note:
@@ -384,8 +398,9 @@ def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
 
     # Compute delta_KL (set to zero if mode=='RDI')
     # Ex. shape for delta_KL (2, 39112)
+    # delta_KL = perturb_KLmodes(evals, evecs, klmodes,
     delta_KL = perturb_KLmodes(evals, evecs, klmodes,
-                                refs_data, model_disk_refs,
+                                reference_images_selector_vec, full_sample_refs, full_sample_models
                                 # return_perturb_covar=False,
                                 )
 
@@ -405,7 +420,7 @@ def fm_from_eigen_adi(sci_data, refs_data, model_disk_sci, model_disk_refs,
 
 def fm_from_eigen_rdi(sci_data, model_disk_sci,
                          klmodes):
-    """ 
+    """
     Compute the forward model for one disk model image.
 
     Note:

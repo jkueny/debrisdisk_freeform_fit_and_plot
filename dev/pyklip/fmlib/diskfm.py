@@ -709,7 +709,6 @@ class DiskFM(NoFM):
             file_extension = ""
         else:
             _, file_extension = path.splitext(self.basis_filename)
-        manager = mp.Manager()
 
         # Load in file
         if file_extension == ".pkl":
