@@ -45,7 +45,9 @@ class FreeFormDisk:
         
     
     def _load_dirs(self):
-        basedir = f'{os.environ["HOME"]}/projects'
+        # Look for the project files in ~/projects by default
+        # or in $DISKFIT_BASEDIR
+        basedir = os.environ.get('DISKFIT_BASEDIR', f'{os.environ["HOME"]}/projects')
         self.basedir = basedir
         klipdir = os.path.join(basedir, self.params_file["band_dir"],
                                     "klip_fm_files")
