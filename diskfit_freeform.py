@@ -50,6 +50,12 @@ from dev.pyklip.fmlib.funcs_JDFM import (
 
 from utils.klip_basis import load_kl_basis, unpack_basis_data
 
+from utils.masks import make_annular_mask
+
+from utils.improc_tools import reconstruct_full_image, fft_power_spectrum
+
+from utils.diskfit_tools import convolve_model, record_pyklip_params, \
+    penalize_spatial_freq
 
 import jax
 import jax.numpy as jnp
@@ -58,120 +64,7 @@ from jax import lax
 import optax
 from optax.losses import huber_loss
 
-# fm_from_eigen_adi_jit = jax.jit(
-#     fm_from_eigen_adi,
-#     donate_argnums=(1,2,3,4,5,6),
-# )
 
-def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
-    '''
-    We have an ideal scattered light disk model from a prior MCMC analysis.
-
-    We can use this as a power spectrum reference to penalize high spatial frequencies.
-    '''
-    # Compute where freeform power exceeds ref model power
-    excess_mask = model_ps > (ref_model_ps)
-    excess_power = jnp.where(excess_mask, 
-                             model_ps - ref_model_ps, #grab power at high freqs
-                             0.0) #zero everything else
-
-    # Return total excess as a scalar penalty
-    # jax.debug.print("print(reg_lambda) -> {x}", x=reg_lambda)
-    penalty = jnp.mean(excess_power)
-    return reg_lambda * penalty
-
-def fft_power_spectrum(image):
-    """
-    Compute the 2D power spectrum of an image (shifted so DC is at center).
-    """
-    fft = jnp.fft.fftshift(jnp.fft.rfft2(image))
-    power = jnp.abs(fft) ** 2
-    return power #TODO the sum of this should be the variance of the mean-subbed image (Parseval's theorem)
-
-# jax.config.update("jax_enable_x64", True)
-
-# update_disk_jit = jax.jit(update_disk, static_argnames=["min_num_models",])
-# reconstruct_full_image_jax = jax.jit(reconstruct_full_image,
-#                                      static_argnames=["total_pixels"],
-#                                      )
-# insert_section_jaxed = jax.jit(insert_section_into_full_image,
-#                                static_argnames=["full_shape","section_inds"])
-# fm_jaxed_jit = jax.jit(fm_jaxed, static_argnames=[""])
-
-def make_annular_mask(dimensions, inner_radius, outer_radius, center=None):
-    """
-    Create a binary annular mask for a 2D array.
-    
-    The pixels whose distance from the center is between inner_radius and outer_radius
-    (inclusive) are set to 1; all other pixels are set to 0.
-    
-    Args:
-        dimensions (tuple): (height, width) of the output mask.
-        inner_radius (float): The inner radius (in pixels).
-        outer_radius (float): The outer radius (in pixels).
-        center (tuple, optional): (row, col) coordinates for the center.
-                                  If None, defaults to the center of the array.
-    
-    Returns:
-        jnp.ndarray: A binary mask with shape `dimensions` (1's inside the annulus, 0's outside).
-    """
-    H, W = dimensions
-    if center is None:
-        center = (H / 2 - 0.5, W / 2 - 0.5)
-    
-    # Create coordinate grid
-    y, x = np.indices((H, W))
-    # Compute the radial distance from the center for each pixel.
-    # Note: center is given as (row, col) and x corresponds to column indices.
-    r = np.sqrt((x - center[1])**2 + (y - center[0])**2)
-    # Create the binary mask: 1 inside the annulus, 0 elsewhere.
-    mask = np.where((r >= inner_radius) & (r <= outer_radius), 1, 0)
-    return mask
-
-def record_pyklip_params(n_klmodes, iwa, owa, minrot, centering):
-    params = {}
-
-    params["n_KLmodes"] = n_klmodes
-    params["IWA"] = iwa
-    params["OWA"] = owa
-    params["minrot"] = minrot
-    params["aligned_center"] = centering
-
-    return params
-
-
-def reconstruct_full_image(free_params, total_pixels, mask_indices):
-    """
-    Given the free parameters (for the unmasked region) and the full image shape,
-    create a full image (flattened) where the free parameters are inserted at the positions
-    indicated by mask_indices and zeros elsewhere.
-    """
-    full_shape = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
-    full_flat = jnp.zeros(total_pixels)
-    full_flat = full_flat.at[mask_indices].set(jnp.abs(free_params))
-    return full_flat.reshape(full_shape)
-
-# def initialize_freeform_model_reduced():
-#     """Initialize freeform model parameters for the unmasked region."""
-#     rng = jax.random.PRNGKey(42)
-#     # Instead of full image dimensions, only initialize num_free parameters.
-#     free_params = jax.random.normal(rng, (NUM_FREE,))
-
-#     return free_params
-
-
-def convolve_model(input_model, psf):
-    # psf = jnp.asarray(psf)
-    assert psf.shape[0] == psf.shape[1], "Instr. PSF image is not square. How can this be?!"
-    kernel_size = psf.shape[0] #should be square
-    # Pad image to maintain size
-    # padded_image = jnp.pad(input_model, [(kernel_size//2, kernel_size//2),
-    #                                (kernel_size//2, kernel_size//2)], mode='reflect')
-
-    # Apply convoluted convolution
-    model_convolved = fftconvolve(input_model, psf, mode="same")
-    
-    return model_convolved
 
 def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     flat_model_here = input_pt["models"]
@@ -196,7 +89,6 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
         )
     
     return _, jnp.array(flat_postklip_psf_i)
-
 
 
 @partial(jax.jit, static_argnames=["total_pixels", "isRDI", "reg_lambda"])
