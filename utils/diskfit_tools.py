@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import numpy as np
-from jax.scipy import fftconvolve
+from jax.scipy.signal import fftconvolve
 
 def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
     '''

@@ -52,7 +52,8 @@ from utils.klip_basis import load_kl_basis, unpack_basis_data
 
 from utils.masks import make_annular_mask
 
-from utils.improc_tools import reconstruct_full_image, fft_power_spectrum
+from utils.improc_tools import reconstruct_full_image, fft_power_spectrum, subtract_radial_profile, \
+    get_radial_inds
 
 from utils.diskfit_tools import convolve_model, record_pyklip_params, \
     penalize_spatial_freq
@@ -91,11 +92,11 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     return _, jnp.array(flat_postklip_psf_i)
 
 
-@partial(jax.jit, static_argnames=["total_pixels", "isRDI", "reg_lambda"])
-def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
+@partial(jax.jit, static_argnames=["total_pixels", "isRDI", "aligned_center", "reg_lambda"])
+def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
-                  total_pixels, isRDI, reg_lambda):
+                  radial_inds, total_pixels, aligned_center, isRDI, reg_lambda,):
     """ measure the huber loss for a given disk freeform disk model.
 
     Steps executed:
@@ -142,12 +143,13 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
     full_model_norm = full_model_image / jnp.sum(full_model_image)
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
-    model_ps = fft_power_spectrum(full_model_norm)
+    model_psd = fft_power_spectrum(full_model_norm)
     # we use the first_guess model as a reference
-    hsf_penalty = penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda=reg_lambda)
+    hsf_penalty = penalize_spatial_freq(model_psd, ref_model_psd, reg_lambda=reg_lambda)
 
     freeform_image = convolve_model(full_model_image, psf)
-    global_models_prepped = update_disk(model_disk=freeform_image,
+    freeform_image_profilesub = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
+    global_models_prepped = update_disk(model_disk=freeform_image_profilesub,
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
                                         )
@@ -190,7 +192,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_ps,
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 
-def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
+def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
                    psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, lr=0.1):
     
     # dimension = img_dim
@@ -249,8 +251,10 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
-    # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
-    #                             basis_data["klparam_dict"]["aligned_center_y"]])))
+    aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
+                                basis_data["klparam_dict"]["aligned_center_y"]])))
+    image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
+    radial_inds = get_radial_inds(image_shape, aligned_center)
 
     all_reference_images_selectors = np.zeros((aligned_image_sections.shape[0], aligned_image_sections.shape[0]), dtype=bool)
     for i in range(aligned_image_sections.shape[0]):
@@ -265,12 +269,12 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     @jax.jit
     def step(image_params, opt_state):
         (loss, aux_data), grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
-                                    ref_ps, aligned_image_sections,
+                                    ref_psd, aligned_image_sections,
                                     PAs,
                                     mask_indices, iowa_sec_inds, all_reference_images_selectors,
                                     klmodes_sections, evals, evecs, 
-                                    total_pixels,
-                                    mode, reg_lambda)
+                                    radial_inds, total_pixels, aligned_center,
+                                    mode, reg_lambda,)
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss, aux_data
@@ -334,7 +338,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
     model_init_norm = model_firstguess / np.sum(model_firstguess)
-    ps_ref_model = fft_power_spectrum(model_init_norm)
+    psd_ref_model = fft_power_spectrum(model_init_norm)
 
     # load PSF
     # psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
@@ -396,7 +400,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
         jax.profiler.start_trace(trace_dest)
         print(f"Tracing to {trace_dest}")
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
-                                                   model_init=init_model_interest, ref_ps=ps_ref_model,
+                                                   model_init=init_model_interest, ref_psd=psd_ref_model,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
                                                    mask_indices=disk_mask_indices,

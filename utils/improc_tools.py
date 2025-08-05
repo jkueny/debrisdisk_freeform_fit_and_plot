@@ -1,4 +1,5 @@
 import numpy as np
+import jax
 import jax.numpy as jnp
 
 def fft_power_spectrum(image):
@@ -19,3 +20,51 @@ def reconstruct_full_image(free_params, total_pixels, mask_indices):
     full_flat = jnp.zeros(total_pixels)
     full_flat = full_flat.at[mask_indices].set(jnp.abs(free_params))
     return full_flat.reshape(full_shape)
+
+def get_radial_inds(image_shape, center):
+    y, x = image_shape
+    yy = jnp.arange(y)
+    xx = jnp.arange(x)
+    c_y, c_x = center
+
+    ygrid, xgrid = jnp.meshgrid(yy, xx, indexing="ij")    
+
+    rad = jnp.sqrt((xgrid - c_x) ** 2 + (ygrid - c_y)**2 )
+
+    return jnp.array(rad).astype(jnp.int32)
+
+def median_radial_profile(image, center, radial_inds):
+    """Measure the median radial profile with respect to the image center.
+
+    Args:
+        image (jnp.Array): 2D square image.
+    Returns:
+        median_radial_profile (jnp.Array): 2D radial profile image.
+    """
+
+    max_distance = np.hypot(center[1], center[0])
+
+    radii = jnp.arange(max_distance + 1)
+    
+    def median_at_radius(r):
+        ring_vals = jnp.where(radial_inds == r, image, 0)
+
+        return jnp.median(ring_vals)
+
+    median_profile_1d = jax.vmap(median_at_radius)(radii)
+
+    # Cast the profile to a 2D array
+    median_profile_image = median_profile_1d[radial_inds]
+
+    return median_profile_image
+
+def subtract_radial_profile(image, center, radial_inds):
+
+    median_profile_image = median_radial_profile(image, center, radial_inds)
+
+    subtracted = image - median_profile_image
+
+    return subtracted
+
+
+    
