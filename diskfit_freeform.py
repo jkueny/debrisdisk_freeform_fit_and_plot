@@ -433,7 +433,9 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     # optimized_model = np.roll(optimized_model, (-1,-1))
 
     print("Convolving optimized model image...")
-    optimized_model_image = np.asarray(fftconvolve(optimized_model, psf, mode="same"))
+    opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
+
+    optimized_model_image = np.asarray(subtract_radial_profile(opt_image_no_rprofsub, aligned_center))
 
     print("Generating the optimized forward model image...")
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
