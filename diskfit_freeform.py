@@ -13,7 +13,7 @@ optimizer function.
 '''
 import os
 import multiprocessing
-multiprocessing.set_start_method('forkserver')
+
 import sys
 import argparse
 
@@ -337,8 +337,16 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     # Get the initial model
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
-    model_init_norm = model_firstguess / np.sum(model_firstguess)
-    psd_ref_model = fft_power_spectrum(model_init_norm)
+    # Render the reference model
+    if init_model is None:
+        reference_model = ffd_obj.render_reference_model()
+        reference_model[reference_model != reference_model] = 0.
+    else:
+        reference_model = model_firstguess
+
+    # model_init_norm = model_firstguess / np.sum(model_firstguess)
+    reference_model_norm = reference_model / np.sum(reference_model)
+    psd_ref_model = fft_power_spectrum(reference_model_norm)
 
     # load PSF
     # psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
@@ -456,6 +464,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method('forkserver')
     parser = argparse.ArgumentParser(description='run diskierFM autodiff')
     parser.add_argument('-p',
                         '--param-file',

@@ -63,13 +63,11 @@ disk_model:
   dx_init: -4.2
   dy_init: 1.5
   N_init: 895.2
-  rscale_init: 10
-  dtheta_init: 1.00
-  # amin_init: 0.68 #microns
-  # amax_init: 10000. #microns, let's fix this for now
-  aexp_init: 3.5 #radial pwer law for size distribution of grains
   r_inner: 65
   r_outer: 110
+  g1_init: 0.96122
+  g2_init: -0.14258
+  alpha1_init: 0.55185   
 
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
 r1_state: 1

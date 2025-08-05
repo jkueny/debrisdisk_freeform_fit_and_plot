@@ -25,6 +25,7 @@ from dev.pyklip.fmlib.diskfm import DiskFM
 import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
 import utils.astro_unit_conversion as convert
+from modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 # import multiprocessing as mp
 
 class FreeFormDisk:
@@ -33,6 +34,7 @@ class FreeFormDisk:
         self._load_dirs()
         self._load_metadata()
         self._load_klparams()
+        # self._render_reference_model()
         # self.klbasis = self._loadbasis()
 
         #load instrument PSF
@@ -80,6 +82,72 @@ class FreeFormDisk:
         self.aligned_center = aligned_center
         self.image_size = int(np.ceil(aligned_center[0]) * 2)
         self.image_shape = (self.image_size, self.image_size)
+
+    def _load_reference_model_params(self):
+        disk_params = {}
+        disk_params["r1"] = self.params_file["disk_model"]["r_inner"]
+        disk_params["r2"] = self.params_file["disk_model"]["r_outer"]
+        disk_params["rc"] = self.params_file["disk_model"]["rc_init"]
+        disk_params["alpha_in"] = self.params_file["disk_model"]["alpha_in_init"]
+        disk_params["alpha_out"] = self.params_file["disk_model"]["alpha_out_init"]
+        disk_params["beta"] = self.params_file["disk_model"]["beta_init"]
+        disk_params["a_r"] = self.params_file["disk_model"]["a_r_init"]
+        disk_params["inc"] = self.params_file["disk_model"]["inc_init"]
+        disk_params["pa"] = self.params_file["disk_model"]["pa_init"]
+        disk_params["dx"] = self.params_file["disk_model"]["dx_init"]
+        disk_params["dy"] = self.params_file["disk_model"]["dy_init"]
+        disk_params["Norm"] = self.params_file["disk_model"]["N_init"]
+        disk_params["g1"] = self.params_file["disk_model"]["g1_init"]
+        disk_params["g2"] = self.params_file["disk_model"]["g2_init"]
+        disk_params["alpha1"] = self.params_file["disk_model"]["alpha1_init"]
+
+        self.disk_params = disk_params
+
+    def render_reference_model(self):
+
+        self._load_reference_model_params()
+
+        beta = self.disk_params["beta"]
+        a_r = self.disk_params["a_r"]
+        inc = self.disk_params["inc"]
+        pa = self.disk_params["pa"]
+        dx = self.disk_params["dx"]
+        dy = self.disk_params["dy"]
+
+        R1 = self.disk_params['r1']
+        R2 = self.disk_params['r2']
+
+        Norm = self.disk_params['Norm']
+        g1 = self.disk_params['g1']
+        g2 = self.disk_params['g2']
+        alpha1 = self.disk_params['alpha1']
+
+        max_fov = self.image_size / 2. * self.pixscale  #maximum radial distance in AU from the center to the edge
+        n_pts = int(np.floor(self.image_size / 1))
+        xsize = max_fov * self.distance  #maximum radial distance in AU from the center to the edge
+
+        #The coordinate system here [x,y,z] is defined :
+        # +ve x is the line of sight
+        # +ve y is going right from the center
+        # +ve z is going up from the center
+
+        # y = np.linspace(0,xsize,num=npts/2)
+        y = np.linspace(-xsize, xsize, num=n_pts)
+        z = np.linspace(-xsize, xsize, num=n_pts)
+        
+        beta = 1.
+        rc = self.disk_params['rc']
+        m = self.disk_params['alpha_in']
+        n = self.disk_params['alpha_out']
+        model = fastmodgen_disk_dxdy_2g(R1, R2, beta, inc, pa, dx, dy, Norm,
+                                    g1, g2, alpha1, a_r, rc, m, n,
+                                    y_arr=y,
+                                    z_arr=z,
+                                    npts=n_pts,
+                                    mask=(1 - self.mask2generatedisk))
+        save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), model)
+        return model
+    
 
     def get_initial_model(self, loc_init_model=None, random_seed=0):
         rng = np.random.default_rng(random_seed)
