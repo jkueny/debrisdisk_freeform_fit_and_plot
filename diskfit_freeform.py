@@ -193,7 +193,7 @@ loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 
 def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
-                   psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, lr=0.1):
+                   psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, radial_inds, lr=0.1):
     
     # dimension = img_dim
     jax_target_image = jnp.array(target_image).astype(jnp.float32)
@@ -253,8 +253,6 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
     aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
                                 basis_data["klparam_dict"]["aligned_center_y"]])))
-    image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
-    radial_inds = get_radial_inds(image_shape, aligned_center)
 
     all_reference_images_selectors = np.zeros((aligned_image_sections.shape[0], aligned_image_sections.shape[0]), dtype=bool)
     for i in range(aligned_image_sections.shape[0]):
@@ -382,6 +380,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     
     total_pixels = np.prod(reduced_data.shape)
 
+    radial_inds = get_radial_inds(reduced_data.shape, aligned_center)
+
 
 
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
@@ -418,6 +418,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
                                                    reg_lambda=reg_lambda,
                                                    run_dir=run_dir,
                                                    reduced_data=reduced_data,
+                                                   radial_inds=radial_inds,
                                                    )
     try:
         optimized_model.block_until_ready()
@@ -443,7 +444,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     print("Convolving optimized model image...")
     opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
 
-    optimized_model_image = np.asarray(subtract_radial_profile(opt_image_no_rprofsub, aligned_center))
+    optimized_model_image = np.asarray(subtract_radial_profile(opt_image_no_rprofsub, aligned_center, radial_inds))
 
     print("Generating the optimized forward model image...")
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
