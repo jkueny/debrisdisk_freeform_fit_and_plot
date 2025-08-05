@@ -77,6 +77,30 @@ def build_batched_ref_images(aligned_images, ref_psfs_indicies_dict, fixed_refs,
         batched_refs.append(refs_padded)
     return jnp.stack(batched_refs), jnp.stack(batched_inds)
 
+def build_batched_ref_indices(ref_psfs_indicies_dict, fixed_refs):
+    """
+    For each key in ref_psfs_indicies_dict, gathers the corresponding reference images
+    from aligned_images (assumed to have shape (N_images, height, width)),
+    flattens them, and pads the result along axis 0 to shape (fixed_refs, height*width).
+    
+    Returns a JAX array of shape (N_keys, fixed_refs, image_pixels).
+    """
+    keys = sorted(ref_psfs_indicies_dict.keys())
+    batched_inds = []
+    # height, width = image_shape
+    for k in keys:
+        # Get reference indices for this key.
+        ref_inds = np.asarray(ref_psfs_indicies_dict[k]).astype(int)
+        # ref_inds shape (n_refs,)
+        n_refs = len(ref_inds)
+        if n_refs > fixed_refs:
+            raise ValueError(f"For key {k}: number of references {n_refs} exceeds fixed limit {fixed_refs}.")
+        # Gather reference images.
+        inds_padded = pad_array_to_fixed_first_dim(ref_inds, fixed_refs, pad_value=-1)
+        batched_inds.append(inds_padded)
+    return jnp.stack(batched_inds)
+
+
 def build_batched_ref_PAs(global_PAs, ref_psfs_indicies_dict):
     """
     For each key in ref_psfs_indicies_dict, extract from klparam_dict["PAs"]
@@ -200,8 +224,9 @@ def unpack_basis_data(basis_data):
     out["input_img_nums"] = jnp.array(input_img_nums, dtype=jnp.int32)
     
     # For ref_psfs_indicies_dict: build batched reference images from the reduced (sectioned) images.
-    ref_psfs, ref_inds = build_batched_ref_images(reduced_aligned_images, basis_data["ref_psfs_indicies_dict"], fixed_refs, N_pixels_section)
-    out["ref_psfs"] = ref_psfs  # shape (N_keys, fixed_refs, N_pixels_section)
+    # ref_psfs, ref_inds = build_batched_ref_images(reduced_aligned_images, basis_data["ref_psfs_indicies_dict"], fixed_refs, N_pixels_section)
+    ref_inds = build_batched_ref_indices(basis_data["ref_psfs_indicies_dict"], fixed_refs)
+    # out["ref_psfs"] = ref_psfs  # shape (N_keys, fixed_refs, N_pixels_section)
     
     # For ref_PAs: build ragged reference position angles (no padding).
     ref_PAs = build_batched_ref_PAs(basis_data["klparam_dict"]["PAs"],

@@ -233,7 +233,7 @@ def optimize_model(target_image, model_init, ref_ps, noise_map, mask_indices,
     # evecs have been unpacked, stacked, and ready to be BATCHED!
     # input_img_nums = basis_data_unpacked["input_img_nums"]
     # These are the images used for the basis for every image in the dataset.
-    ref_psfs_sections = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
+    # ref_psfs_sections = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
     # ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
 
 
