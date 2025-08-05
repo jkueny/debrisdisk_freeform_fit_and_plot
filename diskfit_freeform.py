@@ -84,11 +84,12 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     return _, jnp.array(flat_postklip_psf_i)
 
 
-def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image, mask_indices, min_percent=1.0, max_percent=99.9):
+def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image, updates, mask_indices, min_percent=1.0, max_percent=99.9):
     print('Saving', out_filename, '...', end=' ')
     import matplotlib.pyplot as plt
     from astropy.visualization import simple_norm
-    fig, axs = plt.subplots(ncols=3, figsize=(10, 3))
+    fig, axs = plt.subplots(ncols=4, figsize=(10, 3))
+    fig.subplots_adjust(left=0.05, right=0.95)
     mask_tmp = np.zeros(reduced_data.size)
     mask_tmp[mask_indices] = 1.0
     mask_good = (mask_tmp == 1.0).reshape(reduced_data.shape)
@@ -107,6 +108,9 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     axs[1].set(title='Freeform FM')
     plt.colorbar(axs[2].imshow(full_model_image_masked, origin='lower', norm=simple_norm(full_model_image, 'log', min_percent=min_percent, max_percent=max_percent), cmap=magma_g))
     axs[2].set(title=r'Model')
+    updates_vmax = np.max(np.abs(updates))
+    plt.colorbar(axs[3].imshow(updates, origin='lower', vmax=updates_vmax, vmin=-updates_vmax, cmap='RdYlBu_r'))
+    axs[3].set(title=r'Updates')
     fig.savefig(out_filename, dpi=128)
     plt.close(fig)
     print('Done.')
@@ -207,15 +211,6 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
     target_image = jnp.array(target_image).astype(jnp.float32)
     noise_map = jnp.array(noise_map).astype(jnp.float32)
 
-    # Initialize the initial image
-    image_params = model_init.astype(jnp.float32)
-
-    # Set up optimizer, use adaptive stochastic grad descent (Adam)
-    optimizer = optax.adam(learning_rate)
-    opt_state =  optimizer.init(image_params) #this is all zeros initially
-
-    loss_history = []
-
     basis_data_unpacked = unpack_basis_data(basis_data)
     aligned_image_sections = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 39112)
     n_images = aligned_image_sections.shape[0]
@@ -225,6 +220,15 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
     n_modes = evals.shape[1]
     subset_evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 6)
     ref_psfs_inds = basis_data_unpacked["ref_inds"]
+
+    # Initialize the initial image
+    image_params = jnp.median(target_image[mask_indices]) * model_init.astype(jnp.float32)
+
+    # Set up optimizer, use adaptive stochastic grad descent (Adam)
+    optimizer = optax.adam(learning_rate)
+    opt_state =  optimizer.init(image_params) #this is all zeros initially
+
+    loss_history = []
 
     # doing this in mutable-array-land on CPU is faster
     # so we pre-fill the per-frame eigenbases in a consistent shape using
@@ -265,15 +269,26 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
                                     radial_inds, total_pixels, aligned_center,
                                     mode, reg_lambda,)
         updates, opt_state = optimizer.update(grads, opt_state)
+        # Smooth updates so adjacent pixels in the intensity distribution move in vaguely similar directions
+        kernel = jnp.array([
+            [0, 0.5, 0],
+            [0.5, 1.0, 0.5],
+            [0, 0.5, 0],
+        ])
+        convolved = jax.scipy.signal.fftconvolve(reconstruct_full_image(updates, total_pixels, mask_indices), 
+                                                #  psf / jnp.sum(psf),
+                                                 kernel / jnp.sum(kernel),
+                                                 mode='same')
+        updates = convolved.flatten()[mask_indices]
         image_params = optax.apply_updates(image_params, updates)
-        return image_params, opt_state, loss, aux_data
+        return image_params, opt_state, loss, updates, aux_data
 
     first_step = time.time()
     measure_warmup = True
     plot_idx = 0
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
-            image_params, opt_state, loss, aux_data = step(image_params, opt_state)
+            image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state)
         freeform_fm_full, full_model_image = aux_data
         loss_history.append(loss.item())
 
@@ -288,11 +303,18 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
         if step_idx % 10 == 0:
             out_filename = f"{run_dir}/training_{plot_idx:05}.png"
-            plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image, mask_indices)
+            plot_training(
+                out_filename,
+                reduced_data,
+                freeform_fm_full,
+                full_model_image,
+                reconstruct_full_image(updates, total_pixels, mask_indices),
+                mask_indices
+            )
             plot_idx += 1
 
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
-    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, mask_indices)
+    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), mask_indices)
 
     optimized_model = image_params
     return optimized_model, loss_history
