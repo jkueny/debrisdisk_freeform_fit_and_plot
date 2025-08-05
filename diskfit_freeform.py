@@ -116,11 +116,10 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     print('Done.')
 
 
-@partial(jax.jit, static_argnames=["total_pixels", "reg_lambda"])
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
-                  total_pixels, reg_lambda):
+                  radial_inds, aligned_center, isRDI, total_pixels, reg_lambda,):
     """ measure the huber loss for a given disk freeform disk model.
 
     Steps executed:
@@ -154,7 +153,6 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     Returns:
         mean huber loss for each pixel param.
     """
-
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
     # Ensure total intensity is 1.0
     full_model_norm = full_model_image / jnp.sum(full_model_image)
@@ -204,10 +202,13 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
-def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
-                   psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate):
-    
-    # dimension = img_dim
+def optimize_model(
+    target_image, model_init, ref_psd, noise_map, mask_indices, psf,
+    basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
+    image_shape,
+    radial_inds,
+    aligned_center,
+):
     target_image = jnp.array(target_image).astype(jnp.float32)
     noise_map = jnp.array(noise_map).astype(jnp.float32)
 
@@ -247,8 +248,7 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
-    # aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
-    #                             basis_data["klparam_dict"]["aligned_center_y"]])))
+    
 
     all_reference_images_selectors = np.zeros((aligned_image_sections.shape[0], aligned_image_sections.shape[0]), dtype=bool)
     for i in range(aligned_image_sections.shape[0]):
@@ -258,28 +258,17 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
 
     run_start_ts = time.time()
 
+    total_pixels = int(total_pixels)
+
     @jax.jit
     def step(image_params, opt_state):
-        (loss, aux_data), grads = loss_and_grad(image_params, target_image, psf, noise_map,
-                                    ref_psd, aligned_image_sections,
-                                    PAs,
-                                    mask_indices, iowa_sec_inds, all_reference_images_selectors,
-                                    klmodes_sections, evals, evecs, 
-                                    total_pixels, reg_lambda)
-                                    radial_inds, total_pixels, aligned_center,
-                                    mode, reg_lambda,)
+        (loss, aux_data), grads = loss_and_grad(
+            image_params, target_image, psf, noise_map, ref_psd,
+            aligned_image_sections, PAs, mask_indices, iowa_sec_inds, all_reference_images_selectors,
+            klmodes_sections, evals, evecs,
+            radial_inds, aligned_center, mode, total_pixels, reg_lambda,
+        )
         updates, opt_state = optimizer.update(grads, opt_state)
-        # Smooth updates so adjacent pixels in the intensity distribution move in vaguely similar directions
-        kernel = jnp.array([
-            [0, 0.5, 0],
-            [0.5, 1.0, 0.5],
-            [0, 0.5, 0],
-        ])
-        convolved = jax.scipy.signal.fftconvolve(reconstruct_full_image(updates, total_pixels, mask_indices), 
-                                                #  psf / jnp.sum(psf),
-                                                 kernel / jnp.sum(kernel),
-                                                 mode='same')
-        updates = convolved.flatten()[mask_indices]
         image_params = optax.apply_updates(image_params, updates)
         return image_params, opt_state, loss, updates, aux_data
 
@@ -331,6 +320,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     klipdir = ffd_obj.klipdir
     resultsdir = ffd_obj.resultsdir
     file_prefix = ffd_obj.file_prefix # Ex. camsci1_i_20230309_10
+    aligned_center = ffd_obj.aligned_center
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
     mask2generatedisk = ffd_obj.prep_binary_masks()
 
@@ -383,6 +373,10 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     noise_interest = noise_map_flat[disk_mask_indices]
     run_dir = get_next_run_dir(resultsdir)
 
+    aligned_center = float(fm_dict["klparam_dict"]["aligned_center_x"]), float(fm_dict["klparam_dict"]["aligned_center_y"])
+    image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
+    radial_inds = get_radial_inds(image_shape, aligned_center)
+
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)
     if trace_dest:
@@ -400,6 +394,9 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
         run_dir=run_dir,
         reduced_data=reduced_data,
         learning_rate=learning_rate,
+        image_shape=image_shape,
+        radial_inds=radial_inds,
+        aligned_center=aligned_center,
     )
     try:
         optimized_model.block_until_ready()
@@ -425,7 +422,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     print("Convolving optimized model image...")
     opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
 
-    optimized_model_image = np.asarray(subtract_radial_profile(opt_image_no_rprofsub, aligned_center))
+    optimized_model_image = np.asarray(subtract_radial_profile(opt_image_no_rprofsub, aligned_center, radial_inds))
 
     print("Generating the optimized forward model image...")
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
