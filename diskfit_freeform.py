@@ -205,7 +205,6 @@ loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 def optimize_model(
     target_image, model_init, ref_psd, noise_map, mask_indices, psf,
     basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
-    image_shape,
     radial_inds,
     aligned_center,
 ):
@@ -398,6 +397,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                                                    model_init=init_model_interest, ref_psd=psd_ref_model,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
+                                                   aligned_center=aligned_center,
                                                    mask_indices=disk_mask_indices,
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
