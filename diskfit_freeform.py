@@ -406,6 +406,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                                                    run_dir=run_dir,
                                                    reduced_data=reduced_data,
                                                    radial_inds=radial_inds,
+                                                   learning_rate=learning_rate,
                                                    )
     try:
         optimized_model.block_until_ready()
