@@ -163,7 +163,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     hsf_penalty = penalize_spatial_freq(model_psd, ref_model_psd, reg_lambda=reg_lambda)
 
     freeform_image = convolve_model(full_model_image, psf)
-    freeform_image_profilesub = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
+    freeform_image_profilesub, _ = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
     global_models_prepped = update_disk(model_disk=freeform_image_profilesub,
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
@@ -432,7 +432,10 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     print("Convolving optimized model image...")
     opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
 
-    optimized_model_image = np.asarray(subtract_radial_profile(opt_image_no_rprofsub, aligned_center, radial_inds))
+    opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub, aligned_center, radial_inds)
+
+    optimized_model_image = np.asarray(opt_model_image)
+    median_profile_image = np.asarray(med_prof_image)
 
     print("Generating the optimized forward model image...")
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
@@ -446,6 +449,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                         model_image_opt=optimized_model_image,
                         forward_model_opt=optimized_fm,
                         residuals_image=residuals,
+                        median_profile_image=median_profile_image,
                         loss_history=loss_history,
                         hsf_regularization=reg_lambda,
                         pyklip_params=pyklip_params_dict

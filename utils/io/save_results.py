@@ -150,6 +150,7 @@ def save_ffdfit_outputs(run_dir: Path,
                         model_image_opt: np.ndarray,
                         forward_model_opt: np.ndarray,
                         residuals_image: np.ndarray,
+                        median_profile_image: np.ndarray,
                         loss_history: list,
                         hsf_regularization: float,
                         optimizer_name: str = "Optax Adam",
@@ -181,6 +182,7 @@ def save_ffdfit_outputs(run_dir: Path,
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Conv.fits", model_image_opt, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_FM.fits", forward_model_opt, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_Res.fits", residuals_image, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_MedProf.fits", median_profile_image, overwrite=True)
 
     metadata = {
         "timestamp_utc": str(datetime.now()),

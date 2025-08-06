@@ -64,7 +64,7 @@ def subtract_radial_profile(image, center, radial_inds):
 
     subtracted = image - median_profile_image
 
-    return subtracted
+    return subtracted, median_profile_image
 
 
     
