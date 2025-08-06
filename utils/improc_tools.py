@@ -47,9 +47,13 @@ def median_radial_profile(image, center, radial_inds):
     radii = jnp.arange(max_distance + 1)
     
     def median_at_radius(r):
-        ring_vals = jnp.where(radial_inds == r, image, 0)
-
-        return jnp.median(ring_vals)
+        mask = radial_inds == r
+        # For JAX compatibility, we need to avoid boolean indexing
+        # Instead, we'll use a weighted approach where we set non-ring pixels to NaN
+        ring_vals = jnp.where(mask, image, jnp.nan)
+        
+        # Use nanmedian to compute median ignoring NaN values
+        return jnp.nanmedian(ring_vals)
 
     median_profile_1d = jax.vmap(median_at_radius)(radii)
 
