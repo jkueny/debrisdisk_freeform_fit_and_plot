@@ -28,6 +28,49 @@ import utils.astro_unit_conversion as convert
 from modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 # import multiprocessing as mp
 
+
+def generate_powerlaw_noise(shape, power_law_index, seed):
+    """
+    Generate a 2D noise array with a power spectrum following a given power law index.
+
+    Parameters:
+        shape (tuple): Shape of the output array (ny, nx).
+        power_law_index (float): Power law index (beta) for the power spectrum (P(k) ~ k^beta).
+        random_seed (int, optional): Seed for reproducibility.
+
+    Returns:
+        np.ndarray: 2D noise array.
+
+
+    Example usage:
+    noise = generate_powerlaw_noise((256, 256), -2.0, random_seed=42)
+    """
+    rng = np.random.default_rng(seed)
+    ny, nx = shape
+    # Create frequency grid
+    ky = np.fft.fftfreq(ny).reshape(-1, 1)
+    kx = np.fft.fftfreq(nx).reshape(1, -1)
+    k = np.sqrt(kx**2 + ky**2)
+    k[0, 0] = np.inf  # avoid division by zero at the zero frequency
+
+    # Power spectrum amplitude
+    amplitude = k**(power_law_index / 2.0)
+    amplitude[0, 0] = 0  # set DC component to zero
+
+    # Generate random complex noise
+    noise = rng.normal(size=(ny, nx)) + 1j * rng.normal(size=(ny, nx))
+    noise_ft = noise * amplitude
+
+    # Inverse FFT to get spatial noise
+    noise_spatial = np.fft.ifft2(noise_ft).real
+
+    # Normalize to zero mean and unit variance
+    noise_spatial -= np.mean(noise_spatial)
+    noise_spatial /= np.std(noise_spatial)
+
+    return noise_spatial
+
+
 class FreeFormDisk:
     def __init__(self, config):
         self.params_file = read_config(config)
@@ -47,7 +90,9 @@ class FreeFormDisk:
         
     
     def _load_dirs(self):
-        basedir = f'{os.environ["HOME"]}/projects'
+        # Look for the project files in ~/projects by default
+        # or in $DISKFIT_BASEDIR
+        basedir = os.environ.get('DISKFIT_BASEDIR', f'{os.environ["HOME"]}/projects')
         self.basedir = basedir
         klipdir = os.path.join(basedir, self.params_file["band_dir"],
                                     "klip_fm_files")
@@ -157,8 +202,8 @@ class FreeFormDisk:
             model_init = fits.getdata(loc_init_model)
         else:
             # we init the model fitting with just a noise image
-            model_init = rng.uniform(0.0, 1.0, self.image_shape)
-        
+            model_init = 1.0 + rng.uniform(-0.1, 0.1, self.image_shape)
+
         # model_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
         # save_fits(model_saveto, model_init)
 

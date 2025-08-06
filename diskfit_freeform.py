@@ -17,29 +17,21 @@ import multiprocessing
 import sys
 import argparse
 
-basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
-# your data (using OS environnement variable allow to use same code on
-# different computer without changing this).
-
-# default_parameter_file = 'HR4796_g_camsci2_20230312_13.yaml'  # name of the parameter file
 default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name of the parameter file
-# default_parameter_file = 'HR4796_i_smlyot_20230309_10.yaml'  # name of the parameter file
-# you can also call it with the python function argument -p
 
 
 import time
-
-
-# # because this error was coming up
-# os.environ['OPENBLAS_NUM_THREADS'] = '1'
-
 
 from functools import partial
 import numpy as np
 
 import astropy.io.fits as fits
 
-
+from matplotlib import cm
+magma_g = cm.magma.copy()
+magma_g.set_bad('0.5')
+viridis_g = cm.viridis.copy()
+viridis_g.set_bad('0.5')
 
 from modeling.disk_freeform import FreeFormDisk
 from utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
@@ -92,11 +84,42 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     return _, jnp.array(flat_postklip_psf_i)
 
 
-@partial(jax.jit, static_argnames=["total_pixels", "isRDI", "aligned_center", "reg_lambda"])
+def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image, updates, mask_indices, min_percent=1.0, max_percent=99.9):
+    print('Saving', out_filename, '...', end=' ')
+    import matplotlib.pyplot as plt
+    from astropy.visualization import simple_norm
+    fig, axs = plt.subplots(ncols=4, figsize=(10, 3))
+    fig.subplots_adjust(left=0.05, right=0.95)
+    mask_tmp = np.zeros(reduced_data.size)
+    mask_tmp[mask_indices] = 1.0
+    mask_good = (mask_tmp == 1.0).reshape(reduced_data.shape)
+    mask_bad = (mask_tmp == 0.0).reshape(reduced_data.shape)
+    data_vmin, data_vmax = 0, np.percentile(reduced_data[mask_good], max_percent)
+    data_space_norm = simple_norm(reduced_data, 'log', vmin=data_vmin, vmax=data_vmax)
+    reduced_data_masked = np.array(reduced_data)
+    reduced_data_masked[mask_bad] = np.nan
+    plt.colorbar(axs[0].imshow(reduced_data_masked, origin='lower', norm=data_space_norm, cmap=viridis_g))
+    axs[0].set(title='Reduced data')
+    freeform_fm_full_masked = np.array(freeform_fm_full)
+    freeform_fm_full_masked[mask_bad] = np.nan
+    plt.colorbar(axs[1].imshow(freeform_fm_full_masked, origin='lower', norm=data_space_norm, cmap=viridis_g))
+    full_model_image_masked = np.array(full_model_image)
+    full_model_image_masked[mask_bad] = np.nan
+    axs[1].set(title='Freeform FM')
+    plt.colorbar(axs[2].imshow(full_model_image_masked, origin='lower', norm=simple_norm(full_model_image, 'log', min_percent=min_percent, max_percent=max_percent), cmap=magma_g))
+    axs[2].set(title=r'Model')
+    updates_vmax = np.max(np.abs(updates))
+    plt.colorbar(axs[3].imshow(updates, origin='lower', vmax=updates_vmax, vmin=-updates_vmax, cmap='RdYlBu_r'))
+    axs[3].set(title=r'Updates')
+    fig.savefig(out_filename, dpi=128)
+    plt.close(fig)
+    print('Done.')
+
+
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
-                  radial_inds, total_pixels, aligned_center, isRDI, reg_lambda,):
+                  radial_inds, aligned_center, isRDI, total_pixels, reg_lambda,):
     """ measure the huber loss for a given disk freeform disk model.
 
     Steps executed:
@@ -125,19 +148,11 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
      - evals: the eigenvalues for KLIP (N_images, num_KL_modes)
      - evecs_stacked: the eigenvectors (N_images, max_num_refs, num_KL_modes)
      - total_pixels (int): pixel count of the full-size image. Ex. 224**2 = 50176
-     - isRDI (bool): toggle RDI mode
      - reg_lambda: regularization factor for high spatial frequency penalty
 
     Returns:
         mean huber loss for each pixel param.
     """
-
-    # DM commands scaled to [0,1] fits cubes do like 10 secs of wall clock time
-    # Spatil freq. such that speckles end up at 10 lamb/D
-    # So the wind is the rate of change of the phase 2pi v k thing maybe over D
-    isRDI = bool(isRDI)
-
-
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
     # Ensure total intensity is 1.0
     full_model_norm = full_model_image / jnp.sum(full_model_image)
@@ -180,68 +195,50 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 
     raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
     # drive the Huber loss to zero residuals
-    mean_huber = jnp.mean(huber_loss(raw_loss, 0.))
+    mean_huber = jnp.mean(huber_loss(raw_loss))
     loss = mean_huber + hsf_penalty #counts**2 units for both (kinda)
-    aux_data = freeform_fm_full, full_model_norm
+    aux_data = freeform_fm_full, full_model_image
     return loss, aux_data
 
-
-
-# --- JIT-Compiled Gradient Computation ---
-# loss_and_grad = jax.jit(jax.value_and_grad(loss_function))
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
+def optimize_model(
+    target_image, model_init, ref_psd, noise_map, mask_indices, psf,
+    basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
+    image_shape,
+    radial_inds,
+    aligned_center,
+):
+    target_image = jnp.array(target_image).astype(jnp.float32)
+    noise_map = jnp.array(noise_map).astype(jnp.float32)
 
-def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
-                   psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, radial_inds, lr=0.1):
-    
-    # dimension = img_dim
-    jax_target_image = jnp.array(target_image).astype(jnp.float32)
-
-    jax_noise_map = jnp.array(noise_map).astype(jnp.float32)
+    basis_data_unpacked = unpack_basis_data(basis_data)
+    aligned_image_sections = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 39112)
+    n_images = aligned_image_sections.shape[0]
+    iowa_sec_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
+    klmodes_sections = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 6, 39112)
+    evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
+    n_modes = evals.shape[1]
+    subset_evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 6)
+    ref_psfs_inds = basis_data_unpacked["ref_inds"]
 
     # Initialize the initial image
-    image_params = model_init.astype(jnp.float32)
-    # image_params = initialize_freeform_model_reduced()
+    image_params = jnp.median(target_image[mask_indices]) * model_init.astype(jnp.float32)
 
     # Set up optimizer, use adaptive stochastic grad descent (Adam)
-    optimizer = optax.adam(lr)
-    # initialize the internal state to track 1st and 2nd moments of the gradients
+    optimizer = optax.adam(learning_rate)
     opt_state =  optimizer.init(image_params) #this is all zeros initially
 
     loss_history = []
 
-    basis_data_unpacked = unpack_basis_data(basis_data)
-
-    # num_input_images = int(jax.device_get(basis_data["klparam_dict"]["nfiles"]))
-    aligned_image_sections = jnp.array(basis_data_unpacked["aligned_images"]) #shape ex. (84, 39112)
-    n_images = aligned_image_sections.shape[0]
-    iowa_sec_inds = basis_data_unpacked["section_inds"][0] #shape ex. (1, 39112)
-
-
-    klmodes_sections = basis_data_unpacked["klmodes"] #shape (N_images, N_KLmodes, N_pixels) ex. (84, 6, 39112)
-    # klmodes_sections = jnp.take(klmodes, section_inds[-1], axis=2, fill_value=0.)
-
-    evals = basis_data_unpacked["evals"] # shape (N_images, N_modes)
-    n_modes = evals.shape[1]
-    subset_evecs = basis_data_unpacked["evecs"] # shape (N_images, max_N_refs, N_modes) ex. (84, 78, 6)
-    evecs = np.zeros((n_images, n_images, n_modes))
-    ref_psfs_inds = basis_data_unpacked["ref_inds"]
     # doing this in mutable-array-land on CPU is faster
     # so we pre-fill the per-frame eigenbases in a consistent shape using
     # the indices from which the ref PSFs were drawn
+    evecs = np.zeros((n_images, n_images, n_modes))
     for idx, img_ref_indices in enumerate(ref_psfs_inds):
         evecs[idx, img_ref_indices] = subset_evecs[idx]
-    # evecs have been unpacked, stacked, and ready to be BATCHED!
-    # input_img_nums = basis_data_unpacked["input_img_nums"]
-    # These are the images used for the basis for every image in the dataset.
-    # ref_psfs_sections = basis_data_unpacked["ref_psfs"] # zero-padded at the end to all have the same shape
-    # ref_psfs_sections = jnp.take(ref_psfs, section_inds[-1], axis=2, fill_value=0.)
-
 
     PAs = jnp.array((basis_data["klparam_dict"]["PAs"]))
-    # ref_PAs = basis_data_unpacked["ref_PAs"]
-
     if bool(basis_data_unpacked["klparams"]["isRDI"]):
         max_num_refs = klmodes_sections.shape[1]
         mode = 1
@@ -251,8 +248,7 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
     # ref_psfs shape (N_images, max_N_refs, N_pixels) ex. (84, 78, 50176)
     # ref_psfs have been unpacked, stacked, and ready to be BATCHED!
     # position_angles = tuple(np.asarray(jax.device_get(basis_data["klparam_dict"]["PAs"])))
-    aligned_center = tuple(np.asarray(jax.device_get([basis_data["klparam_dict"]["aligned_center_x"],
-                                basis_data["klparam_dict"]["aligned_center_y"]])))
+    
 
     all_reference_images_selectors = np.zeros((aligned_image_sections.shape[0], aligned_image_sections.shape[0]), dtype=bool)
     for i in range(aligned_image_sections.shape[0]):
@@ -261,29 +257,28 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
     all_reference_images_selectors = jax.device_put(all_reference_images_selectors.astype(float))
 
     run_start_ts = time.time()
-    # jax.profiler.start_trace("/tmp/tensorboard")
-    # jax.config.update("jax_debug_nans", True)
+
+    total_pixels = int(total_pixels)
 
     @jax.jit
     def step(image_params, opt_state):
-        (loss, aux_data), grads = loss_and_grad(image_params, jax_target_image, psf, jax_noise_map,
-                                    ref_psd, aligned_image_sections,
-                                    PAs,
-                                    mask_indices, iowa_sec_inds, all_reference_images_selectors,
-                                    klmodes_sections, evals, evecs, 
-                                    radial_inds, total_pixels, aligned_center,
-                                    mode, reg_lambda,)
+        (loss, aux_data), grads = loss_and_grad(
+            image_params, target_image, psf, noise_map, ref_psd,
+            aligned_image_sections, PAs, mask_indices, iowa_sec_inds, all_reference_images_selectors,
+            klmodes_sections, evals, evecs,
+            radial_inds, aligned_center, mode, total_pixels, reg_lambda,
+        )
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)
-        return image_params, opt_state, loss, aux_data
+        return image_params, opt_state, loss, updates, aux_data
 
     first_step = time.time()
     measure_warmup = True
     plot_idx = 0
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
-            image_params, opt_state, loss, aux_data = step(image_params, opt_state)
-        freeform_fm_full, full_model_norm = aux_data
+            image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state)
+        freeform_fm_full, full_model_image = aux_data
         loss_history.append(loss.item())
 
         # if step_idx % round(num_steps / 10) == 0:
@@ -297,26 +292,23 @@ def optimize_model(target_image, model_init, ref_psd, noise_map, mask_indices,
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
         if step_idx % 10 == 0:
             out_filename = f"{run_dir}/training_{plot_idx:05}.png"
-            print('Saving', out_filename, '...', end=' ')
-            import matplotlib.pyplot as plt
-            fig, axs = plt.subplots(ncols=3, figsize=(12, 3))
-            plt.colorbar(axs[0].imshow(reduced_data, origin='lower'))
-            axs[0].set(title='Reduced data')
-            plt.colorbar(axs[1].imshow(freeform_fm_full, origin='lower'))
-            axs[1].set(title='Freeform FM')
-            plt.colorbar(axs[2].imshow(np.log10(full_model_norm), cmap='magma', origin='lower'))
-            axs[2].set(title=r'$\log_{10}$(Model)')
-            fig.savefig(out_filename)
-            plt.close(fig)
+            plot_training(
+                out_filename,
+                reduced_data,
+                freeform_fm_full,
+                full_model_image,
+                reconstruct_full_image(updates, total_pixels, mask_indices),
+                mask_indices
+            )
             plot_idx += 1
-            print('Done.')
 
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
+    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), mask_indices)
 
     optimized_model = image_params
     return optimized_model, loss_history
 
-def main(config, num_iterations, init_model, reg_lambda, first_time):
+def main(config, num_iterations, init_model, reg_lambda, first_time, learning_rate):
     # Grab the info from the yaml file
     if reg_lambda is None: #default
         reg_lambda = 1.
@@ -347,13 +339,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     psd_ref_model = fft_power_spectrum(reference_model_norm)
 
     # load PSF
-    # psf = fits.getdata(os.path.join(klipdir, file_prefix + '_instrPSF.fits'))
     psf = ffd_obj.psf #psf gets normalized in the class
     jax_psf = jnp.array(psf)
-    # jax_psf /= jnp.sum(jax_psf)
-
-    # measure the size of images DIMENSION and make it global
-
 
     if ffd_obj.params_file["FIRST_TIME"] or bool(first_time):
         # initialize_diskfm and make diskobj global
@@ -376,8 +363,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
     noise_map_flat = noise_map.flatten()
     noise_map_flat[noise_map_flat != noise_map_flat] = 1.
 
-    mask2generate_indices = jnp.flatnonzero(jnp.array(mask2generatedisk))[jnp.newaxis, :]
-    
     total_pixels = np.prod(reduced_data.shape)
 
     radial_inds = get_radial_inds(reduced_data.shape, aligned_center)
@@ -392,8 +377,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
     reduced_data_flat = reduced_data.flatten()
     reduced_flat_interest = reduced_data_flat[disk_mask_indices]
-    # STARTING_DISK = fits.getdata("freeform_run.fits") #start from the last run
-    # model_firstguess *= mask2generatedisk
     model_firstguess *= disk_mask
     init_model = jnp.array(model_firstguess)
     init_model_flat = init_model.reshape(init_model.shape[0] * init_model.shape[1])
@@ -401,6 +384,10 @@ def main(config, num_iterations, init_model, reg_lambda, first_time):
 
     noise_interest = noise_map_flat[disk_mask_indices]
     run_dir = get_next_run_dir(resultsdir)
+
+    aligned_center = float(fm_dict["klparam_dict"]["aligned_center_x"]), float(fm_dict["klparam_dict"]["aligned_center_y"])
+    image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
+    radial_inds = get_radial_inds(image_shape, aligned_center)
 
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)
@@ -471,6 +458,10 @@ if __name__ == "__main__":
                         '--param-file',
                         required=False,
                         help='parameter file name')
+    parser.add_argument('--learning-rate',
+                        type=float,
+                        default=1e-1,
+                        help='Learning rate')
     parser.add_argument(
                         '--iterations',
                         type=int,
@@ -500,12 +491,11 @@ if __name__ == "__main__":
         str_yaml_prefix = str_yaml.split("/")[-1]
         save_to_dir = str_yaml_prefix.split(".")[0]
 
-    # print(args.reg)
-    main(config=str_yaml,
+    main(
+        config=str_yaml,
         num_iterations=args.iterations,
         init_model=args.initial_model,
         reg_lambda=args.reg,
         first_time=args.first_time,
-        )
-
-    
+        learning_rate=args.learning_rate,
+    )
