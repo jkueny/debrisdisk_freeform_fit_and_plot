@@ -41,7 +41,7 @@ metadata:
   instrument: MagAO-X  # SPHERE or GPI
   band_name: 2023 Mar 9, $z'$ band #for plot titles uniquely
   # STAR OBSERVATION PARAMETERS
-  distance_star: 72.8   #distance of the disk in pc
+  distance_star: 72.248   #distance of the disk in pc
   pixscale_ins: 0.012  #picscale of your data
   wl: 0.908 #wavelength in microns
   filter_name: $z'$

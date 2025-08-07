@@ -57,6 +57,9 @@ from jax import lax
 import optax
 from optax.losses import huber_loss
 
+# jax.config.update('jax_disable_jit', True)
+# jax.config.update("jax_debug_nans", True)
+
 
 
 def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
@@ -157,6 +160,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # Ensure total intensity is 1.0
     full_model_norm = full_model_image / jnp.sum(full_model_image)
 
+
     # Compute the model power spectrum and use it to regularize high spatial freq.
     model_psd = fft_power_spectrum(full_model_norm)
     # we use the first_guess model as a reference
@@ -222,7 +226,8 @@ def optimize_model(
     ref_psfs_inds = basis_data_unpacked["ref_inds"]
 
     # Initialize the initial image
-    image_params = jnp.median(target_image[mask_indices]) * model_init.astype(jnp.float32)
+    # image_params = jnp.median(target_image[mask_indices]) * model_init.astype(jnp.float32)
+    image_params = model_init.astype(jnp.float32)
 
     # Set up optimizer, use adaptive stochastic grad descent (Adam)
     optimizer = optax.adam(learning_rate)
@@ -326,6 +331,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     # Get the initial model
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
+
     # Render the reference model
     if init_model is None:
         reference_model = ffd_obj.render_reference_model()
@@ -387,6 +393,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     aligned_center = float(fm_dict["klparam_dict"]["aligned_center_x"]), float(fm_dict["klparam_dict"]["aligned_center_y"])
     image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
     radial_inds = get_radial_inds(image_shape, aligned_center)
+    # print(f"max(init_model_interest) -> {np.max(init_model_interest)}")
 
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)

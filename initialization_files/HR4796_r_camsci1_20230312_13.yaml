@@ -29,7 +29,7 @@ file_prefix: camsci1_r_20230312_13 #prefix for all saved files (carefull not to 
 
 metadata:
   # STAR OBSERVATION PARAMETERS
-  distance_star: 72.8   #distance of the disk in pc
+  distance_star: 72.248   #distance of the disk in pc
   pixscale_ins: 0.012  #picscale of your data
   filter_name: $r'$
   instrument: MagAO-X  # SPHERE or GPI

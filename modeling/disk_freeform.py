@@ -202,8 +202,8 @@ class FreeFormDisk:
             model_init = fits.getdata(loc_init_model)
         else:
             # we init the model fitting with just a noise image
-            model_init = 1.0 + rng.uniform(-0.1, 0.1, self.image_shape)
-
+            model_init = rng.uniform(0.0, 1.0, self.image_shape)
+        
         # model_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
         # save_fits(model_saveto, model_init)
 
@@ -418,7 +418,8 @@ class FreeFormDisk:
 
         noise_map = np.zeros((h, w))
         for i_ring in range(0,
-                            int(np.floor(image_center[0] / delta_radii)) - 2):
+                            # int(np.floor(image_center[0] / delta_radii)) - 2):
+                            int(self.params_file["pyklip"]["OWA"] / delta_radii) - 2):
             wh_rings = (rho2d >= i_ring * delta_radii) & (rho2d < (i_ring + 1) * delta_radii)
             noise_map[wh_rings] = np.nanstd(reduced_data_no_disk[wh_rings])
         

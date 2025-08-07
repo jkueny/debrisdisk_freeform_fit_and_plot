@@ -13,7 +13,7 @@ pyklip:
   IWA: 14 # pixels
   # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-  OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+  OWA: 101 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   move_here: 8  #minrot in PyKLIP ADI
   hp_filter: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
   aligned_center: [111.5,111.5] #image center in your model, also use to center the image before KLIP
@@ -29,7 +29,7 @@ file_prefix: camsci1_g_20250408_09 #prefix for all saved files (carefull not to 
 
 metadata:
   # STAR OBSERVATION PARAMETERS
-  distance_star: 72.8   #distance of the disk in pc
+  distance_star: 72.248   #distance of the disk in pc
   pixscale_ins: 0.012  #picscale of your data
   filter_name: $g'$
   instrument: MagAO-X  # SPHERE or GPI
@@ -52,7 +52,7 @@ disk_model:
   pa_init: 24.22
   dx_init: -0.9
   dy_init: 1.13
-  N_init: 1000.0
+  N_init: 2689.08
   r_inner: 65.0
   r_outer: 110.0
   # for 1g SPF (N_DIM_MCMC = 9) and more
