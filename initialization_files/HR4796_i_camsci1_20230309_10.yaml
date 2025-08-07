@@ -148,7 +148,7 @@ mask:
   dy: -3.6
 
 noise:
-  use: true
+  use: false
   delta_radii: 1 #width of noisemap rings
 
 
