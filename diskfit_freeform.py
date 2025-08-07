@@ -197,7 +197,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # Grab just the disk ROI pixels
     freeform_fm_interest = freeform_fm_flat[disk_mask_inds]
 
-    raw_loss = (freeform_fm_interest - disk_image) / noise_map**2
+    raw_loss = (freeform_fm_interest - disk_image) #/ noise_map**2
     # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss))
     loss = mean_huber + hsf_penalty #counts**2 units for both (kinda)
@@ -363,10 +363,14 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))[0]
     reduced_data[reduced_data != reduced_data] = 0. #zero out the NaNs
 
-    noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
-    noise_map += 1. #get rid of any zeros
-    noise_map_flat = noise_map.flatten()
-    noise_map_flat[noise_map_flat != noise_map_flat] = 1.
+    if ffd_obj.params_file["noise"]["use"]:
+        noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
+        noise_map += 1. #get rid of any zeros
+        noise_map_flat = noise_map.flatten()
+        noise_map_flat[noise_map_flat != noise_map_flat] = 1.
+    else:
+        noise_map_flat = np.ones_like(reduced_data.flatten())
+        noise_map_flat[noise_map_flat != noise_map_flat] = 1.
 
     total_pixels = np.prod(reduced_data.shape)
 

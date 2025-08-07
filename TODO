@@ -1,0 +1,37 @@
+Freeform disk modeling:
+  ☐ Add option to not use the noise map in the loss calculation @today
+  ☐ Be granted use of an h100 for the full size datasets by Ewan
+  ☐ Be granted use of an h100 by Joseph
+  z'-band data:
+    ☐ Optimize without noise map @today
+  i'-band data:
+    ☐ Optimize without noise map @today
+  r'-band data:
+    ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
+  g'-band data:
+    ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
+
+Papers:
+  HR4796 disk modeling:
+    ☐ Optimize freeform models for all passbands @high
+    ☐ Extract the SPFs using the optimized models
+    ☐ Make a figure comparing the SPFs to the RDI data
+    ☐ Make a figure comparing the SPFs to the HG fits
+    ☐ Make a figure comparing the freeform dust density profiles to the OG disk models
+  JAX freeform disk modeling:
+    ☐ Choose a journal for submission
+    ☐ Create the template for the paper on Overleaf
+    
+
+Formatting:
+  You can format text in a markdown-like fashion
+  Bold:
+    ☐ Use asterisks for *bold*
+  Italic:
+    ☐ Use underscores for _italic_
+  Strikethrough:
+    ☐ Use tildes for ~strikethrough~
+  Code:
+    ☐ Use backticks for `code`
+
+Archive:
