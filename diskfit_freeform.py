@@ -377,7 +377,13 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     reference_model_norm = reference_model_norm - np.mean(reference_model_norm)
     # reference_model_norm += 1.
     psd_ref_model = fft_power_spectrum(reference_model_norm)
-    psd_ref_model *= 1. / radial_inds
+    psd_ref_model *= 1. / (radial_inds**0.25 + 1)
+
+    # import matplotlib.pyplot as plt
+    # plt.imshow(psd_ref_model, vmax=1.)
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit(0)
 
 
 
