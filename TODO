@@ -4,7 +4,8 @@ Freeform disk modeling:
   ☐ Be granted use of an h100 by Joseph
   Rethink spatial frequency penalties:
     ✘ Change model normalization, subtract the mean, scale power spectrum by r^2 @started(25-08-07 16:00) @cancelled(25-08-07 20:08) @wasted(4h8m52s)
-    ☐ Code up a way to make a bespoke Tukey window for the power spectrum of a given reference model
+    ✘ Code up a way to make a bespoke Tukey window for the power spectrum of a given reference model @cancelled(25-08-08 15:57)
+    ☐ Code up fitted elliptical gaussian window for the power spectrum of a given reference model
   z'-band data:
     ☐ Optimize without noise map @today
   i'-band data:
@@ -24,6 +25,9 @@ Papers:
   JAX freeform disk modeling:
     ☐ Choose a journal for submission
     ☐ Create the template for the paper on Overleaf
+
+Todos:
+  ✔ Complete export control training @started(25-08-08 09:08) @done(25-08-08 09:30) @lasted(22m45s)
     
 
 Formatting:
