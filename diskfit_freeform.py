@@ -50,6 +50,8 @@ from utils.improc_tools import reconstruct_full_image, fft_power_spectrum, subtr
 from utils.diskfit_tools import convolve_model, record_pyklip_params, \
     penalize_spatial_freq
 
+from utils.regularization import fit_elgauss_window
+
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import fftconvolve
@@ -163,8 +165,10 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
     model_psd = fft_power_spectrum(full_model_norm_meansub)
+    model_psd_log = jnp.log10(model_psd + 1e-12)
+    model_psd_log_shifted = model_psd_log - model_psd_log.min()
     # we use the first_guess model as a reference
-    hsf_penalty = penalize_spatial_freq(model_psd, ref_model_psd, reg_lambda=reg_lambda)
+    hsf_penalty = penalize_spatial_freq(model_psd_log_shifted, ref_model_psd, reg_lambda=reg_lambda)
 
     freeform_image = convolve_model(full_model_image, psf)
     freeform_image_profilesub, _ = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
@@ -377,13 +381,24 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     reference_model_norm = reference_model_norm - np.mean(reference_model_norm)
     # reference_model_norm += 1.
     psd_ref_model = fft_power_spectrum(reference_model_norm)
+    psd_ref_model_log = np.log10(psd_ref_model + 1e-12)
 
+    params, window_opt = fit_elgauss_window(psd_ref_model_log)
+    # import matplotlib.pyplot as plt
+    # plt.imshow(window_opt + psd_ref_model_log, origin="lower")
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit(0)
     # import matplotlib.pyplot as plt
     # plt.imshow(np.log10(psd_ref_model + 1e-12))
     # # plt.imshow(1. / np.sqrt(radial_inds + 1))
     # plt.colorbar()
     # plt.show()
     # sys.exit(0)
+
+    psd_ref_model_win = window_opt + psd_ref_model_log
+
+
 
 
 
@@ -415,7 +430,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
         jax.profiler.start_trace(trace_dest)
         print(f"Tracing to {trace_dest}")
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
-                                                   model_init=init_model_interest, ref_psd=psd_ref_model,
+                                                   model_init=init_model_interest, ref_psd=psd_ref_model_win,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
                                                    aligned_center=aligned_center,
