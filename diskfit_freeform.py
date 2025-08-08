@@ -158,11 +158,11 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     """
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
     # Ensure total intensity is 1.0
-    full_model_norm = full_model_image / jnp.sum(full_model_image)
-
+    full_model_norm = full_model_image / jnp.max(full_model_image)
+    full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
-    model_psd = fft_power_spectrum(full_model_norm)
+    model_psd = fft_power_spectrum(full_model_norm_meansub)
     # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_psd, ref_model_psd, reg_lambda=reg_lambda)
 
@@ -332,17 +332,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
 
-    # Render the reference model
-    if init_model is None:
-        reference_model = ffd_obj.render_reference_model()
-        reference_model[reference_model != reference_model] = 0.
-    else:
-        reference_model = model_firstguess
-
-    # model_init_norm = model_firstguess / np.sum(model_firstguess)
-    reference_model_norm = reference_model / np.sum(reference_model)
-    psd_ref_model = fft_power_spectrum(reference_model_norm)
-
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
     jax_psf = jnp.array(psf)
@@ -375,6 +364,21 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     total_pixels = np.prod(reduced_data.shape)
 
     radial_inds = get_radial_inds(reduced_data.shape, aligned_center)
+
+    # Render the reference model
+    if init_model is None:
+        reference_model = ffd_obj.render_reference_model()
+        reference_model[reference_model != reference_model] = 0.
+    else:
+        reference_model = model_firstguess
+
+    # model_init_norm = model_firstguess / np.sum(model_firstguess)
+    reference_model_norm = reference_model / np.max(reference_model)
+    reference_model_norm = reference_model_norm - np.mean(reference_model_norm)
+    # reference_model_norm += 1.
+    psd_ref_model = fft_power_spectrum(reference_model_norm)
+    psd_ref_model *= radial_inds
+
 
 
 

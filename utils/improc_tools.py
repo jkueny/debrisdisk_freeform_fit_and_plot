@@ -6,7 +6,7 @@ def fft_power_spectrum(image):
     """
     Compute the 2D power spectrum of an image (shifted so DC is at center).
     """
-    fft = jnp.fft.fftshift(jnp.fft.rfft2(image))
+    fft = jnp.fft.fftshift(jnp.fft.fft2(image))
     power = jnp.abs(fft) ** 2
     return power #TODO the sum of this should be the variance of the mean-subbed image (Parseval's theorem)
 

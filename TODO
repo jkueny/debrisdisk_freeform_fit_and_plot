@@ -1,7 +1,9 @@
 Freeform disk modeling:
-  ☐ Add option to not use the noise map in the loss calculation @today
+  ✔ Add option to not use the noise map in the loss calculation @today @started(25-08-07 15:44) @done(25-08-07 15:44) @lasted(38s)
   ☐ Be granted use of an h100 for the full size datasets by Ewan
   ☐ Be granted use of an h100 by Joseph
+  Rethink spatial frequency penalties:
+    ☐ Change model normalization, subtract the mean, scale power spectrum by r^2 @started(25-08-07 16:00)
   z'-band data:
     ☐ Optimize without noise map @today
   i'-band data:
