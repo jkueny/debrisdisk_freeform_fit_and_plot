@@ -48,10 +48,10 @@ def elliptical_gaussian(shape, sig_x, sig_y, theta_deg):
     t = np.deg2rad(theta_deg)
     xr =  xx*np.cos(t) + yy*np.sin(t)
     yr = -xx*np.sin(t) + yy*np.cos(t)
-    return np.exp(-(xr/sig_x)**2 - (yr/sig_y)**2)        # scale later
+    return np.exp(-(xr/sig_x)**2 - (yr/sig_y)**2)
 
 
-def make_objective(psd_norm, lam_area=0.001):
+def make_objective(psd_norm, lam_area=1e-3):
     # psd_norm -= np.min(psd_norm)
 
     def _loss(params):          # params = [sig_x, sig_y, theta_deg, scale]

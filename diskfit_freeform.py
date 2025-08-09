@@ -167,7 +167,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     model_psd = fft_power_spectrum(full_model_norm_meansub)
     # model_psd_log = jnp.log10(model_psd + 1e-12)
     # model_psd_log_shifted = model_psd_log - model_psd_log.min()
-    model_psd_log_shifted = np.sqrt(model_psd)
+    model_psd_log_shifted = model_psd
     # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_psd_log_shifted, ref_model_psd, reg_lambda=reg_lambda)
 
@@ -380,12 +380,12 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
         reference_model = model_firstguess
 
     # model_init_norm = model_firstguess / np.sum(model_firstguess)
-    reference_model_norm = reference_model / np.max(reference_model)
-    reference_model_norm = reference_model_norm - np.mean(reference_model_norm)
+    reference_model_norm = reference_model - np.mean(reference_model)
+    reference_model_norm = reference_model_norm / np.max(reference_model_norm)
     # reference_model_norm += 1.
     psd_ref_model = fft_power_spectrum(reference_model_norm)
     # psd_ref_model_log = np.log10(psd_ref_model + 1e-12)
-    psd_ref_model_log = np.sqrt(psd_ref_model + 1e-12)
+    psd_ref_model_log = np.asarray(psd_ref_model)
 
     params, window_opt = fit_elgauss_window(psd_ref_model_log)
     # import matplotlib.pyplot as plt
