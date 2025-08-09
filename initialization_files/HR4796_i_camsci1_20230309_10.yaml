@@ -58,11 +58,9 @@ disk_model:
   dx_init: -4.8
   dy_init: 1.4
   N_init: 609.33
-  rscale_init: 10
-  # amin_init: 0.68 #microns
-  # amax_init: 10000. #microns, let's fix this for now
-  aexp_init: 2.5 #radial pwer law for size distribution of grains
-
+  g1_init: 0.9362701093872723
+  g2_init: -0.16415682435397846
+  alpha1_init: 0.43996397848721225
   r_inner: 65
   r_outer: 110
 
@@ -168,12 +166,7 @@ N_BASIS: 12
 LAMBDA_REG: 0.01
 XRANGE_MAX: 10 #max x value to compute the Bessel functions
 
-# for 1g SPF (N_DIM_MCMC = 9) and more
-g1_init: 0.9362701093872723
 
-# for 2g SPF (N_DIM_MCMC = 11) and 3g SPF (N_DIM_MCMC = 13) only
-g2_init: -0.16415682435397846
-alpha1_init: 0.43996397848721225
 
 # for 3g SPF (N_DIM_MCMC = 13) only
 g3_init: -0.1
