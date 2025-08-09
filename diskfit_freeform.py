@@ -165,8 +165,9 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
     model_psd = fft_power_spectrum(full_model_norm_meansub)
-    model_psd_log = jnp.log10(model_psd + 1e-12)
-    model_psd_log_shifted = model_psd_log - model_psd_log.min()
+    # model_psd_log = jnp.log10(model_psd + 1e-12)
+    # model_psd_log_shifted = model_psd_log - model_psd_log.min()
+    model_psd_log_shifted = np.sqrt(model_psd)
     # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_psd_log_shifted, ref_model_psd, reg_lambda=reg_lambda)
 
