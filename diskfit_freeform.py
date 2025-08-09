@@ -170,6 +170,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_psd_log_shifted, ref_model_psd, reg_lambda=reg_lambda)
 
+    jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
+
     freeform_image = convolve_model(full_model_image, psf)
     freeform_image_profilesub, _ = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
     global_models_prepped = update_disk(model_disk=freeform_image_profilesub,
@@ -381,7 +383,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     reference_model_norm = reference_model_norm - np.mean(reference_model_norm)
     # reference_model_norm += 1.
     psd_ref_model = fft_power_spectrum(reference_model_norm)
-    psd_ref_model_log = np.log10(psd_ref_model + 1e-12)
+    # psd_ref_model_log = np.log10(psd_ref_model + 1e-12)
+    psd_ref_model_log = np.sqrt(psd_ref_model + 1e-12)
 
     params, window_opt = fit_elgauss_window(psd_ref_model_log)
     # import matplotlib.pyplot as plt
@@ -391,7 +394,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     # plt.show()
     # sys.exit(0)
 
-    psd_ref_model_win = window_opt + (psd_ref_model_log - psd_ref_model_log.min())
+    # psd_ref_model_win = window_opt + (psd_ref_model_log - psd_ref_model_log.min())
+    psd_ref_model_win = window_opt + psd_ref_model_log
 
 
 
