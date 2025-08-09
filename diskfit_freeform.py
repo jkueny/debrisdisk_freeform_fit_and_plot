@@ -385,22 +385,22 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
 
     params, window_opt = fit_elgauss_window(psd_ref_model_log)
     # import matplotlib.pyplot as plt
-    # plt.imshow(window_opt + psd_ref_model_log, origin="lower")
-    # plt.colorbar()
-    # plt.show()
-    # sys.exit(0)
-    # import matplotlib.pyplot as plt
     # plt.imshow(np.log10(psd_ref_model + 1e-12))
     # # plt.imshow(1. / np.sqrt(radial_inds + 1))
     # plt.colorbar()
     # plt.show()
     # sys.exit(0)
 
-    psd_ref_model_win = window_opt + psd_ref_model_log
+    psd_ref_model_win = window_opt + (psd_ref_model_log - psd_ref_model_log.min())
 
 
 
 
+    # import matplotlib.pyplot as plt
+    # plt.imshow(psd_ref_model_win, origin="lower")
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit(0)
 
 
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
