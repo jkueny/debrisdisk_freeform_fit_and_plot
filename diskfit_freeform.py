@@ -171,7 +171,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # we use the first_guess model as a reference
     hsf_penalty = penalize_spatial_freq(model_psd_log_shifted, ref_model_psd, reg_lambda=reg_lambda)
 
-    jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
+    # jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
 
     freeform_image = convolve_model(full_model_image, psf)
     freeform_image_profilesub, _ = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
