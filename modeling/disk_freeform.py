@@ -14,12 +14,13 @@ import glob
 from astropy.io import fits
 import numpy as np
 from scipy.signal import convolve2d
-
+from utils.regularization import fit_elgauss_window 
 from datetime import datetime
 
 from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
 from utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
+from utils.improc_tools import fft_power_spectrum
 from dev.pyklip.instruments.Instrument import GenericData
 from dev.pyklip.fmlib.diskfm import DiskFM
 import dev.pyklip.fm as fm
@@ -192,6 +193,20 @@ class FreeFormDisk:
                                     mask=(1 - self.mask2generatedisk))
         save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), model)
         return model
+    
+    def get_reference_model_psd(self, reference_model):
+        reference_model_norm = reference_model / np.linalg.norm(reference_model)
+        reference_model_meansub = reference_model_norm - np.mean(reference_model_norm)
+        psd_ref_model = fft_power_spectrum(reference_model_meansub)
+        psd_ref_model = np.asarray(psd_ref_model)
+        print("Fitting the optimal window func to the reference model PSD...")
+        params, window_opt = fit_elgauss_window(psd_ref_model)
+        psd_ref_model_win = window_opt + psd_ref_model
+        psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")
+        window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")
+        save_fits(psd_ref_model_win_saveto, psd_ref_model_win)
+        save_fits(window_saveto, window_opt)
+        return psd_ref_model_win, window_opt
     
 
     def get_initial_model(self, loc_init_model=None, random_seed=0):

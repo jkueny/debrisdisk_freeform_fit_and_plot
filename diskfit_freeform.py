@@ -337,7 +337,14 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
 
     # Get the initial model
     model_firstguess = ffd_obj.get_initial_model(init_model)
+    # Render the reference model
+    if init_model is None:
+        reference_model = ffd_obj.render_reference_model()
+        reference_model[reference_model != reference_model] = 0.
+    else:
+        reference_model = model_firstguess
 
+    reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
 
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
@@ -372,41 +379,11 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
 
     radial_inds = get_radial_inds(reduced_data.shape, aligned_center)
 
-    # Render the reference model
-    if init_model is None:
-        reference_model = ffd_obj.render_reference_model()
-        reference_model[reference_model != reference_model] = 0.
-    else:
-        reference_model = model_firstguess
-
-    # model_init_norm = model_firstguess / np.sum(model_firstguess)
-    reference_model_norm = reference_model - np.mean(reference_model)
-    reference_model_norm = reference_model_norm / np.max(reference_model_norm)
-    # reference_model_norm += 1.
-    psd_ref_model = fft_power_spectrum(reference_model_norm)
-    # psd_ref_model_log = np.log10(psd_ref_model + 1e-12)
-    psd_ref_model_log = np.asarray(psd_ref_model)
-
-    params, window_opt = fit_elgauss_window(psd_ref_model_log)
     # import matplotlib.pyplot as plt
-    # plt.imshow(np.log10(psd_ref_model + 1e-12))
-    # # plt.imshow(1. / np.sqrt(radial_inds + 1))
+    # plt.imshow(reference_model_psd, origin="lower")
     # plt.colorbar()
     # plt.show()
     # sys.exit(0)
-
-    # psd_ref_model_win = window_opt + (psd_ref_model_log - psd_ref_model_log.min())
-    psd_ref_model_win = window_opt + psd_ref_model_log
-
-
-
-
-    # import matplotlib.pyplot as plt
-    # plt.imshow(psd_ref_model_win, origin="lower")
-    # plt.colorbar()
-    # plt.show()
-    # sys.exit(0)
-
 
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
     annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
@@ -435,7 +412,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
         jax.profiler.start_trace(trace_dest)
         print(f"Tracing to {trace_dest}")
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
-                                                   model_init=init_model_interest, ref_psd=psd_ref_model_win,
+                                                   model_init=init_model_interest, ref_psd=reference_model_psd,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
                                                    aligned_center=aligned_center,
