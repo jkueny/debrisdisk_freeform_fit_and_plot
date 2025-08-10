@@ -160,7 +160,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     """
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
     # Ensure total intensity is 1.0
-    full_model_norm = full_model_image / jnp.max(full_model_image)
+    full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
     full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
 
     # Compute the model power spectrum and use it to regularize high spatial freq.
