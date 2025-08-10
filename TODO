@@ -6,9 +6,9 @@ Freeform disk modeling:
     ✘ Change model normalization, subtract the mean, scale power spectrum by r^2 @started(25-08-07 16:00) @cancelled(25-08-07 20:08) @wasted(4h8m52s)
     ✘ Code up a way to make a bespoke Tukey window for the power spectrum of a given reference model @cancelled(25-08-08 15:57)
     ✔ Code up fitted elliptical gaussian window for the power spectrum of a given reference model @started(25-08-09 11:08) @done(25-08-09 11:08) @lasted(39s)
-    ☐ Move the reference model rendering and PSD calculation to the freeform disk object @started(25-08-09 11:13)
-    ☐ Add the window optimization to the freeform disk object
-    ☐ Add save functionality for the reference model PSD in the freeform disk object
+    ✔ Move the reference model rendering and PSD calculation to the freeform disk object @started(25-08-09 11:13) @done(25-08-09 13:30) @lasted(2h17m47s)
+    ✔ Add the window optimization to the freeform disk object @started(25-08-09 13:30) @done(25-08-09 13:30) @lasted(1m)
+    ✔ Add save functionality for the reference model PSD in the freeform disk object @started(25-08-09 13:31) @done(25-08-09 13:31) @lasted(3s)
   z'-band data:
     ☐ Optimize without noise map @today
   i'-band data:
