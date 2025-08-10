@@ -204,7 +204,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # Grab just the disk ROI pixels
     freeform_fm_interest = freeform_fm_flat[disk_mask_inds]
 
-    raw_loss = (freeform_fm_interest - disk_image) #/ noise_map**2
+    raw_loss = (freeform_fm_interest - disk_image) / noise_map
     # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss))
     loss = mean_huber + hsf_penalty #counts**2 units for both (kinda)
