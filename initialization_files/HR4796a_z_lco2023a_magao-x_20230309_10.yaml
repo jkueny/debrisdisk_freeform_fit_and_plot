@@ -58,8 +58,8 @@ disk_model:
   alpha_out_init: -12
   beta_init: 12.3
   a_r_init: 0.01
-  inc_init: 76.8 #trying 45. init for the mask2minimize
-  pa_init: 24.5
+  inc_init: 76.5 #trying 45. init for the mask2minimize
+  pa_init: 25.1
   dx_init: -4.2
   dy_init: 1.5
   N_init: 895.2

@@ -201,10 +201,10 @@ class FreeFormDisk:
         psd_ref_model = np.asarray(psd_ref_model)
         print("Fitting the optimal window func to the reference model PSD...")
         params, window_opt = fit_elgauss_window(psd_ref_model)
-        psd_ref_model_win = window_opt + psd_ref_model
+        psd_ref_model_win = window_opt #+ psd_ref_model
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")
         window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")
-        save_fits(psd_ref_model_win_saveto, psd_ref_model_win)
+        save_fits(psd_ref_model_win_saveto, psd_ref_model)
         save_fits(window_saveto, window_opt)
         return psd_ref_model_win, window_opt
     
