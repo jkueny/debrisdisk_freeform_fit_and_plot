@@ -124,7 +124,7 @@ SPF_BASIS: ortho_bessel # Fit Fourier series model
 MIN_SCATT_ANG: 10
 MAX_SCATT_ANG: 180
 N_BASIS: 12
-LAMBDA_REG: 0.1
+LAMBDA_REG: 1.0
 XRANGE_MAX: 10 #max x value to compute the Bessel functions
 
 

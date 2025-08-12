@@ -50,8 +50,6 @@ from utils.improc_tools import reconstruct_full_image, fft_power_spectrum, subtr
 from utils.diskfit_tools import convolve_model, record_pyklip_params, \
     penalize_spatial_freq
 
-from utils.regularization import fit_elgauss_window
-
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import fftconvolve

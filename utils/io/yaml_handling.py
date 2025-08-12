@@ -17,5 +17,5 @@ def read_config(path_yaml):
             raise TypeError(f"""path_yaml is not a file path; 
                             type(path_yaml) -> {type(path_yaml)}""")
         raise FileNotFoundError(
-                    'The registration yaml file is missing!'
+                    'The registration yaml file is missing! '
                     f"{path_yaml}")

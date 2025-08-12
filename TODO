@@ -9,19 +9,31 @@ Freeform disk modeling:
     ✔ Move the reference model rendering and PSD calculation to the freeform disk object @started(25-08-09 11:13) @done(25-08-09 13:30) @lasted(2h17m47s)
     ✔ Add the window optimization to the freeform disk object @started(25-08-09 13:30) @done(25-08-09 13:30) @lasted(1m)
     ✔ Add save functionality for the reference model PSD in the freeform disk object @started(25-08-09 13:31) @done(25-08-09 13:31) @lasted(3s)
+    ☐ Ask Jared about convolution with an ellipse for further penalization
   z'-band data:
-    ☐ Optimize without noise map @today
+    ✘ Optimize without noise map @cancelled(25-08-11 10:47)
+    ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 12:50) @lasted(2h3m59s)
+    ✔ Extract SPF from optimized model @started(25-08-11 14:36) @done(25-08-11 21:59) @lasted(7h23m27s)
   i'-band data:
-    ☐ Optimize without noise map @today
+    ✘ Optimize without noise map @cancelled(25-08-11 10:47)
+    ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 15:04) @lasted(4h17m22s)
+    ☐ Extract SPF from optimized model @started(25-08-11 15:04)
   r'-band data:
     ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
+    ✔ Optimize half size dataset @started(25-08-11 10:47) @done(25-08-11 13:42) @lasted(2h55m50s)
+    ☐ Extract SPF from optimized model @started(25-08-11 14:36)
+    ✔ Extract Legendre-based SPF with a higher regularization param, from 0.5 to 10.0 @started(25-08-11 16:39) @done(25-08-11 21:59) @lasted(5h20m15s)
+    ☐ Extract SPF with more Legendre modes, from 12 to 16 @started(25-08-11 21:59)
   g'-band data:
     ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
+    ✔ Optimize half size dataset @started(25-08-11 10:46) @done(25-08-11 13:01) @lasted(2h15m53s)
+    ✔ Extract SPF from optimized model @started(25-08-11 14:36) @done(25-08-11 21:59) @lasted(7h23m19s)
 
 Papers:
   HR4796 disk modeling:
-    ☐ Optimize freeform models for all passbands @high
-    ☐ Extract the SPFs using the optimized models
+    ✔ Optimize freeform models for all passbands @high @today @done(25-08-11 15:04)
+    ✔ Extract the SPFs using the optimized models @today @done(25-08-11 21:59)
+    ☐ Compile freeform model results into a PDF and email to Alycia @today
     ☐ Make a figure comparing the SPFs to the RDI data
     ☐ Make a figure comparing the SPFs to the HG fits
     ☐ Make a figure comparing the freeform dust density profiles to the OG disk models
