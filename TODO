@@ -13,7 +13,7 @@ Freeform disk modeling:
   z'-band data:
     ✘ Optimize without noise map @cancelled(25-08-11 10:47)
     ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 12:50) @lasted(2h3m59s)
-    ✔ Extract SPF from optimized model @started(25-08-11 14:36) @done(25-08-11 21:59) @lasted(7h23m27s)
+    ☐ Extract SPF from optimized model @started(25-08-11 14:36)
   i'-band data:
     ✘ Optimize without noise map @cancelled(25-08-11 10:47)
     ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 15:04) @lasted(4h17m22s)
@@ -22,12 +22,12 @@ Freeform disk modeling:
     ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
     ✔ Optimize half size dataset @started(25-08-11 10:47) @done(25-08-11 13:42) @lasted(2h55m50s)
     ☐ Extract SPF from optimized model @started(25-08-11 14:36)
-    ✔ Extract Legendre-based SPF with a higher regularization param, from 0.5 to 10.0 @started(25-08-11 16:39) @done(25-08-11 21:59) @lasted(5h20m15s)
-    ☐ Extract SPF with more Legendre modes, from 12 to 16 @started(25-08-11 21:59)
+    ✘ Extract Legendre-based SPF with a higher regularization param, from 0.5 to 10.0 @started(25-08-11 16:39) @cancelled(25-08-12 13:28) #too high, use 1.0
+    ✘ Extract SPF with more Legendre modes, from 12 to 16 @started(25-08-11 21:59) @cancelled(25-08-12 13:27) #unnecessary
   g'-band data:
     ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
     ✔ Optimize half size dataset @started(25-08-11 10:46) @done(25-08-11 13:01) @lasted(2h15m53s)
-    ✔ Extract SPF from optimized model @started(25-08-11 14:36) @done(25-08-11 21:59) @lasted(7h23m19s)
+    ☐ Extract SPF from optimized model @started(25-08-11 14:36)
 
 Papers:
   HR4796 disk modeling:
