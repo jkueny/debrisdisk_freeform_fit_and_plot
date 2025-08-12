@@ -21,6 +21,7 @@ from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
 from utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
 from utils.improc_tools import fft_power_spectrum
+from dev.pyklip.klip import high_pass_filter
 from dev.pyklip.instruments.Instrument import GenericData
 from dev.pyklip.fmlib.diskfm import DiskFM
 import dev.pyklip.fm as fm
@@ -193,6 +194,16 @@ class FreeFormDisk:
                                     mask=(1 - self.mask2generatedisk))
         save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), model)
         return model
+
+    def high_pass_reference_model(self, reference_model):
+        sigma_size = min(self.window_params["width_x"], self.window_params["width_y"])
+        filter_size = (self.image_size / sigma_size) / (2*np.sqrt(2*np.log(2)))
+        print(f"HP filtering model ref w/ Gaussian FWHM of {filter_size} pixels in Fourier space...")
+        reference_model_highpass = high_pass_filter(reference_model, filtersize=filter_size)
+        reference_model_hp_clamped = np.clip(reference_model_highpass, a_min=0., a_max=np.max(reference_model_highpass))
+        refhp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
+        save_fits(refhp_saveto, reference_model_hp_clamped)
+        return reference_model_hp_clamped
     
     def get_reference_model_psd(self, reference_model):
         reference_model_norm = reference_model / np.linalg.norm(reference_model)
@@ -201,6 +212,7 @@ class FreeFormDisk:
         psd_ref_model = np.asarray(psd_ref_model)
         print("Fitting the optimal window func to the reference model PSD...")
         params, window_opt = fit_elgauss_window(psd_ref_model)
+        self.window_params = params
         psd_ref_model_win = window_opt + psd_ref_model
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")
         window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")

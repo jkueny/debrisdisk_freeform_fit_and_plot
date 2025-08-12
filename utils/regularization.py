@@ -1,6 +1,5 @@
 import numpy as np
-
-
+from jax.scipy.signal import fftconvolve
 from scipy.optimize import minimize
 
 
@@ -12,6 +11,7 @@ def preprocess(img: np.ndarray) -> np.ndarray:
 def power_spectrum(img: np.ndarray) -> np.ndarray:
     f = np.fft.fftshift(np.fft.fft2(img))
     return np.abs(f) ** 2
+
 
 
 def asymmetric_tukey(shape, wx, wy, angle_deg, alpha=0.5):
@@ -71,6 +71,10 @@ def make_objective(psd_norm, lam_area=0.001):
 #         window *= scale
 #         return np.mean((window - psd_norm) ** 2)
 #     return _loss
+
+def penalize_residual_disk(disk_spine, residuals_image):
+    residual_disk = fftconvolve(residuals_image, disk_spine, mode="same")
+    return np.max(residual_disk)
 
 
 def fit_elgauss_window(ref_psd, generosity=1.0, verbose=True):

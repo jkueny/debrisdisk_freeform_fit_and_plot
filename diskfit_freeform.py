@@ -41,7 +41,7 @@ from dev.pyklip.fmlib.funcs_JDFM import (
 )
 
 from utils.klip_basis import load_kl_basis, unpack_basis_data
-
+from utils.regularization import penalize_residual_disk
 from utils.masks import make_annular_mask
 
 from utils.improc_tools import reconstruct_full_image, fft_power_spectrum, subtract_radial_profile, \
@@ -119,7 +119,7 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     print('Done.')
 
 
-def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
+def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, disk_spine,
                   aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
                   radial_inds, aligned_center, isRDI, total_pixels, reg_lambda,):
@@ -205,14 +205,16 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     raw_loss = (freeform_fm_interest - disk_image) / noise_map
     # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss))
-    loss = mean_huber + hsf_penalty #counts**2 units for both (kinda)
+    full_residuals_image = reconstruct_full_image(raw_loss, total_pixels, disk_mask_inds)
+    residual_disk_loss = penalize_residual_disk(disk_spine, full_residuals_image)
+    loss = mean_huber + hsf_penalty + residual_disk_loss #counts**2 units for both (kinda
     aux_data = freeform_fm_full, full_model_image
     return loss, aux_data
 
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 def optimize_model(
-    target_image, model_init, ref_psd, noise_map, mask_indices, psf,
+    target_image, model_init, ref_psd, disk_spine, noise_map, mask_indices, psf,
     basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
     radial_inds,
     aligned_center,
@@ -272,7 +274,7 @@ def optimize_model(
     @jax.jit
     def step(image_params, opt_state):
         (loss, aux_data), grads = loss_and_grad(
-            image_params, target_image, psf, noise_map, ref_psd,
+            image_params, target_image, psf, noise_map, ref_psd, disk_spine,
             aligned_image_sections, PAs, mask_indices, iowa_sec_inds, all_reference_images_selectors,
             klmodes_sections, evals, evecs,
             radial_inds, aligned_center, mode, total_pixels, reg_lambda,
@@ -341,8 +343,10 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
         reference_model[reference_model != reference_model] = 0.
     else:
         reference_model = model_firstguess
+    
 
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
+    disk_spine = ffd_obj.high_pass_reference_model(reference_model)
 
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
@@ -411,6 +415,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
         print(f"Tracing to {trace_dest}")
     optimized_model, loss_history = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_psd=reference_model_psd,
+                                                   disk_spine=disk_spine,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
                                                    aligned_center=aligned_center,

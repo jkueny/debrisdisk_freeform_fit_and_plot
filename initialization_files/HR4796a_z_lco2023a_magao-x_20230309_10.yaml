@@ -124,8 +124,8 @@ noise:
 # offset: 0.
 
 regularization:
-  reference_model: 
   lambda_reg: 0.001
+  filter_size: 10
 
 
 
