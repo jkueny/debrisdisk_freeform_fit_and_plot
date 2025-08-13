@@ -1,5 +1,6 @@
 import numpy as np
 from jax.scipy.signal import fftconvolve
+import jax.numpy as jnp
 from scipy.optimize import minimize
 
 
@@ -74,7 +75,8 @@ def make_objective(psd_norm, lam_area=0.001):
 
 def penalize_residual_disk(disk_spine, residuals_image):
     residual_disk = fftconvolve(residuals_image, disk_spine, mode="same")
-    return np.max(residual_disk)
+    residual_disk_norm = residual_disk / jnp.linalg.norm(residual_disk)
+    return jnp.max(residual_disk_norm)
 
 
 def fit_elgauss_window(ref_psd, generosity=1.0, verbose=True):
