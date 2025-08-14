@@ -50,28 +50,25 @@ def median_radial_profile(image, center, noise, radial_inds):
     
     def median_at_radius(r):
         mask = radial_inds == r
-        # For JAX compatibility, we need to avoid boolean indexing
-        # Instead, we'll use a weighted approach where we set non-ring pixels to NaN
         ring_vals = jnp.where(mask, thresholded_image, jnp.nan)
         # jax.debug.print("nanmedian ring_vals -> {x}", x=jnp.nanmedian(ring_vals))
-        # Use nanmedian to compute median ignoring NaN values
         return jnp.nanmedian(ring_vals)
 
     median_profile_1d = jax.vmap(median_at_radius)(radii)
     median_profile_1d_no_nan = jnp.where(jnp.isnan(median_profile_1d), 0., median_profile_1d)
-    jax.debug.print("med prof 1D -> {x}", x=median_profile_1d_no_nan)
+    # jax.debug.print("med prof 1D -> {x}", x=median_profile_1d_no_nan)
 
     # Cast the profile to a 2D array
     median_profile_image = median_profile_1d_no_nan[radial_inds]
 
-    jax.debug.print("median_profile_image sum -> {x}", x=jnp.sum(median_profile_image))
+    # jax.debug.print("median_profile_image sum -> {x}", x=jnp.sum(median_profile_image))
 
     return median_profile_image
 
 def subtract_radial_profile(image, center, noise, radial_inds):
 
     median_profile_image = median_radial_profile(image, center, noise, radial_inds)
-    jax.debug.print("before subtracting, sum -> {x}", x=jnp.sum(median_profile_image))
+    # jax.debug.print("before subtracting, sum -> {x}", x=jnp.sum(median_profile_image))
     subtracted = image - median_profile_image
 
     return subtracted, median_profile_image
