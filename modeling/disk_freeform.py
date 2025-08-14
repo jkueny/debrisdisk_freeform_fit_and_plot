@@ -31,7 +31,7 @@ from modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 # import multiprocessing as mp
 
 def get_basedir():
-    basedir = os.environ.get("DISKFIT_BASEDIR",f'{os.environ["DATA_DIR"]}/data')
+    basedir = os.environ.get("DISKFIT_BASEDIR",f'{os.environ["HOME"]}/data')
     return basedir
 
 def generate_powerlaw_noise(shape, power_law_index, seed):
