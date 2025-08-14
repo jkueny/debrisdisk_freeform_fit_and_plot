@@ -44,5 +44,5 @@ def record_pyklip_params(n_klmodes, iwa, owa, minrot, centering):
     return params
 
 def get_basedir():
+    basedir = os.environ.get('DISKFIT_DIR','DATA_DIR')
     return basedir
-    basedir = f"{os.environ.get('DATA_DIR','HOME')}/data"
