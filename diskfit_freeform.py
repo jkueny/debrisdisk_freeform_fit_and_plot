@@ -72,25 +72,17 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     evals = input_pt["evals"]
     evecs = input_pt["evecs"]
     reference_images_selector_vec = input_pt["reference_images_selector_vec"]
-    isRDI = input_pt["isRDI"]
 
-    if isRDI:
-        flat_postklip_psf_i = fm_from_eigen_rdi(
-            aligned_image,
-            flat_model_here,
-            klmodes,
-        )
-    else:
-        flat_postklip_psf_i = fm_from_eigen_adi(
-            aligned_image,
-            flat_model_here,
-            klmodes,
-            evals,
-            evecs,
-            reference_images_selector_vec,
-            full_sample_refs,
-            full_sample_models,
-        )
+    flat_postklip_psf_i = fm_from_eigen_adi(
+        aligned_image,
+        flat_model_here,
+        klmodes,
+        evals,
+        evecs,
+        reference_images_selector_vec,
+        full_sample_refs,
+        full_sample_models,
+    )
     
     return _, jnp.array(flat_postklip_psf_i)
 
@@ -165,6 +157,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
         mean huber loss for each pixel param.
     """
     full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
+    full_noise_image = reconstruct_full_image(noise_map, total_pixels, disk_mask_inds)
     # Ensure total intensity is 1.0
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
     full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
@@ -180,7 +173,11 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
     # jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
 
     freeform_image = convolve_model(full_model_image, psf)
-    freeform_image_profilesub, _ = subtract_radial_profile(freeform_image, aligned_center, radial_inds)
+    freeform_image_profilesub, _ = subtract_radial_profile(freeform_image,
+                                                           aligned_center,
+                                                           full_noise_image,
+                                                           radial_inds,
+                                                           )
     global_models_prepped = update_disk(model_disk=freeform_image_profilesub,
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
@@ -193,7 +190,6 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
         "evals": evals,
         "evecs": evecs_stacked,
         "reference_images_selector_vec": all_reference_images_selectors,
-        "isRDI": bool(isRDI),
     }
 
     # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
@@ -465,10 +461,20 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     print("Convolving optimized model image...")
     opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
 
-    opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub, aligned_center, radial_inds)
+    noise_reconstructed = reconstruct_full_image(jnp.array(noise_interest),
+                                                 total_pixels,
+                                                 disk_mask_indices,
+                                                )
+
+    opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
+                                                              aligned_center,
+                                                              noise_reconstructed,
+                                                              radial_inds,
+                                                              )
 
     optimized_model_image = np.asarray(opt_model_image)
     median_profile_image = np.asarray(med_prof_image)
+
 
     print("Generating the optimized forward model image...")
     optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
