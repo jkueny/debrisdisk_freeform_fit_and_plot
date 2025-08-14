@@ -37,7 +37,7 @@ from modeling.disk_freeform import FreeFormDisk
 from utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
 
 from dev.pyklip.fmlib.funcs_JDFM import (
-    update_disk, fm_from_eigen_adi, derotate_and_average
+    update_disk, fm_from_eigen_adi, fm_from_eigen_rdi, derotate_and_average
 )
 
 from utils.klip_basis import load_kl_basis, unpack_basis_data
@@ -72,8 +72,16 @@ def fm_scan_func(_, input_pt, full_sample_refs, full_sample_models):
     evals = input_pt["evals"]
     evecs = input_pt["evecs"]
     reference_images_selector_vec = input_pt["reference_images_selector_vec"]
+    isRDI = input_pt["isRDI"]
 
-    flat_postklip_psf_i = fm_from_eigen_adi(
+    if isRDI:
+        flat_postklip_psf_i = fm_from_eigen_rdi(
+            aligned_image,
+            flat_model_here,
+            klmodes,
+        )
+    else:
+        flat_postklip_psf_i = fm_from_eigen_adi(
             aligned_image,
             flat_model_here,
             klmodes,
@@ -185,6 +193,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
         "evals": evals,
         "evecs": evecs_stacked,
         "reference_images_selector_vec": all_reference_images_selectors,
+        "isRDI": bool(isRDI),
     }
 
     # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan

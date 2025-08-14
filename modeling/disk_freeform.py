@@ -30,6 +30,9 @@ import utils.astro_unit_conversion as convert
 from modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 # import multiprocessing as mp
 
+def get_basedir():
+    basedir = f"{os.environ.get("DISKFIT_BASEDIR",os.environ["DATA_DIR"])}"
+    return basedir
 
 def generate_powerlaw_noise(shape, power_law_index, seed):
     """
@@ -94,7 +97,7 @@ class FreeFormDisk:
     def _load_dirs(self):
         # Look for the project files in ~/projects by default
         # or in $DISKFIT_BASEDIR
-        basedir = os.environ.get('DISKFIT_BASEDIR', f'{os.environ["HOME"]}/projects')
+        basedir = get_basedir()
         self.basedir = basedir
         klipdir = os.path.join(basedir, self.params_file["band_dir"],
                                     "klip_fm_files")

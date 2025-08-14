@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import numpy as np
 from jax.scipy.signal import fftconvolve
+import os
 
 def penalize_spatial_freq(model_ps, ref_model_ps, reg_lambda):
     '''
@@ -42,3 +43,6 @@ def record_pyklip_params(n_klmodes, iwa, owa, minrot, centering):
 
     return params
 
+def get_basedir():
+    return basedir
+    basedir = f"{os.environ.get('DATA_DIR','HOME')}/data"
