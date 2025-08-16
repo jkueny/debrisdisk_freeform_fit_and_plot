@@ -203,10 +203,15 @@ class FreeFormDisk:
         filter_size = (self.image_size / sigma_size) / (2*np.sqrt(2*np.log(2)))
         print(f"HP filtering model ref w/ Gaussian FWHM of {filter_size} pixels in Fourier space...")
         reference_model_highpass = high_pass_filter(reference_model, filtersize=filter_size)
-        reference_model_hp_clamped = np.clip(reference_model_highpass, a_min=0., a_max=np.max(reference_model_highpass))
+        # enforce positivity
+        reference_model_hp_clamped = np.clip(reference_model_highpass, a_min=0, a_max=np.max(reference_model_highpass))
+        reference_model_hp_rounded = np.round(reference_model_hp_clamped)
+        reference_model_hp_rounded[reference_model_hp_rounded > 0] = 1
+        reference_model_disk_spine = reference_model_hp_rounded
+
         refhp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
-        save_fits(refhp_saveto, reference_model_hp_clamped)
-        return reference_model_hp_clamped
+        save_fits(refhp_saveto, reference_model_disk_spine)
+        return reference_model_disk_spine
     
     def get_reference_model_psd(self, reference_model):
         reference_model_norm = reference_model / np.linalg.norm(reference_model)
@@ -411,6 +416,7 @@ class FreeFormDisk:
         
         # Make the noisemap now, to inspect after initialization in case changes need to occur
         noise_map = self.make_noise_map_rings(reduced_data_no_disk=reduced_noise_masked)
+        self.noise_map = noise_map
 
         noise_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_noisemap.fits")
         fits.writeto(noise_saveto, noise_map, overwrite=True)

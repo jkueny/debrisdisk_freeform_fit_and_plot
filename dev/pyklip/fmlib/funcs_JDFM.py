@@ -326,12 +326,12 @@ def perturb_KLmodes(evals, evecs, original_KL, selector, full_sample_refs, full_
     sample_refs = selector[:, jnp.newaxis] * full_sample_refs
     sample_models = selector[:, jnp.newaxis] * full_sample_models
 
-    max_basis = original_KL.shape[0]
-    refs_mean_sub = sample_refs - jnp.nanmean(sample_refs, axis=1, keepdims=True)
-    refs_meansub_nonan = refs_mean_sub
-    models_mean_sub = sample_models
-    models_meansub_nonan = models_mean_sub
 
+    max_basis = original_KL.shape[0]
+    refs_mean_sub = sample_refs - jnp.mean(sample_refs, axis=1, keepdims=True)
+    refs_meansub_nonan = refs_mean_sub
+    models_mean_sub = sample_models - jnp.mean(sample_models, axis=1, keepdims=True)
+    models_meansub_nonan = models_mean_sub
     evals_tiled = jnp.tile(evals,(max_basis,1))
     evals_nan_diag = jnp.fill_diagonal(evals_tiled, 1., inplace=False)
 
@@ -339,7 +339,7 @@ def perturb_KLmodes(evals, evecs, original_KL, selector, full_sample_refs, full_
     evalse_inv_sqrt = 1./evals_sqrt
     evals_ratio = (evalse_inv_sqrt[:,None]).dot(evals_sqrt[None,:])
 
-    beta_tmp = 1./(evals_nan_diag.transpose() - evals_nan_diag)
+    beta_tmp = 1./(evals_nan_diag.transpose() - evals_nan_diag + 1e-6)
 
     beta_tmp = beta_tmp.at[np.diag_indices(np.size(evals))].set(-0.5/evals)
     beta = evals_ratio*beta_tmp #no NaNs confirmed JKK 03/18/2025

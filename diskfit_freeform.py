@@ -191,7 +191,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
         "evecs": evecs_stacked,
         "reference_images_selector_vec": all_reference_images_selectors,
     }
-
+    # jax.debug.breakpoint()
     # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
     scan_func = partial(
         fm_scan_func,
@@ -279,7 +279,7 @@ def optimize_model(
 
     total_pixels = int(total_pixels)
 
-    @jax.jit
+    # @jax.jit
     def step(image_params, opt_state):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image, psf, noise_map, ref_psd, disk_spine,
@@ -354,7 +354,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     
 
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
-    disk_spine = ffd_obj.high_pass_reference_model(reference_model)
 
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
@@ -366,6 +365,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
 
         ffd_obj.initialize_diskfm(dataset, model_init=model_firstguess)
 
+        disk_spine = ffd_obj.high_pass_reference_model(reference_model)
         print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
         sys.exit(0)
     # Read in the basis data
@@ -375,6 +375,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))[0]
     reduced_data[reduced_data != reduced_data] = 0. #zero out the NaNs
+    disk_spine = ffd_obj.high_pass_reference_model(reference_model)
 
     if ffd_obj.params_file["noise"]["use"]:
         noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
