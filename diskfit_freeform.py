@@ -279,7 +279,7 @@ def optimize_model(
 
     total_pixels = int(total_pixels)
 
-    # @jax.jit
+    @jax.jit
     def step(image_params, opt_state):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image, psf, noise_map, ref_psd, disk_spine,
