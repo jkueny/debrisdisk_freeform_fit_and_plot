@@ -44,21 +44,21 @@ disk_model:
   r2_init: 88.00 #include just for initializing the mask function
   # r2_init: 100.00 #include just for initializing the mask function
   rc_init: 77.7 #35.5 #trying 39. for the masks
-  alpha_in_init: 40.28
-  alpha_out_init: -13.20
+  alpha_in_init: 35.0
+  alpha_out_init: -12.4
   beta_init: 14.8
-  a_r_init: 0.01
-  inc_init: 76.5 #trying 45. init for the mask2minimize
-  pa_init: 24.22
-  dx_init: -0.9
-  dy_init: 1.13
-  N_init: 2689.08
+  a_r_init: 0.017
+  inc_init: 76.41 #trying 45. init for the mask2minimize
+  pa_init: 24.27
+  dx_init: -1.55
+  dy_init: 1.0
+  N_init: 2554.23
   r_inner: 65.0
   r_outer: 110.0
   # for 1g SPF (N_DIM_MCMC = 9) and more
-  g1_init: 0.79743
-  g2_init: -0.20223
-  alpha1_init: 0.28760
+  g1_init: 0.7960
+  g2_init: -0.2027
+  alpha1_init: 0.2871
 
 
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
