@@ -206,7 +206,7 @@ class FreeFormDisk:
         # enforce positivity
         reference_model_hp_clamped = np.clip(reference_model_highpass, a_min=0, a_max=np.max(reference_model_highpass))
         reference_model_hp_rounded = np.round(reference_model_hp_clamped)
-        reference_model_hp_rounded[reference_model_hp_rounded > 0] = 10
+        reference_model_hp_rounded[reference_model_hp_rounded > 0] = 1
         reference_model_disk_spine = reference_model_hp_rounded
 
         refhp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")

@@ -73,10 +73,10 @@ def make_objective(psd_norm, lam_area=0.001):
 #         return np.mean((window - psd_norm) ** 2)
 #     return _loss
 
-def penalize_residual_disk(disk_spine, residuals_image):
+def penalize_residual_disk(disk_spine, residuals_image, reg_lambda):
     residual_disk = fftconvolve(residuals_image, disk_spine, mode="same")
     residual_disk_norm = residual_disk / jnp.linalg.norm(residual_disk)
-    return jnp.max(residual_disk_norm)
+    return jnp.max(residual_disk_norm) * (10 * reg_lambda)
 
 
 def fit_elgauss_window(ref_psd, generosity=1.0, verbose=True):
