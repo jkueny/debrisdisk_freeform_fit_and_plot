@@ -212,8 +212,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
     mean_huber = jnp.mean(huber_loss(raw_loss))
     full_residuals_image = reconstruct_full_image(raw_loss, total_pixels, disk_mask_inds)
     residual_disk_loss = penalize_residual_disk(disk_spine, full_residuals_image, reg_lambda=reg_lambda)
-    # jax.debug.print("residual_disk_loss -> {x}", x=residual_disk_loss)
-    # jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
+    jax.debug.print("residual_disk_loss -> {x}", x=residual_disk_loss)
+    jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
     # jax.debug.print("mean_huber -> {x}", x=mean_huber)
     loss = mean_huber + hsf_penalty + residual_disk_loss #counts**2 units for both (kinda
     aux_data = freeform_fm_full, full_model_image
