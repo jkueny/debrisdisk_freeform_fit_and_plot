@@ -79,7 +79,7 @@ def penalize_residual_disk(disk_spine, residuals_image, reg_lambda):
     return jnp.max(residual_disk_norm) * (10 * reg_lambda)
 
 
-def fit_elgauss_window(ref_psd, generosity=0.75, verbose=True):
+def fit_elgauss_window(ref_psd, generosity=1.5, verbose=True):
     psd_norm = ref_psd
 
     H, W = ref_psd.shape
