@@ -10,13 +10,13 @@ def fft_power_spectrum(image):
     power = jnp.abs(fft) ** 2
     return power #TODO the sum of this should be the variance of the mean-subbed image (Parseval's theorem)
 
-def reconstruct_full_image(free_params, total_pixels, mask_indices):
+def reconstruct_full_image(free_params, total_pixels, size, mask_indices):
     """
     Given the free parameters (for the unmasked region) and the full image shape,
     create a full image (flattened) where the free parameters are inserted at the positions
     indicated by mask_indices and zeros elsewhere.
     """
-    full_shape = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
+    full_shape = (size, size)
     full_flat = jnp.zeros(total_pixels)
     full_flat = full_flat.at[mask_indices].set(jnp.abs(free_params))
     return full_flat.reshape(full_shape)

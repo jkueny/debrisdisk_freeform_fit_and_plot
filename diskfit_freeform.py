@@ -54,7 +54,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.signal import fftconvolve
 from jax import lax
-import optax
+from jaxopt import LBFGS
 from optax.losses import huber_loss
 
 # jax.config.update('jax_disable_jit', True)
@@ -122,7 +122,7 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, disk_spine,
                   aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
-                  radial_inds, aligned_center, isRDI, total_pixels, reg_lambda,):
+                  radial_inds, aligned_center, isRDI, total_pixels, size, reg_lambda):
     """ measure the huber loss for a given disk freeform disk model.
 
     Steps executed:
@@ -156,8 +156,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
     Returns:
         mean huber loss for each pixel param.
     """
-    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, disk_mask_inds)
-    full_noise_image = reconstruct_full_image(noise_map, total_pixels, disk_mask_inds)
+    full_model_image = reconstruct_full_image(mod_pix_params, total_pixels, size, disk_mask_inds)
+    full_noise_image = reconstruct_full_image(noise_map, total_pixels, size, disk_mask_inds)
     # Ensure total intensity is 1.0
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
     full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
@@ -210,20 +210,19 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
     raw_loss = (freeform_fm_interest - disk_image) / noise_map
     # drive the Huber loss to zero residuals
     mean_huber = jnp.mean(huber_loss(raw_loss))
-    full_residuals_image = reconstruct_full_image(raw_loss, total_pixels, disk_mask_inds)
+    full_residuals_image = reconstruct_full_image(raw_loss, total_pixels, size, disk_mask_inds)
     residual_disk_loss = penalize_residual_disk(disk_spine, full_residuals_image, reg_lambda=reg_lambda)
     # jax.debug.print("residual_disk_loss -> {x}", x=residual_disk_loss)
     # jax.debug.print("hsf_penalty -> {x}", x=hsf_penalty)
     # jax.debug.print("mean_huber -> {x}", x=mean_huber)
     loss = mean_huber + hsf_penalty + residual_disk_loss #counts**2 units for both (kinda
-    aux_data = freeform_fm_full, full_model_image
-    return loss, aux_data
+    return loss
 
-loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
+
 
 def optimize_model(
     target_image, model_init, ref_psd, disk_spine, noise_map, mask_indices, psf,
-    basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
+    basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data,
     radial_inds,
     aligned_center,
 ):
@@ -244,10 +243,7 @@ def optimize_model(
     # image_params = jnp.median(target_image[mask_indices]) * model_init.astype(jnp.float32)
     image_params = model_init.astype(jnp.float32)
 
-    # Set up optimizer, use adaptive stochastic grad descent (Adam)
-    optimizer = optax.adam(learning_rate)
-    opt_state =  optimizer.init(image_params) #this is all zeros initially
-
+    # Set up LBFGS solver (replacing Adam optimizer)
     loss_history = []
 
     # doing this in mutable-array-land on CPU is faster
@@ -278,56 +274,51 @@ def optimize_model(
     run_start_ts = time.time()
 
     total_pixels = int(total_pixels)
+    H = W = int(np.sqrt(total_pixels))
+    assert H * W == total_pixels, "KLIP image is not a perfect square?"
+    size = H #this is the size of the full square image
 
-    @jax.jit
-    def step(image_params, opt_state):
-        (loss, aux_data), grads = loss_and_grad(
-            image_params, target_image, psf, noise_map, ref_psd, disk_spine,
-            aligned_image_sections, PAs, mask_indices, iowa_sec_inds, all_reference_images_selectors,
-            klmodes_sections, evals, evecs,
-            radial_inds, aligned_center, mode, total_pixels, reg_lambda,
-        )
-        updates, opt_state = optimizer.update(grads, opt_state)
-        image_params = optax.apply_updates(image_params, updates)
-        return image_params, opt_state, loss, updates, aux_data
 
-    first_step = time.time()
-    measure_warmup = True
-    plot_idx = 0
-    for step_idx in range(num_steps):
-        with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
-            image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state)
-        freeform_fm_full, full_model_image = aux_data
-        loss_history.append(loss.item())
+    # Set up LBFGS solver
+    solver = LBFGS(
+        fun=loss_function,
+        value_and_grad=False,
+        maxiter=num_steps,
+        has_aux=False,
+        jit=False,
+        implicit_diff=True,
+    )
 
-        # if step_idx % round(num_steps / 10) == 0:
-        if measure_warmup:
-            first_step = time.time() - first_step
-            dt = time.time() - run_start_ts
-            measure_warmup = False
-            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - ? sec / step")
-        else:
-            dt = time.time() - run_start_ts - first_step
-            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
-        if step_idx % 10 == 0:
-            out_filename = f"{run_dir}/training_{plot_idx:05}.png"
-            plot_training(
-                out_filename,
-                reduced_data,
-                freeform_fm_full,
-                full_model_image,
-                reconstruct_full_image(updates, total_pixels, mask_indices),
-                mask_indices
-            )
-            plot_idx += 1
-
+    # Run the LBFGS optimization
+    res = solver.run(
+        image_params,
+        target_image, psf, noise_map, ref_psd, disk_spine,
+        aligned_image_sections, PAs, mask_indices, iowa_sec_inds, all_reference_images_selectors,
+        klmodes_sections, evals, evecs,
+        radial_inds, aligned_center, mode, total_pixels, size, reg_lambda,
+    )
+    # Extract the optimized parameters and final loss
+    print(res.state)
+    optimized_model = res.params
+    final_loss = res.state.value
+    
+    # For LBFGS, we can get some convergence info
+    # converged = res.state.converged
+    n_iterations = res.state.iter_num
+    
+    print(f"LBFGS optimization completed:")
+    # print(f"  - Converged: {converged}")
+    print(f"  - Iterations: {n_iterations}")
+    print(f"  - Final loss: {final_loss:.6f}")
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
-    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), mask_indices)
 
-    optimized_model = image_params
+    # Since LBFGS doesn't provide step-by-step loss history like Adam,
+    # we'll return a simple list with the final loss
+    loss_history = [final_loss] if final_loss is not None else []
+
     return optimized_model, loss_history
 
-def main(config, num_iterations, init_model, reg_lambda, first_time, learning_rate):
+def main(config, num_iterations, init_model, reg_lambda, first_time):
     # Grab the info from the yaml file
     if reg_lambda is None: #default
         reg_lambda = 1.
@@ -414,6 +405,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
 
     aligned_center = float(fm_dict["klparam_dict"]["aligned_center_x"]), float(fm_dict["klparam_dict"]["aligned_center_y"])
     image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
+    image_size = int(np.sqrt(total_pixels))
     radial_inds = get_radial_inds(image_shape, aligned_center)
     # print(f"max(init_model_interest) -> {np.max(init_model_interest)}")
 
@@ -436,7 +428,6 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                                                    run_dir=run_dir,
                                                    reduced_data=reduced_data,
                                                    radial_inds=radial_inds,
-                                                   learning_rate=learning_rate,
                                                    )
     try:
         optimized_model.block_until_ready()
@@ -456,7 +447,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                                             )
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
     print("Reconstructing full image...")
-    optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
+    optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, image_size, disk_mask_indices))
     # optimized_model = np.roll(optimized_model, (-1,-1))
 
     print("Convolving optimized model image...")
@@ -464,6 +455,7 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
 
     noise_reconstructed = reconstruct_full_image(jnp.array(noise_interest),
                                                  total_pixels,
+                                                 image_size,
                                                  disk_mask_indices,
                                                 )
 
@@ -492,7 +484,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                         median_profile_image=median_profile_image,
                         loss_history=loss_history,
                         hsf_regularization=reg_lambda,
-                        pyklip_params=pyklip_params_dict
+                        pyklip_params=pyklip_params_dict,
+                        optimizer_name="jaxopt.LBFGS"
                         )
 
 
@@ -503,10 +496,7 @@ if __name__ == "__main__":
                         '--param-file',
                         required=False,
                         help='parameter file name')
-    parser.add_argument('--learning-rate',
-                        type=float,
-                        default=1e-1,
-                        help='Learning rate')
+
     parser.add_argument(
                         '--iterations',
                         type=int,
@@ -542,5 +532,4 @@ if __name__ == "__main__":
         init_model=args.initial_model,
         reg_lambda=args.reg,
         first_time=args.first_time,
-        learning_rate=args.learning_rate,
     )
