@@ -118,7 +118,6 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     plt.close(fig)
     print('Done.')
 
-
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, disk_spine,
                   aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
                   klmodes_stacked, evals, evecs_stacked,
@@ -249,7 +248,6 @@ def optimize_model(
     opt_state =  optimizer.init(image_params) #this is all zeros initially
 
     loss_history = []
-    reg_lambdas = [reg_lambda, reg_lambda / 2, reg_lambda / 10]
 
     # doing this in mutable-array-land on CPU is faster
     # so we pre-fill the per-frame eigenbases in a consistent shape using
@@ -295,33 +293,32 @@ def optimize_model(
     first_step = time.time()
     measure_warmup = True
     plot_idx = 0
-    for reg_lambda in reg_lambdas:
-        for step_idx in range(num_steps):
-            with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
-                image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state, reg_lambda)
-            freeform_fm_full, full_model_image = aux_data
-            loss_history.append(loss.item())
+    for step_idx in range(num_steps):
+        with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
+            image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state, reg_lambda)
+        freeform_fm_full, full_model_image = aux_data
+        loss_history.append(loss.item())
 
-            # if step_idx % round(num_steps / 10) == 0:
-            if measure_warmup:
-                first_step = time.time() - first_step
-                dt = time.time() - run_start_ts
-                measure_warmup = False
-                print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - ? sec / step")
-            else:
-                dt = time.time() - run_start_ts - first_step
-                print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
-            if step_idx % 10 == 0:
-                out_filename = f"{run_dir}/training_{plot_idx:05}.png"
-                plot_training(
-                    out_filename,
-                    reduced_data,
-                    freeform_fm_full,
-                    full_model_image,
-                    reconstruct_full_image(updates, total_pixels, mask_indices),
-                    mask_indices
-                )
-                plot_idx += 1
+        # if step_idx % round(num_steps / 10) == 0:
+        if measure_warmup:
+            first_step = time.time() - first_step
+            dt = time.time() - run_start_ts
+            measure_warmup = False
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - ? sec / step")
+        else:
+            dt = time.time() - run_start_ts - first_step
+            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+        if step_idx % 10 == 0:
+            out_filename = f"{run_dir}/training_{plot_idx:05}.png"
+            plot_training(
+                out_filename,
+                reduced_data,
+                freeform_fm_full,
+                full_model_image,
+                reconstruct_full_image(updates, total_pixels, mask_indices),
+                mask_indices
+            )
+            plot_idx += 1
     
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), mask_indices)
