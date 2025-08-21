@@ -1,15 +1,17 @@
 Freeform disk modeling:
   ✔ Add option to not use the noise map in the loss calculation @today @started(25-08-07 15:44) @done(25-08-07 15:44) @lasted(38s)
-  ☐ Be granted use of an h100 for the full size datasets by Ewan
+  ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
   ☐ Be granted use of an h100 by Joseph
 
   z'-band data:
+    ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
     ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
     ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 13:09) @done(25-08-20 14:26) @lasted(1h17m16s)
     ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 14:26) @done(25-08-20 16:07) @lasted(1h41m58s)
     ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @started(25-08-20 16:08) @done(25-08-20 17:52) @lasted(1h44m35s)
   i'-band data:
-    ☐ Check if the config file was using the correct KLIP params @started(25-08-21 10:44)
+    ✔ Check if the config file was using the correct KLIP params @started(25-08-21 10:44) @done(25-08-21 11:01) @lasted(17m31s) #it was not
+    ☐ Rerun the freeform optimization on the correct KLIP image on jetstream2 @started(25-08-21 11:02)
     ☐ Rerun the SPF extraction with 18 Legendre modes
     ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
     ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 11:45) @done(25-08-20 12:57) @lasted(1h12m20s)
@@ -46,8 +48,8 @@ Papers:
     ☐ Create the template for the paper on Overleaf
 
 Todos:
-  ✔ Complete export control training @started(25-08-08 09:08) @done(25-08-08 09:30) @lasted(22m45s)
-  ✔ Attend the TCP briefing @started(25-08-14 14:36) @done(25-08-18 12:08)
+  ✔ Move the r'-band and g'-band data to Lilla @done(25-08-21 11:42)
+  ✔ Set up python environment on Lilla @done(25-08-21 13:09)
     
 
 Formatting:
