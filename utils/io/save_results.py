@@ -180,8 +180,8 @@ def save_ffdfit_outputs(run_dir: Path,
 
     fits.writeto(run_dir / f"{file_prefix}_BestModel.fits", model_opt, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Conv.fits", model_image_opt, overwrite=True)
-    fits.writeto(run_dir / f"{file_prefix}_FM.fits", forward_model_opt, overwrite=True)
-    fits.writeto(run_dir / f"{file_prefix}_Res.fits", residuals_image, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_BestModel_FM.fits", forward_model_opt, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_BestModel_Res.fits", residuals_image, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_MedProf.fits", median_profile_image, overwrite=True)
 
     metadata = {

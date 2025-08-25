@@ -1,43 +1,31 @@
 Freeform disk modeling:
-  ✔ Add option to not use the noise map in the loss calculation @today @started(25-08-07 15:44) @done(25-08-07 15:44) @lasted(38s)
   ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
   ☐ Be granted use of an h100 by Joseph
 
   z'-band data:
+    ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 13:09) @done(25-08-20 14:26) @lasted(1h17m16s)
-    ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 14:26) @done(25-08-20 16:07) @lasted(1h41m58s)
-    ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @started(25-08-20 16:08) @done(25-08-20 17:52) @lasted(1h44m35s)
+    
   i'-band data:
-    ✔ Check if the config file was using the correct KLIP params @started(25-08-21 10:44) @done(25-08-21 11:01) @lasted(17m31s) #it was not
-    ☐ Rerun the freeform optimization on the correct KLIP image on jetstream2 @started(25-08-21 11:02)
-    ☐ Rerun the SPF extraction with 18 Legendre modes
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 11:45) @done(25-08-20 12:57) @lasted(1h12m20s)
-    ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 12:57) @done(25-08-20 16:38) @lasted(3h41m20s)
-    ✔ Rerun SPF extraction with 14 Legendre modes, down from 16 @done(25-08-21 08:01)
+    ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning @started(25-08-22 16:57)
+    ✔ Rerun the SPF extraction with 18 Legendre modes, 0.3 HSF reg value @started(25-08-21 21:46) @done(25-08-22 10:19) @lasted(12h33m58s)
+
     
   r'-band data:
-    ☐ Rerun the SPF extraction with 18 Legendre modes, mode regularization 1.0, hsf regularization 0.3
-    ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
-    ✔ Optimize half size dataset @started(25-08-11 10:47) @done(25-08-11 13:42) @lasted(2h55m50s)
-    ✔ Extract SPF from optimized model [REDO, more Legendre modes and lambda reg value of 1] @done(25-08-20 15:29)
-    ✘ Extract Legendre-based SPF with a higher regularization param, from 0.5 to 10.0 @started(25-08-11 16:39) @cancelled(25-08-12 13:28) #too high, use 1.0
-    ✘ Extract SPF with more Legendre modes, from 12 to 16 @started(25-08-11 21:59) @cancelled(25-08-12 13:27) #unnecessary
-    ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @done(25-08-21 08:00)
+    ✔ Rerun the SPF extraction with 18 Legendre modes, mode regularization 1.0, hsf regularization 0.3 @started(25-08-21 21:32) @done(25-08-22 10:47) @lasted(13h15m5s)
+    ☐ Rerun the SPF extraction with 18 Legendre modes, mode regularization 1.0, hsf regularization 0.2
+
   g'-band data:
-    ☐ Rerun the SPF extraction with 18 Legendre modes
-    ☐ Optimize full size dataset w/ 0.25 degree parang binning @high
-    ✔ Extract SPF the the 0.3 lambda reg freeform model, the 0.6 one looks overfit @done(25-08-21 08:00)
-    ✔ Optimize half size dataset, use lambda reg value of 0.6 @started(25-08-20 13:22) @done(25-08-20 15:29) @lasted(2h7m15s)
-    ✔ Extract SPF from optimized model @started(25-08-20 15:29) @done(25-08-20 17:27) @lasted(1h58m38s)
-    ✔ Optimize half size dataset @started(25-08-11 10:46) @done(25-08-11 13:01) @lasted(2h15m53s)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.5 @done(25-08-20 13:02)
+    ☐ Rerun freeform optimization with lambda reg value of 0.5 @started(25-08-22 16:25)
+    ✔ Rerun the SPF extraction with 18 Legendre modes @done(25-08-21 21:31)
+    ✔ Rerun the SPF extraction with 16 Legendre modes @started(25-08-21 21:32) @done(25-08-22 10:56) @lasted(13h24m57s)
+    ✘ Rerun the SPF extraction with 12 Legendre modes, 0.3 HSF reg value @started(25-08-22 11:26) #bad fit @cancelled(25-08-22 13:44)
+    ✔ Rerun the SPF extraction with 14 Legendre modes, 0.3 HSF reg value @started(25-08-22 13:44) @done(25-08-22 15:51) @lasted(2h7m23s)
+
 
 Papers:
   HR4796 disk modeling:
-    ☐ Optimize freeform models for all passbands @high
+    ✔ Optimize freeform models for all passbands @high @done(25-08-21 21:49)
     ✔ Extract the SPFs using the optimized models @done(25-08-11 21:59)
     ✔ Compile freeform model results into a PDF and email to Alycia @done(25-08-14 13:50)
     ☐ Make a figure comparing the SPFs to the RDI data
@@ -79,3 +67,25 @@ Archive:
     ✘ Optimize without noise map @cancelled(25-08-11 10:47)
     ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 15:04) @lasted(4h17m22s)
     ✔ Extract SPF from optimized model @started(25-08-11 15:04) @done(25-08-20 10:57) @lasted(1w1d19h53m32s)
+    ✔ Optimize full size dataset w/ 0.25 degree parang binning @high @done(25-08-21 21:46)
+    ✔ Optimize half size dataset @started(25-08-11 10:47) @done(25-08-11 13:42) @lasted(2h55m50s)
+    ✔ Extract SPF from optimized model [REDO, more Legendre modes and lambda reg value of 1] @done(25-08-20 15:29)
+    ✘ Extract Legendre-based SPF with a higher regularization param, from 0.5 to 10.0 @started(25-08-11 16:39) @cancelled(25-08-12 13:28) #too high, use 1.0
+    ✘ Extract SPF with more Legendre modes, from 12 to 16 @started(25-08-11 21:59) @cancelled(25-08-12 13:27) #unnecessary
+    ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @done(25-08-21 08:00)
+    ✔ Check if the config file was using the correct KLIP params @started(25-08-21 10:44) @done(25-08-21 11:01) @lasted(17m31s) #it was not
+    ✔ Rerun the freeform optimization on the correct KLIP image on jetstream2 @started(25-08-21 11:02) @done(25-08-21 21:45) @lasted(10h44m)
+    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
+    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 11:45) @done(25-08-20 12:57) @lasted(1h12m20s)
+    ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 12:57) @done(25-08-20 16:38) @lasted(3h41m20s)
+    ✔ Rerun SPF extraction with 14 Legendre modes, down from 16 @done(25-08-21 08:01)
+    ✔ Optimize full size dataset w/ 0.25 degree parang binning @high @done(25-08-21 21:46)
+    ✔ Extract SPF the the 0.3 lambda reg freeform model, the 0.6 one looks overfit @done(25-08-21 08:00)
+    ✔ Optimize half size dataset, use lambda reg value of 0.6 @started(25-08-20 13:22) @done(25-08-20 15:29) @lasted(2h7m15s)
+    ✔ Extract SPF from optimized model @started(25-08-20 15:29) @done(25-08-20 17:27) @lasted(1h58m38s)
+    ✔ Optimize half size dataset @started(25-08-11 10:46) @done(25-08-11 13:01) @lasted(2h15m53s)
+    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.5 @done(25-08-20 13:02)
+    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
+    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 13:09) @done(25-08-20 14:26) @lasted(1h17m16s)
+    ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 14:26) @done(25-08-20 16:07) @lasted(1h41m58s)
+    ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @started(25-08-20 16:08) @done(25-08-20 17:52) @lasted(1h44m35s)
