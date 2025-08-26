@@ -119,9 +119,10 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     print('Done.')
 
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, disk_spine,
-                  aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, all_reference_images_selectors,
+                  aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, 
                   klmodes_stacked, evals, evecs_stacked,
-                  radial_inds, aligned_center, isRDI, total_pixels, reg_lambda,):
+                  radial_inds, aligned_center, isRDI, total_pixels, reg_lambda,
+                  all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model.
 
     Steps executed:
@@ -181,22 +182,23 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd, dis
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
                                         )
-    # Make the pytree for jax.lax.scan
-    fm_calc_inputs = {
-        "models": global_models_prepped,
-        "images": aligned_images,
-        "modes": klmodes_stacked,
-        "evals": evals,
-        "evecs": evecs_stacked,
-        "reference_images_selector_vec": all_reference_images_selectors,
-    }
-    # jax.debug.breakpoint()
-    # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
-    scan_func = partial(
-        fm_scan_func,
-        full_sample_refs=aligned_images,
-        full_sample_models=global_models_prepped
-    )
+    if all_reference_images_selectors is not None:
+        # Make the pytree for jax.lax.scan
+        fm_calc_inputs = {
+            "models": global_models_prepped,
+            "images": aligned_images,
+            "modes": klmodes_stacked,
+            "evals": evals,
+            "evecs": evecs_stacked,
+            "reference_images_selector_vec": all_reference_images_selectors,
+        }
+        # jax.debug.breakpoint()
+        # Loop over each image in the dataset to calculate the post-KLIP PSF using jax.lax.scan
+        scan_func = partial(
+            fm_scan_func,
+            full_sample_refs=aligned_images,
+            full_sample_models=global_models_prepped
+        )
     _, flat_postklip_psfs = lax.scan(scan_func, None, fm_calc_inputs)
 
     # Reshape the postKLIP PSFs into 2D images and derotate them
@@ -282,9 +284,10 @@ def optimize_model(
     def step(image_params, opt_state, reg_lambda_here):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image, psf, noise_map, ref_psd, disk_spine,
-            aligned_image_sections, PAs, mask_indices, iowa_sec_inds, all_reference_images_selectors,
+            aligned_image_sections, PAs, mask_indices, iowa_sec_inds,
             klmodes_sections, evals, evecs,
             radial_inds, aligned_center, mode, total_pixels, reg_lambda_here,
+            all_reference_images_selectors,
         )
         updates, opt_state = optimizer.update(grads, opt_state)
         image_params = optax.apply_updates(image_params, updates)

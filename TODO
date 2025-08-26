@@ -1,6 +1,7 @@
 Freeform disk modeling:
   ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
   ☐ Be granted use of an h100 by Joseph
+  ☐ Add RDI functionality to the freeform pipeline
 
   z'-band data:
     ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
@@ -25,12 +26,12 @@ Freeform disk modeling:
 
 Papers:
   HR4796 disk modeling:
-    ✔ Optimize freeform models for all passbands @high @done(25-08-21 21:49)
-    ✔ Extract the SPFs using the optimized models @done(25-08-11 21:59)
-    ✔ Compile freeform model results into a PDF and email to Alycia @done(25-08-14 13:50)
-    ☐ Make a figure comparing the SPFs to the RDI data
-    ☐ Make a figure comparing the SPFs to the HG fits
-    ☐ Make a figure comparing the freeform dust density profiles to the OG disk models
+    ☐ Regenerate the deprojected disk image figure with the centering from the freeform models
+    ☐ Reduce the trapezium data to get the 2025 astrometric solution
+    ☐ Decide whether we want to use the freeform models in lieue of the HG disk models for photometry.
+    ☐ Figure out once and for all the issues with RDI photometry.
+    ☐ Update the suite of KLIP-ADI images that reflect the full size datasets.
+    ☐ Update the suite of SNR images that reflect the full size datasets.
   JAX freeform disk modeling:
     ☐ Choose a journal for submission (likely AJ)
     ☐ Create the template for the paper on Overleaf
