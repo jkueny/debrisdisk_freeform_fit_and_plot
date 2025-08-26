@@ -496,6 +496,12 @@ class FreeFormDisk:
 
 
         return model_fm
+
+    def high_pass_model(self, model_image, hp_filtersize=None):
+        if hp_filtersize is None:
+            hp_filtersize = (self.psf.shape[0]/self.hp)*2/np.sqrt(2*np.log(2))
+        model_image_hp = high_pass_filter(model_image, filtersize=hp_filtersize)
+        return model_image_hp
     
     def make_noise_map_rings(self, reduced_data_no_disk, delta_radii=1):
         if len(reduced_data_no_disk.shape) > 2:

@@ -465,7 +465,10 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
     image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
     radial_inds = get_radial_inds(image_shape, aligned_center)
     hp = ffd_obj.hp
-    hp_filtersize = (psf.shape[0]/hp)*2/np.sqrt(2*np.log(2))
+    if bool(hp):
+        hp_filtersize = (psf.shape[0]/hp)*2/np.sqrt(2*np.log(2))
+    else:
+        hp_filtersize = None
     # print(f"max(init_model_interest) -> {np.max(init_model_interest)}")
 
     import jax.profiler
@@ -524,8 +527,8 @@ def main(config, num_iterations, init_model, reg_lambda, first_time, learning_ra
                                                               noise_reconstructed,
                                                               radial_inds,
                                                               )
-
-    optimized_model_image = np.asarray(opt_model_image)
+    opt_model_image_hp = high_pass_filter(opt_model_image, filtersize=hp_filtersize)
+    optimized_model_image = np.asarray(opt_model_image_hp)
     median_profile_image = np.asarray(med_prof_image)
 
 
