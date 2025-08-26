@@ -1,6 +1,7 @@
 import numpy as np
 import jax
 import jax.numpy as jnp
+from jax.scipy import fft
 
 def fft_power_spectrum(image):
     """
@@ -73,5 +74,84 @@ def subtract_radial_profile(image, center, noise, radial_inds):
 
     return subtracted, median_profile_image
 
+def high_pass_filter(img, filtersize):
+    """
+    A FFT implmentation of high pass filter.
 
+    Args:
+        img: a 2D image
+        filtersize: size in Fourier space of the size of the space. In image space, size=img_size/filtersize
+
+    Returns:
+        filtered: the filtered image
+    """
+
+    transform = jnp.fft.fft2(img)
+
+    # coordinate system in FFT image
+    u,v = jnp.meshgrid(jnp.fft.fftfreq(transform.shape[1]), jnp.fft.fftfreq(transform.shape[0]))
+    # scale u,v so it has units of pixels in FFT space
+    rho = jnp.sqrt((u*transform.shape[1])**2 + (v*transform.shape[0])**2)
+    # scale rho up so that it has units of pixels in FFT space
+    # rho *= transform.shape[0]
+    # create the filter
+    filt = 1. - jnp.exp(-(rho**2/filtersize**2))
+
+    filtered = jnp.real(jnp.fft.ifft2(transform*filt))
+
+
+    return filtered
+
+def calculate_radial_distances_np(image_shape, center=None):
+    """
+    This makes a 2D array with each value being the radial distance from the center.
+
+    image_shape should be a (x,y) or [x,y]
+
+    The center coord is optional.
+    """
+    if center is None:
+        #default true center of the image if no center is provided
+        center = ((image_shape[0] // 2) - 0.5, (image_shape[1] // 2) - 0.5)
+    y, x = np.indices(image_shape)
+    center_y, center_x = center
+    return np.sqrt((y - center_y) ** 2 + (x - center_x) ** 2)
+
+def median_radial_profile_np(image, center=None):
+    """
+    Calculates the median radial profile of the input 2D image.
+
+    image should be a 2D numpy array
+    """
+    distances = calculate_radial_distances_np(image.shape, center)
+    radial_distances = np.round(distances).astype(int)
+
+    #Grab the maximum radial distance
+    max_distance = np.max(radial_distances)
+
+    #Calculate med for each distance
+    median_profile = np.array([np.median(image[radial_distances == r]) for r in range(max_distance + 1)])
+
+    return median_profile
+
+def subtract_median_profile_np(image, center=None):
+    """
+    Subtract the median radial profile from an image.
+    """
+    if len(image.shape) > 2:
+        image = np.squeeze(image)
+    distances = calculate_radial_distances_np(image.shape, center)
+    radial_distances = np.round(distances).astype(int)
+    # print(radial_distances)
+
+    # Compute the median radial profile
+    median_profile = median_radial_profile_np(image, center)
+
+    # Create a 2D array from the median profile based on radial distances
+    median_image = median_profile[radial_distances]
+
+    # Subtract the median profile from the original image
+    subtracted_image = image - median_image
+
+    return subtracted_image, median_image
     

@@ -20,9 +20,10 @@ from datetime import datetime
 from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
 from utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
-from utils.improc_tools import fft_power_spectrum
+from utils.improc_tools import fft_power_spectrum, subtract_median_profile_np
 from dev.pyklip.klip import high_pass_filter
 from dev.pyklip.instruments.Instrument import GenericData
+from dev.pyklip.rdi import PSFLibrary
 from dev.pyklip.fmlib.diskfm import DiskFM
 import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
@@ -99,57 +100,59 @@ class FreeFormDisk:
         # or in $DISKFIT_BASEDIR
         basedir = get_basedir()
         self.basedir = basedir
-        klipdir = os.path.join(basedir, self.params_file["band_dir"],
+        klipdir = os.path.join(basedir, self.params_file["BAND_DIR"],
                                     "klip_fm_files")
         
         os.makedirs(klipdir, exist_ok=True)
         self.klipdir = klipdir
 
-        resultsdir = os.path.join(basedir, self.params_file["band_dir"],
+        resultsdir = os.path.join(basedir, self.params_file["BAND_DIR"],
                                   "results_freeform")
         os.makedirs(resultsdir, exist_ok=True)
         self.resultsdir = resultsdir
 
-        self.datadir = os.path.join(basedir, self.params_file["band_dir"])
+        self.datadir = os.path.join(basedir, self.params_file["BAND_DIR"])
 
-        self.file_prefix = self.params_file["file_prefix"]
+        self.file_prefix = self.params_file["FILE_PREFIX"]
 
     def _load_metadata(self):
-        self.pixscale = self.params_file["metadata"]["pixscale_ins"]
-        self.distance = self.params_file["metadata"]["distance_star"]
-        self.wl = self.params_file["metadata"]["wl"]
-        self.diam = self.params_file["metadata"]["prim_mirror_sz"]
+        self.pixscale = self.params_file["PIXSCALE_INS"]
+        self.distance = self.params_file["DISTANCE_STAR"]
+        self.wl = self.params_file["WL"]
+        self.diam = self.params_file["PRIM_MIRROR_SZ"]
 
     def _load_klparams(self):
-        self.numbasis = self.params_file["pyklip"]["klmode_number"]
-        self.annuli = self.params_file["pyklip"]["annuli"]
-        self.iwa = self.params_file["pyklip"]["IWA"]
-        self.owa = self.params_file["pyklip"]["OWA"]
-        self.minrot = self.params_file["pyklip"]["move_here"]
-        self.mode = self.params_file["pyklip"]["mode"]
-        self.move_here = self.params_file["pyklip"]["move_here"]
-        aligned_center = self.params_file["pyklip"]["aligned_center"]
+        self.numbasis = self.params_file["KLMODE_NUMBER"]
+        self.annuli = self.params_file["ANNULI"]
+        self.iwa = self.params_file["IWA"]
+        self.owa = self.params_file["OWA"]
+        self.minrot = self.params_file["MOVE_HERE"]
+        self.mode = self.params_file["MODE"]
+        self.move_here = self.params_file["MOVE_HERE"]
+        aligned_center = self.params_file["ALIGNED_CENTER"]
         self.aligned_center = aligned_center
         self.image_size = int(np.ceil(aligned_center[0]) * 2)
         self.image_shape = (self.image_size, self.image_size)
+        self.hp = self.params_file["HP_FILTER"]
+        self.clean_final_image = self.params_file["CLEAN_FINAL_IMAGE"]
 
     def _load_reference_model_params(self):
         disk_params = {}
-        disk_params["r1"] = self.params_file["disk_model"]["r_inner"]
-        disk_params["r2"] = self.params_file["disk_model"]["r_outer"]
-        disk_params["rc"] = self.params_file["disk_model"]["rc_init"]
-        disk_params["alpha_in"] = self.params_file["disk_model"]["alpha_in_init"]
-        disk_params["alpha_out"] = self.params_file["disk_model"]["alpha_out_init"]
-        disk_params["beta"] = self.params_file["disk_model"]["beta_init"]
-        disk_params["a_r"] = self.params_file["disk_model"]["a_r_init"]
-        disk_params["inc"] = self.params_file["disk_model"]["inc_init"]
-        disk_params["pa"] = self.params_file["disk_model"]["pa_init"]
-        disk_params["dx"] = self.params_file["disk_model"]["dx_init"]
-        disk_params["dy"] = self.params_file["disk_model"]["dy_init"]
-        disk_params["Norm"] = self.params_file["disk_model"]["N_init"]
-        disk_params["g1"] = self.params_file["disk_model"]["g1_init"]
-        disk_params["g2"] = self.params_file["disk_model"]["g2_init"]
-        disk_params["alpha1"] = self.params_file["disk_model"]["alpha1_init"]
+        disk_params["r1"] = self.params_file["r1_init"]
+        disk_params["r2"] = self.params_file["r2_init"]
+        disk_params["rc"] = self.params_file["rc_init"]
+        disk_params["alpha_in"] = self.params_file["alpha_in_init"]
+        disk_params["alpha_out"] = self.params_file["alpha_out_init"]
+        disk_params["beta"] = self.params_file["beta_init"]
+        disk_params["a_r"] = self.params_file["a_r_init"]
+        disk_params["inc"] = self.params_file["inc_init"]
+        disk_params["pa"] = self.params_file["pa_init"]
+        disk_params["dx"] = self.params_file["dx_init"]
+        disk_params["dy"] = self.params_file["dy_init"]
+        disk_params["Norm"] = self.params_file["N_init"]
+        disk_params["g1"] = self.params_file["g1_init"]
+        disk_params["g2"] = self.params_file["g2_init"]
+        disk_params["alpha1"] = self.params_file["alpha1_init"]
 
         self.disk_params = disk_params
 
@@ -248,7 +251,7 @@ class FreeFormDisk:
     
     def prep_dataset(self):
         
-        filelist = sorted(glob.glob(f'{self.datadir}/*parang*.fits'),
+        filelist = sorted(glob.glob(f'{self.datadir}/camsci*.fits'),
                           key=parang_sort)
         if len(filelist) == 0:
             raise ValueError(f"Could not find files in the dir: {self.datadir}")
@@ -256,24 +259,71 @@ class FreeFormDisk:
         self.frame_shape = input_data[0].shape
         input_centers = np.array([self.aligned_center for _ in range(len(filelist))])
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
-        IWA = self.params_file["pyklip"]['IWA']#use 13 for now, post-optimized bkg sub SNRE says JKK 01/18/23
+        IWA = self.iwa
         dataset = GenericData(input_data,
                              input_centers,
                              parangs=par_angs,
                              IWA=IWA,filenames=filelist)
 
-        dataset.OWA = self.params_file["pyklip"]["OWA"]
+        dataset.OWA = self.params_file["OWA"]
         if dataset.input.shape[1] != dataset.input.shape[2]:
             raise ValueError(""" Data slices are not square (dimx!=dimy), 
                             please make them square""")
+        if self.mode == "RDI":
+            psflib = self.initialize_rdi(dataset)
+        else:
+            psflib = None
         
-        return dataset
+        return dataset, psflib
+    
+    def initialize_rdi(self, dataset):
+        do_rdi_correlation = self.params_file["DO_RDI_CORRELATION"]
+        hp = self.hp
+        rdi_matrix_dir = os.path.join(self.datadir, "rdi_matrix")
+        IWA = self.iwa
+        ref_files = sorted(glob.glob(f'{self.datadir}/*parang*.fits'))
+        if len(ref_files) == 0:
+            raise ValueError(f"Could not find files in the dir: {self.datadir}")
+        ref_data, ref_par_angs  = diskprep_image_frames_parangs(ref_files)
+        ref_centers = np.array([self.aligned_center for _ in range(len(ref_files))])
+        existing_corr_matrix = os.path.exists(os.path.join(rdi_matrix_dir, 'corr_matrix.fits'))
+        if do_rdi_correlation or not existing_corr_matrix:
+            if not existing_corr_matrix:
+                print('No existing RDI correlation matrix found, computing...')
+            else:
+                print('RDI correlation matrix redo requested, recomputing...')
+            psflib = PSFLibrary(ref_data,
+                                self.aligned_center,
+                                ref_files,
+                                compute_correlation=True,
+                                highpass=hp)
+
+            # save the correlation matrix to disk so that we also don't need to
+            # recomptue this ever again. In the future we can just pass in the
+            # correlation matrix into the PSFLibrary object rather than having it
+            # compute it
+            psflib.save_correlation(os.path.join(rdi_matrix_dir,
+                                                "corr_matrix.fits"),
+                                overwrite=True)
+
+
+        # load the correlation matrix
+        corr_matrix = fits.getdata(os.path.join(rdi_matrix_dir,
+                                            'corr_matrix.fits'))
+        psflib = PSFLibrary(ref_data,
+                            self.aligned_center,
+                            filenames=ref_files,
+                            correlation_matrix=corr_matrix,
+                            highpass=hp)
+        psflib.prepare_library(dataset)
+        return psflib
+        
     
     def prep_binary_masks(self):
         # mask2generatedisk = 1 - mask_disk_zeros
         # Make the mask
-        x_off = self.params_file["mask"]["dx"]
-        y_off = self.params_file["mask"]["dy"]
+        x_off = self.params_file["MASK_DX"]
+        y_off = self.params_file["MASK_DY"]
         aligned_center = self.aligned_center
         image_size = (round(aligned_center[0]) * 2, round(aligned_center[1]) * 2)
         mask_center = aligned_center[0] + x_off, aligned_center[1] + y_off
@@ -282,22 +332,22 @@ class FreeFormDisk:
         save_mask_part = os.path.join(self.klipdir,
                                     f"{self.file_prefix}")
 
-        in_scaling = self.params_file["mask"]["in_scaling"]
-        out_scaling = self.params_file["mask"]["out_scaling"]
-        noise_in_scaling = self.params_file["mask"]["noise_in"]
-        noise_out_scaling = self.params_file["mask"]["noise_out"]
-        mask_speckles = self.params_file["mask"]["speckles"]
-        inc_init = self.params_file["disk_model"]['inc_init']
-        pa_init = self.params_file["disk_model"]['pa_init']
+        in_scaling = self.params_file["MASK_IN_SCALING"]
+        out_scaling = self.params_file["MASK_OUT_SCALING"]
+        noise_in_scaling = self.params_file["MASK_NOISE_IN"]
+        noise_out_scaling = self.params_file["MASK_NOISE_OUT"]
+        mask_speckles = self.params_file["MASK_SPECKLES"]
+        inc_init = self.params_file['inc_init']
+        pa_init = self.params_file['pa_init']
         mask_disk_zeros = make_disk_mask(
             image_size[0],
             pa_init,
             inc_init,
-            convert.au_to_pix(self.params_file["disk_model"]['r1_init'],
+            convert.au_to_pix(self.params_file['r1_init'],
                               self.pixscale,
                               self.distance) -
             in_scaling / np.cos(np.radians(inc_init)),
-            convert.au_to_pix(self.params_file["disk_model"]['r2_init'],
+            convert.au_to_pix(self.params_file['r2_init'],
                               self.pixscale,
                               self.distance) +
             out_scaling / np.cos(np.radians(inc_init)),
@@ -307,11 +357,11 @@ class FreeFormDisk:
             image_size[0],
             pa_init,
             inc_init,
-            convert.au_to_pix(self.params_file["disk_model"]['r1_init'],
+            convert.au_to_pix(self.params_file['r1_init'],
                               self.pixscale,
                               self.distance) -
             noise_in_scaling / np.cos(np.radians(inc_init)),
-            convert.au_to_pix(self.params_file["disk_model"]['r2_init'],
+            convert.au_to_pix(self.params_file['r2_init'],
                               self.pixscale,
                               self.distance) +
             noise_out_scaling / np.cos(np.radians(inc_init)),
@@ -343,7 +393,7 @@ class FreeFormDisk:
                      mask4noisemap, overwrite=True)
         return mask2generatedisk
 
-    def initialize_diskfm(self, dataset, model_init):
+    def initialize_diskfm(self, dataset, model_init, psflib=None):
 
         model_convolved = convolve2d(model_init, self.psf, mode="same")
         model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
@@ -384,22 +434,36 @@ class FreeFormDisk:
                         fileprefix=self.file_prefix,
                         aligned_center=self.aligned_center,
                         # mute_progression=True,
-                        highpass=False,
+                        highpass=self.hp,
                         minrot=self.move_here,
                         calibrate_flux=False,
                         # numthreads=mp.cpu_count(), #default: use all
                         time_collapse='median',
-                        psf_library=None)
+                        psf_library=psflib)
         
         print(f"klip_dataset() took {datetime.now() - time_start}.")
 
         path_rd = os.path.join(self.klipdir, f"{self.file_prefix}-klipped-KLmodes-all.fits")
         reduced_data = fits.getdata(path_rd)
 
-        reduced_disk_masked = reduced_data * self.mask2generatedisk
+        if self.clean_final_image:
+            reduced_data, _ = subtract_median_profile_np(reduced_data,
+                                                    self.aligned_center)
+            save_fits(path_rd, reduced_data)
+
+        
 
         reduced_noise_masked = reduced_data * self.mask4noisemap
-        
+
+        reduced_disk_masked = reduced_data * self.mask2generatedisk
+
+        # Make the noisemap now, to inspect after initialization in case changes need to occur
+        noise_map = self.make_noise_map_rings(reduced_data_no_disk=reduced_noise_masked)
+        self.noise_map = noise_map
+
+        noise_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_noisemap.fits")
+        fits.writeto(noise_saveto, noise_map, overwrite=True)
+
         saveto_masked_data = os.path.join(self.klipdir, f"{self.file_prefix}_masked_data.fits")
         saveto_masked_noise = os.path.join(self.klipdir, f"{self.file_prefix}_use4noisemap.fits")
 
@@ -413,13 +477,6 @@ class FreeFormDisk:
         save_fits(model_fm_saveto, model_fm_init)
 
         sys.stdout = sys.__stdout__
-        
-        # Make the noisemap now, to inspect after initialization in case changes need to occur
-        noise_map = self.make_noise_map_rings(reduced_data_no_disk=reduced_noise_masked)
-        self.noise_map = noise_map
-
-        noise_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_noisemap.fits")
-        fits.writeto(noise_saveto, noise_map, overwrite=True)
 
     def single_fm(self, model_image):
         # Refresh the windFM object
@@ -455,7 +512,7 @@ class FreeFormDisk:
         noise_map = np.zeros((h, w))
         for i_ring in range(0,
                             # int(np.floor(image_center[0] / delta_radii)) - 2):
-                            int(self.params_file["pyklip"]["OWA"] / delta_radii) - 2):
+                            int(self.params_file["OWA"] / delta_radii) - 2):
             wh_rings = (rho2d >= i_ring * delta_radii) & (rho2d < (i_ring + 1) * delta_radii)
             noise_map[wh_rings] = np.nanstd(reduced_data_no_disk[wh_rings])
         

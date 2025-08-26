@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             // "args": "-p initialization_files/HR4796_g_camsci2_20230312_13.yaml --iterations 10"
-            "args": "-p initialization_files/HR4796_g_camsci1_20250408_09.yaml --iterations 10 --initial-model starting_models/camsci1_g_20250408_09_BestModel.fits"
+            "args": "-p initialization_files/HR4796_RDI_z_20240328_29.yaml --iterations 10"
         }
     ]
 }

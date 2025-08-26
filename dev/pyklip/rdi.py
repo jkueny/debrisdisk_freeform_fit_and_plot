@@ -3,6 +3,7 @@ import os
 from sys import stdout
 from astropy.io import fits
 import pyklip.klip as klip
+from dev.pyklip.parallelized import high_pass_filter_imgs
 
 class PSFLibrary(object):
     """
@@ -24,7 +25,7 @@ class PSFLibrary(object):
 
     """
 
-    def __init__(self, data, aligned_center, filenames, correlation_matrix=None, wvs=None, compute_correlation=False):
+    def __init__(self, data, aligned_center, filenames, correlation_matrix=None, wvs=None, compute_correlation=False, highpass=False):
         """
 
         Args:
@@ -53,7 +54,17 @@ class PSFLibrary(object):
             nfiles_correlation = np.shape(correlation_matrix)[0]
             if nfiles_correlation != nfiles_data: 
                 raise AttributeError("The number of files in the correlation matrix and in the data array aren't the same. Something is wrong")
-
+        
+        if isinstance(highpass, bool):
+            if highpass:
+                data = high_pass_filter_imgs(data, numthreads=None)
+        else:
+            # should be a number
+            if isinstance(highpass, (float, int)):
+                highpass = float(highpass)
+                fourier_sigma_size = (data.shape[1]/(highpass)) / (2*np.sqrt(2*np.log(2)))
+                data = high_pass_filter_imgs(data, numthreads=None, filtersize=fourier_sigma_size)
+        self.highpass = highpass
         # generate master list of files and meta data from inputs
         self.master_library = data
         self.aligned_center = aligned_center

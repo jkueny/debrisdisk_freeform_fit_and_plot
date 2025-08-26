@@ -4,7 +4,11 @@ FIRST_TIME_GS: False #first time doing pyklip gridsearch, for SNR analysis mask 
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
 MODE: RDI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
-DO_RDI_CORRELATION: True # Measure the correlation matrix of the RDI PSF lib. Very long.
+
+# KLIP RDI parameters
+DO_RDI_CORRELATION: false # Measure the correlation matrix of the RDI PSF lib. Very long.
+CLEAN_FINAL_IMAGE: true # do a final post-KLIP median radial profile subtraction
+
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
 # KLMODE_NUMBER: 64 # number of KL modes used in the reduction < nb images in the basis
 KLMODE_NUMBER: 35 # number of KL modes used in the reduction < nb images in the basis
@@ -19,6 +23,7 @@ HP_FILTER: 22 #size of FWHM for HP filter
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
 WL: 0.908 #wavelength in microns
+PRIM_MIRROR_SZ: 6.5 #meters
 
 #  In the KLIP do you want to remove the images where the disk is on the satspots 
 # if True: frames are removed
