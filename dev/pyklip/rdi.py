@@ -2,7 +2,6 @@ import numpy as np
 import os
 from sys import stdout
 from astropy.io import fits
-import pyklip.klip as klip
 from dev.pyklip.parallelized import high_pass_filter_imgs
 
 class PSFLibrary(object):
