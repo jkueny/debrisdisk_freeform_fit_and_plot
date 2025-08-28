@@ -19,7 +19,7 @@ def reconstruct_full_image(free_params, total_pixels, mask_indices):
     """
     full_shape = (int(np.sqrt(total_pixels)), int(np.sqrt(total_pixels)))
     full_flat = jnp.zeros(total_pixels)
-    full_flat = full_flat.at[mask_indices].set(jnp.abs(free_params))
+    full_flat = full_flat.at[mask_indices].set(free_params)
     return full_flat.reshape(full_shape)
 
 def get_radial_inds(image_shape, center):

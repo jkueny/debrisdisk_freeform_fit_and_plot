@@ -1,13 +1,14 @@
 Freeform disk modeling:
   ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
   ☐ Be granted use of an h100 by Joseph
-  ☐ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48)
+  ✔ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48) @done(25-08-26 21:48) @lasted(8h43s)
 
   z'-band data:
     ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
-    ☐ See if using just the fitted PSD window func is equivalent to using the full ref. PSD
-    
+    ✘ See if using just the fitted PSD window func is equivalent to using the full ref PSD @cancelled(25-08-26 15:30)
+    ☐ Understand what changing the generosity of the window function really does
+
   i'-band data:
     ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning @started(25-08-22 16:57)
     ✔ Rerun the SPF extraction with 18 Legendre modes, 0.3 HSF reg value @started(25-08-21 21:46) @done(25-08-22 10:19) @lasted(12h33m58s)

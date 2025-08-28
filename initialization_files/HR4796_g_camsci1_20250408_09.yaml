@@ -6,7 +6,7 @@ DISK_MODEL: original # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 # KLIP RDI parameters
 DO_RDI_CORRELATION: false # Measure the correlation matrix of the RDI PSF lib. Very long.
-CLEAN_FINAL_IMAGE: true # do a final post-KLIP median radial profile subtraction
+CLEAN_FINAL_FM: false # do a final post-KLIP median radial profile subtraction
 
 
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK

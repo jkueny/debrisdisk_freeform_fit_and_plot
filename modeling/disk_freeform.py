@@ -134,7 +134,7 @@ class FreeFormDisk:
         self.image_size = int(np.ceil(aligned_center[0]) * 2)
         self.image_shape = (self.image_size, self.image_size)
         self.hp = self.params_file["HP_FILTER"]
-        self.clean_final_image = self.params_file["CLEAN_FINAL_IMAGE"]
+        self.clean_final_fm = self.params_file["CLEAN_FINAL_FM"]
 
     def _load_reference_model_params(self):
         disk_params = {}
@@ -302,6 +302,7 @@ class FreeFormDisk:
             # recomptue this ever again. In the future we can just pass in the
             # correlation matrix into the PSFLibrary object rather than having it
             # compute it
+            os.makedirs(rdi_matrix_dir, exist_ok=True)
             psflib.save_correlation(os.path.join(rdi_matrix_dir,
                                                 "corr_matrix.fits"),
                                 overwrite=True)

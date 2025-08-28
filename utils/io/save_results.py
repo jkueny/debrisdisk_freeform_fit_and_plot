@@ -150,11 +150,14 @@ def save_ffdfit_outputs(run_dir: Path,
                         model_image_opt: np.ndarray,
                         forward_model_opt: np.ndarray,
                         residuals_image: np.ndarray,
+                        residuals_roi: np.ndarray,
                         median_profile_image: np.ndarray,
                         loss_history: list,
                         hsf_regularization: float,
                         optimizer_name: str = "Optax Adam",
-                        pyklip_params: dict = None):
+                        pyklip_params: dict = None,
+                        weights_asym: np.ndarray = None,
+                        weights_nominal: np.ndarray = None):
     """Saves output from the freeform diskfit optimization code.
 
     Args:
@@ -182,8 +185,10 @@ def save_ffdfit_outputs(run_dir: Path,
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Conv.fits", model_image_opt, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_BestModel_FM.fits", forward_model_opt, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Res.fits", residuals_image, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_BestModel_Res_ROI.fits", residuals_roi, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_MedProf.fits", median_profile_image, overwrite=True)
-
+    fits.writeto(run_dir / f"{file_prefix}_Weights_Asym.fits", weights_asym, overwrite=True)
+    fits.writeto(run_dir / f"{file_prefix}_Weights_Nominal.fits", weights_nominal, overwrite=True)
     metadata = {
         "timestamp_utc": str(datetime.now()),
         "loss": float(loss_history[-1]),
