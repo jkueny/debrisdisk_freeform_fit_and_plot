@@ -41,11 +41,11 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 # metadata
 # STAR OBSERVATION PARAMETERS
 INSTRUMENT: MagAO-X  # SPHERE or GPI
-BAND_NAME: 2023 Mar 9, $z'$ band #for plot titles uniquely
+BAND_NAME: 2023 Mar 9, $i'$ band #for plot titles uniquely
 DISTANCE_STAR: 72.8   #distance of the disk in pc
 PIXSCALE_INS: 0.012  #picscale of your data
 WL: 0.908 #wavelength in microns
-FILTER_NAME: $z'$
+FILTER_NAME: $i'$
 PRIM_MIRROR_SZ: 6.5 #meters
 
 
@@ -93,39 +93,6 @@ alpha1_state: 1
 g3_state: 0
 alpha2_state: 0
 
-# WIND MODEL PARAMETERS
-N_WIND_LAYERS: 1
-# WIND PARAMETERS
-hr1_init: 0.1 #include just for initializing the mask function
-hr2_init: 60 #include just for initializing the mask function
-
-rscale_init: 1.01
-beta_init: 2.0
-a_r_init: 0.1
-sig_init: 15.
-pa_init:  66.76810340975538
-dx_init: -0.1
-# dy_init: -1.8994364349294457
-dz_init: 0.01
-Norm_init: 12.
-dtheta_init: 1.0
-fwhm_init: 3.0
-
-beta2_init: 2.0
-a_r2_init: 0.1
-sig2_init: 15.
-pa2_init: -113.906450623
-dx2_init: 0.1
-# dy2_init: 2.7432967701360966
-# dz2_init: 0.01
-Norm2_init: 3.
-
-beta3_init: 2.0
-a_r3_init: 0.1
-sig3_init: 15.
-pa3_init: 90.
-dx3_init: 1.1
-Norm3_init: 100.
 
 RPROFSUB: True
 
