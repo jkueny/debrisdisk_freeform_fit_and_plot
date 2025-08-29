@@ -414,7 +414,7 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
                                   psflib=psflib,
                                   )
 
-        disk_spine = ffd_obj.high_pass_reference_model(reference_model)
+        # disk_spine = ffd_obj.high_pass_reference_model(reference_model)
         print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
         sys.exit(0)
     # Read in the basis data

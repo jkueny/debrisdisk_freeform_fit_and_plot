@@ -447,7 +447,7 @@ class FreeFormDisk:
         path_rd = os.path.join(self.klipdir, f"{self.file_prefix}-klipped-KLmodes-all.fits")
         reduced_data = fits.getdata(path_rd)
 
-        if self.clean_final_image:
+        if self.clean_final_fm:
             reduced_data, _ = subtract_median_profile_np(reduced_data,
                                                     self.aligned_center)
             save_fits(path_rd, reduced_data)
