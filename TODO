@@ -10,7 +10,7 @@ Freeform disk modeling:
     ☐ Understand what changing the generosity of the window function really does
 
   i'-band data:
-    ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning @started(25-08-22 16:57)
+    ✘ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning @started(25-08-22 16:57) @cancelled(25-09-02 12:14)
     ✔ Rerun the SPF extraction with 18 Legendre modes, 0.3 HSF reg value @started(25-08-21 21:46) @done(25-08-22 10:19) @lasted(12h33m58s)
 
     

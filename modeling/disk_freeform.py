@@ -217,17 +217,28 @@ class FreeFormDisk:
         return reference_model_disk_spine
     
     def get_reference_model_psd(self, reference_model):
+        # reference_model_hp = high_pass_filter(reference_model, filtersize=100)
+        # reference_model_hp_clamped = np.clip(reference_model_hp, a_min=0, a_max=np.max(reference_model_hp))
+        # reference_model_hp_norm = reference_model_hp_clamped / np.linalg.norm(reference_model_hp_clamped)
+        # reference_model_hp_norm_meansub = reference_model_hp_norm - np.mean(reference_model_hp_norm)
         reference_model_norm = reference_model / np.linalg.norm(reference_model)
         reference_model_meansub = reference_model_norm - np.mean(reference_model_norm)
         psd_ref_model = fft_power_spectrum(reference_model_meansub)
+        # psd_ref_model_hp = fft_power_spectrum(reference_model_hp_norm_meansub)
         psd_ref_model = np.asarray(psd_ref_model)
+        # psd_ref_model_hp = np.asarray(psd_ref_model_hp)
         print("Fitting the optimal window func to the reference model PSD...")
         params, window_opt = fit_elgauss_window(psd_ref_model)
         self.window_params = params
-        psd_ref_model_win = window_opt + psd_ref_model
+        psd_ref_model_win = window_opt #+ psd_ref_model
+        # psd_ref_model_win_hp = window_opt + psd_ref_model_hp
+        # ref_model_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")
+        # psd_ref_model_win_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD_HighPass.fits")
         window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")
+        # save_fits(ref_model_hp_saveto, reference_model_hp_clamped)
         save_fits(psd_ref_model_win_saveto, psd_ref_model)
+        # save_fits(psd_ref_model_win_hp_saveto, psd_ref_model_win_hp)
         save_fits(window_saveto, window_opt)
         return psd_ref_model_win, window_opt
     

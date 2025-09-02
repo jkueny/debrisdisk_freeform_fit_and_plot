@@ -380,6 +380,79 @@ def optimize_model(
     optimized_model = jnp.abs(image_params)
     return optimized_model, loss_history, weights_asym, weights_nominal
 
+def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices,
+                            disk_mask,aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
+                            noise_interest, weights_asym, weights_nominal):
+    outputs_dict = {}
+    # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
+    print("Reconstructing full image...")
+    optimized_model = np.asarray(reconstruct_full_image(optimized_params, total_pixels, disk_mask_indices))
+    # optimized_model = np.roll(optimized_model, (-1,-1))
+
+    print("Convolving optimized model image...")
+    opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
+
+    noise_reconstructed = reconstruct_full_image(jnp.array(noise_interest),
+                                                 total_pixels,
+                                                 disk_mask_indices,
+                                                )
+    w_reconstructed = reconstruct_full_image(jnp.array(weights_nominal),
+                                             total_pixels,
+                                             disk_mask_indices,
+                                            )
+    asymw_reconstructed = reconstruct_full_image(jnp.array(weights_asym),
+                                                 total_pixels,
+                                                 disk_mask_indices,
+                                                )
+    if bool(do_radial_profile_sub):
+        opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
+                                                              aligned_center,
+                                                                noise_reconstructed,
+                                                                radial_inds,
+                                                                )
+    else:
+        _, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
+                                                    aligned_center,
+                                                    noise_reconstructed,
+                                                    radial_inds,
+                                                    )
+        opt_model_image = opt_image_no_rprofsub
+    if bool(hp_filtersize):
+        opt_model_image_hp = high_pass_filter(opt_model_image, filtersize=hp_filtersize)
+    else:
+        opt_model_image_hp = opt_model_image
+    optimized_model_image = np.asarray(opt_model_image_hp)
+    median_profile_image = np.asarray(med_prof_image)
+
+
+    print("Generating the optimized forward model image...")
+    optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
+
+    if bool(do_clean_final_fm):
+        optimized_fm_rprofsub, _ = subtract_radial_profile(optimized_fm,
+                                                          aligned_center,
+                                                          noise_reconstructed,
+                                                          radial_inds,
+                                                          )
+    else:
+        optimized_fm_rprofsub = optimized_fm
+
+    print("Calculating residuals between reduced data and optimized forward model...")
+    residuals = np.asarray(reduced_data - optimized_fm_rprofsub)
+    residuals_roi = residuals * disk_mask
+    residuals_roi[residuals_roi == 0.] = np.nan
+    residuals_roi = residuals_roi / noise_reconstructed
+
+    outputs_dict["optimized_model"] = np.asarray(optimized_model)
+    outputs_dict["optimized_fm"] = np.asarray(optimized_fm_rprofsub)
+    outputs_dict["optimized_model_image"] = np.asarray(optimized_model_image)
+    outputs_dict["residuals_roi"] = np.asarray(residuals_roi)
+    outputs_dict["median_profile_image"] = median_profile_image
+    outputs_dict["residuals"] = np.asarray(residuals)
+    outputs_dict["weights_asym"] = np.asarray(asymw_reconstructed)
+    outputs_dict["weights_nominal"] = np.asarray(w_reconstructed)
+    return outputs_dict
+
 def main(config, num_iterations, init_model, reg_lambda, delta, first_time, learning_rate):
     # Grab the info from the yaml file
     if reg_lambda is None: #default
@@ -487,7 +560,7 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
     if trace_dest:
         jax.profiler.start_trace(trace_dest)
         print(f"Tracing to {trace_dest}")
-    optimized_model, loss_history, weights_asym, weights_nominal = optimize_model(target_image=reduced_flat_interest,
+    optimized_params, loss_history, weights_asym, weights_nominal = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_psd=reference_model_psd,
                                                    disk_spine=disk_spine,
                                                    noise_map=noise_interest,
@@ -509,7 +582,7 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
                                                    do_clean_final_fm=do_clean_final_fm,
                                                    )
     try:
-        optimized_model.block_until_ready()
+        optimized_params.block_until_ready()
     except Exception as e:
         print(e)
     if trace_dest:
@@ -524,69 +597,24 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
                                             ffd_obj.minrot,
                                             ffd_obj.aligned_center
                                             )
-    # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
-    print("Reconstructing full image...")
-    optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, disk_mask_indices))
-    # optimized_model = np.roll(optimized_model, (-1,-1))
-
-    print("Convolving optimized model image...")
-    opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
-
-    noise_reconstructed = reconstruct_full_image(jnp.array(noise_interest),
-                                                 total_pixels,
-                                                 disk_mask_indices,
-                                                )
-    w_reconstructed = reconstruct_full_image(jnp.array(weights_nominal),
-                                             total_pixels,
-                                             disk_mask_indices,
-                                            )
-    asymw_reconstructed = reconstruct_full_image(jnp.array(weights_asym),
-                                                 total_pixels,
-                                                 disk_mask_indices,
-                                                )
-    if bool(do_radial_profile_sub):
-        opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
-                                                              aligned_center,
-                                                                noise_reconstructed,
-                                                                radial_inds,
-                                                                )
-    else:
-        _, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
-                                                    aligned_center,
-                                                    noise_reconstructed,
-                                                    radial_inds,
-                                                    )
-        opt_model_image = opt_image_no_rprofsub
-    if bool(hp):
-        opt_model_image_hp = high_pass_filter(opt_model_image, filtersize=hp_filtersize)
-    else:
-        opt_model_image_hp = opt_model_image
-    optimized_model_image = np.asarray(opt_model_image_hp)
-    median_profile_image = np.asarray(med_prof_image)
-
-
-    print("Generating the optimized forward model image...")
-    optimized_fm = ffd_obj.single_fm(np.asarray(optimized_model_image))
-
-    print("Calculating residuals between reduced data and optimized forward model...")
-    residuals = np.asarray(reduced_data - optimized_fm)
-    residuals_roi = residuals * disk_mask
-    residuals_roi[residuals_roi == 0.] = np.nan
-    residuals_roi = residuals_roi / noise_map
+    
+    outputs_dict = harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices,
+                            disk_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
+                            noise_interest, weights_asym, weights_nominal)
 
     save_ffdfit_outputs(run_dir=run_dir,
                         file_prefix=file_prefix,
-                        model_opt=optimized_model,
-                        model_image_opt=optimized_model_image,
-                        forward_model_opt=optimized_fm,
-                        residuals_image=residuals,
-                        residuals_roi=residuals_roi,
-                        median_profile_image=median_profile_image,
+                        model_opt=outputs_dict["optimized_model"],
+                        model_image_opt=outputs_dict["optimized_model_image"],
+                        forward_model_opt=outputs_dict["optimized_fm"],
+                        residuals_image=outputs_dict["residuals"],
+                        residuals_roi=outputs_dict["residuals_roi"],
+                        median_profile_image=outputs_dict["median_profile_image"],
                         loss_history=loss_history,
                         hsf_regularization=reg_lambda,
                         pyklip_params=pyklip_params_dict,
-                        weights_asym=np.asarray(asymw_reconstructed),
-                        weights_nominal=np.asarray(w_reconstructed)
+                        weights_asym=outputs_dict["weights_asym"],
+                        weights_nominal=outputs_dict["weights_nominal"]
                         )
 
 
