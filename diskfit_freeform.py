@@ -252,7 +252,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 
 
     residuals = (freeform_fm_interest - disk_image) #/ noise_map
-    weights_nominal = 1 / noise_map
+    weights_nominal = 1 / noise_map**2
     weights_asym = asym_weights(residuals, tau=noise_map, alpha=1.0)
     # weights_total = weights_nominal * weights_asym
     raw_loss = residuals**2 * weights_nominal
