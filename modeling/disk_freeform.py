@@ -479,8 +479,10 @@ class FreeFormDisk:
         bespoke_noise_mask = self._engineer_noise_map()
         if self.mode == "ADI":
             reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
+            tosave_reduced_noise_masked = reduced_data * bespoke_noise_mask
         else:
-            reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
+            reduced_noise_masked = reduced_data * (1 - self.mask4noisemap)
+            tosave_reduced_noise_masked = reduced_data * self.mask4noisemap
 
         reduced_disk_masked = reduced_data * self.mask2generatedisk
 
@@ -497,7 +499,7 @@ class FreeFormDisk:
             save_fits(saveto_bespoke_noise, bespoke_noise_mask)
             self.noise_map = bespoke_noise_mask
         save_fits(saveto_masked_data, reduced_disk_masked)
-        save_fits(saveto_masked_noise, reduced_noise_masked)
+        save_fits(saveto_masked_noise, tosave_reduced_noise_masked)
 
         model_fm_init = self.single_fm(np.asarray(model_convolved))
 

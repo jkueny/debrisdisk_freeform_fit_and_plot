@@ -1,7 +1,7 @@
 Freeform disk modeling:
 
   ✔ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48) @done(25-08-26 21:48) @lasted(8h43s)
-  ☐ Engineer a better noise map mask to get a better estimate. @today
+  ✔ Engineer a better noise map mask to get a better estimate. @today @done(25-09-02 21:58)
   z'-band data:
     ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
