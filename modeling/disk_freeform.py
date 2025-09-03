@@ -14,6 +14,7 @@ import glob
 from astropy.io import fits
 import numpy as np
 from scipy.signal import convolve2d
+from scipy.ndimage import rotate
 from utils.regularization import fit_elgauss_window 
 from datetime import datetime
 
@@ -155,6 +156,17 @@ class FreeFormDisk:
         disk_params["alpha1"] = self.params_file["alpha1_init"]
 
         self.disk_params = disk_params
+    
+    def _engineer_noise_map(self):
+        delta_parang = 20
+        sweep_angle = np.arange(-delta_parang, delta_parang + 1, 1)
+        combined_masks = np.zeros_like(self.mask4noisemap)
+        for angle in sweep_angle:
+            disk_mask = rotate(self.mask4noisemap, angle, reshape=False)
+            combined_masks += disk_mask
+        combined_masks[combined_masks > 0.5] = 1
+        combined_masks[combined_masks < 0.5] = 0
+        return combined_masks.astype(np.int32)
 
     def render_reference_model(self):
 
@@ -267,6 +279,7 @@ class FreeFormDisk:
         if len(filelist) == 0:
             raise ValueError(f"Could not find files in the dir: {self.datadir}")
         input_data, par_angs  = diskprep_image_frames_parangs(filelist)
+        self.par_angs = par_angs
         self.frame_shape = input_data[0].shape
         input_centers = np.array([self.aligned_center for _ in range(len(filelist))])
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
@@ -463,22 +476,26 @@ class FreeFormDisk:
                                                     self.aligned_center)
             save_fits(path_rd, reduced_data)
 
-        
-
-        reduced_noise_masked = reduced_data * self.mask4noisemap
+        bespoke_noise_mask = self._engineer_noise_map()
+        if self.mode == "ADI":
+            reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
+        else:
+            reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
 
         reduced_disk_masked = reduced_data * self.mask2generatedisk
 
         # Make the noisemap now, to inspect after initialization in case changes need to occur
         noise_map = self.make_noise_map_rings(reduced_data_no_disk=reduced_noise_masked)
-        self.noise_map = noise_map
 
         noise_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_noisemap.fits")
         fits.writeto(noise_saveto, noise_map, overwrite=True)
 
         saveto_masked_data = os.path.join(self.klipdir, f"{self.file_prefix}_masked_data.fits")
         saveto_masked_noise = os.path.join(self.klipdir, f"{self.file_prefix}_use4noisemap.fits")
-
+        if self.mode == "ADI":
+            saveto_bespoke_noise = os.path.join(self.klipdir, f"{self.file_prefix}_mask4noisemap.fits")
+            save_fits(saveto_bespoke_noise, bespoke_noise_mask)
+            self.noise_map = bespoke_noise_mask
         save_fits(saveto_masked_data, reduced_disk_masked)
         save_fits(saveto_masked_noise, reduced_noise_masked)
 
@@ -519,6 +536,7 @@ class FreeFormDisk:
         if len(reduced_data_no_disk.shape) > 2:
             reduced_data_no_disk = np.squeeze(reduced_data_no_disk)
         h, w = reduced_data_no_disk.shape
+        reduced_data_no_disk[reduced_data_no_disk == 0.] = np.nan
         image_center = (h / 2 - 0.5, w / 2 - 0.5)
         # print('Generating noise cube...')
         # nodisk_data[nodisk_data != nodisk_data] = 0

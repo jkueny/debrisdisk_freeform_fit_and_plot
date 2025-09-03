@@ -1,8 +1,7 @@
 Freeform disk modeling:
-  ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
-  ☐ Be granted use of an h100 by Joseph
-  ✔ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48) @done(25-08-26 21:48) @lasted(8h43s)
 
+  ✔ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48) @done(25-08-26 21:48) @lasted(8h43s)
+  ☐ Engineer a better noise map mask to get a better estimate. @today
   z'-band data:
     ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
@@ -64,31 +63,5 @@ Archive:
     ✔ Add save functionality for the reference model PSD in the freeform disk object @started(25-08-09 13:31) @done(25-08-09 13:31) @lasted(3s)
     ✔ Ask Jared about convolution with an ellipse for further penalization @done(25-08-14 15:58)
     ✔ Ask Jared about the median radial profile calculation @done(25-08-14 15:58)
-    ✘ Optimize without noise map @cancelled(25-08-11 10:47)
-    ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 12:50) @lasted(2h3m59s)
-    ✔ Extract SPF from optimized model @started(25-08-11 14:36) @done(25-08-20 10:57) @lasted(1w1d20h21m26s)
-    ✘ Optimize without noise map @cancelled(25-08-11 10:47)
-    ✔ Optimize full size dataset with noise map @started(25-08-11 10:47) @done(25-08-11 15:04) @lasted(4h17m22s)
-    ✔ Extract SPF from optimized model @started(25-08-11 15:04) @done(25-08-20 10:57) @lasted(1w1d19h53m32s)
-    ✔ Optimize full size dataset w/ 0.25 degree parang binning @high @done(25-08-21 21:46)
-    ✔ Optimize half size dataset @started(25-08-11 10:47) @done(25-08-11 13:42) @lasted(2h55m50s)
-    ✔ Extract SPF from optimized model [REDO, more Legendre modes and lambda reg value of 1] @done(25-08-20 15:29)
-    ✘ Extract Legendre-based SPF with a higher regularization param, from 0.5 to 10.0 @started(25-08-11 16:39) @cancelled(25-08-12 13:28) #too high, use 1.0
-    ✘ Extract SPF with more Legendre modes, from 12 to 16 @started(25-08-11 21:59) @cancelled(25-08-12 13:27) #unnecessary
-    ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @done(25-08-21 08:00)
-    ✔ Check if the config file was using the correct KLIP params @started(25-08-21 10:44) @done(25-08-21 11:01) @lasted(17m31s) #it was not
-    ✔ Rerun the freeform optimization on the correct KLIP image on jetstream2 @started(25-08-21 11:02) @done(25-08-21 21:45) @lasted(10h44m)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 11:45) @done(25-08-20 12:57) @lasted(1h12m20s)
-    ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 12:57) @done(25-08-20 16:38) @lasted(3h41m20s)
-    ✔ Rerun SPF extraction with 14 Legendre modes, down from 16 @done(25-08-21 08:01)
-    ✔ Optimize full size dataset w/ 0.25 degree parang binning @high @done(25-08-21 21:46)
-    ✔ Extract SPF the the 0.3 lambda reg freeform model, the 0.6 one looks overfit @done(25-08-21 08:00)
-    ✔ Optimize half size dataset, use lambda reg value of 0.6 @started(25-08-20 13:22) @done(25-08-20 15:29) @lasted(2h7m15s)
-    ✔ Extract SPF from optimized model @started(25-08-20 15:29) @done(25-08-20 17:27) @lasted(1h58m38s)
-    ✔ Optimize half size dataset @started(25-08-11 10:46) @done(25-08-11 13:01) @lasted(2h15m53s)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.5 @done(25-08-20 13:02)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.3 @done(25-08-20 11:11)
-    ✔ Optimize full size dataset, fit SPF, use lambda reg value of 0.4 @started(25-08-20 13:09) @done(25-08-20 14:26) @lasted(1h17m16s)
-    ✔ Extract SPF from freeform model using lambda reg value of 0.4 @started(25-08-20 14:26) @done(25-08-20 16:07) @lasted(1h41m58s)
-    ✔ Quick fix: the backend file from the above item is huge, rerun job and replace @started(25-08-20 16:08) @done(25-08-20 17:52) @lasted(1h44m35s)
+    ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
+    ✔ Be granted use of an h100 by Joseph @done(25-09-02 17:09)
