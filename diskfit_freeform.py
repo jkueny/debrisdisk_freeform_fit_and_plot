@@ -481,6 +481,8 @@ def main(config,
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
     jax_psf = jnp.array(psf)
+    # Get the initial model
+    model_firstguess = ffd_obj.get_initial_model(init_model)
 
     if ffd_obj.params_file["FIRST_TIME"] or bool(new_basis):
         # initialize_diskfm and make diskobj global
@@ -528,8 +530,6 @@ def main(config,
     else:
         do_clean_final_fm = 0
 
-    # Get the initial model
-    model_firstguess = ffd_obj.get_initial_model(init_model)
     # Render the reference model
     if init_model is None and bool(new_ref):
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
