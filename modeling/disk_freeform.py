@@ -407,14 +407,14 @@ class FreeFormDisk:
         if len(filelist) == 0:
             raise ValueError(f"Could not find files in the dir: {self.datadir}")
         input_data, par_angs  = diskprep_image_frames_parangs(filelist)
-        self.par_angs = par_angs
+        self.par_angs = -par_angs
         self.frame_shape = input_data[0].shape
         input_centers = np.array([self.aligned_center for _ in range(len(filelist))])
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
         IWA = self.iwa
         dataset = GenericData(input_data,
                              input_centers,
-                             parangs=par_angs,
+                             parangs=self.par_angs,
                              IWA=IWA,filenames=filelist)
 
         dataset.OWA = self.params_file["OWA"]
