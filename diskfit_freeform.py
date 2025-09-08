@@ -268,7 +268,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 def optimize_model(
-    target_image, model_init, ref_psd, disk_spine, noise_map, mask_indices, disk_support_mask,
+    target_image, model_init, ref_psd, noise_map, mask_indices, disk_support_mask,
     psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
     radial_inds, delta,
     aligned_center, do_radial_profile_sub, do_clean_final_fm,
@@ -535,6 +535,9 @@ def main(config,
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
         
         reference_model[reference_model != reference_model] = 0.
+    elif init_model is None and not bool(new_basis):
+        reference_model = fits.getdata(os.path.join(klipdir, f"{file_prefix}_ReferenceModel.fits"))
+        reference_model[reference_model != reference_model] = 0.
     else:
         reference_model = model_firstguess
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
@@ -568,7 +571,6 @@ def main(config,
         print(f"Tracing to {trace_dest}")
     optimized_params, loss_history, weights_asym, weights_nominal = optimize_model(target_image=reduced_flat_interest,
                                                    model_init=init_model_interest, ref_psd=reference_model_psd,
-                                                   disk_spine=disk_spine,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
                                                    mask_indices=disk_mask_indices,
