@@ -96,16 +96,16 @@ def fit_elgauss_window(ref_psd, generosity=1., verbose=True):
               (0.1, None),
               ] 
 
-    res = minimize(make_objective(psd_norm),
+    result = minimize(make_objective(psd_norm),
                    x0,
                    method="L-BFGS-B",
                    bounds=bounds,
                    options=dict(maxiter=1000, ftol=1e-10, gtol=1e-8))
 
     if verbose:
-        print(f"Converged in {res.nit} iterations | final loss = {res.fun:.4e}")
+        print(f"Converged in {result.nit} iterations | final loss = {result.fun:.4e}")
 
-    wx, wy, theta_deg, scale = res.x
+    wx, wy, theta_deg, scale = result.x
     # wx, wy, theta_deg = res.x
     # scale = scale * psd.max()
     # window_opt = asymmetric_tukey(psd.shape, wx, wy, theta_deg, alpha) * scale

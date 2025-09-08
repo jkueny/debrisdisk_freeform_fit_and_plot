@@ -453,7 +453,15 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
     outputs_dict["weights_nominal"] = np.asarray(w_reconstructed)
     return outputs_dict
 
-def main(config, num_iterations, init_model, reg_lambda, delta, first_time, learning_rate):
+def main(config,
+         num_iterations,
+         init_model,
+         reg_lambda,
+         delta,
+         new_basis,
+         new_ref,
+         learning_rate,
+         ):
     # Grab the info from the yaml file
     if reg_lambda is None: #default
         reg_lambda = 1.
@@ -469,23 +477,12 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
     mask2generatedisk = ffd_obj.prep_binary_masks()
 
-    # Get the initial model
-    model_firstguess = ffd_obj.get_initial_model(init_model)
-    # Render the reference model
-    if init_model is None:
-        reference_model = ffd_obj.render_reference_model()
-        reference_model[reference_model != reference_model] = 0.
-    else:
-        reference_model = model_firstguess
-    
-
-    reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
 
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
     jax_psf = jnp.array(psf)
 
-    if ffd_obj.params_file["FIRST_TIME"] or bool(first_time):
+    if ffd_obj.params_file["FIRST_TIME"] or bool(new_basis):
         # initialize_diskfm and make diskobj global
         dataset, psflib = ffd_obj.prep_dataset()
 
@@ -505,7 +502,6 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
     reduced_data = np.squeeze(reduced_data)
     reduced_data[reduced_data != reduced_data] = 0. #zero out the NaNs
-    disk_spine = ffd_obj.high_pass_reference_model(reference_model)
     hp = ffd_obj.hp
     rprofsub = bool(ffd_obj.params_file["RPROFSUB"])
     clean_final_fm = bool(ffd_obj.clean_final_fm)
@@ -516,7 +512,8 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
         noise_map_flat = noise_map.flatten()
         noise_map_flat[noise_map_flat != noise_map_flat] = 1.
     else:
-        noise_map_flat = np.ones_like(reduced_data.flatten())
+        noise_map = np.ones_like(reduced_data)
+        noise_map_flat = noise_map.flatten()
         noise_map_flat[noise_map_flat != noise_map_flat] = 1.
     if bool(hp):
         hp_filtersize = (psf.shape[0]/hp) / (2*np.sqrt(2*np.log(2)))
@@ -531,8 +528,17 @@ def main(config, num_iterations, init_model, reg_lambda, delta, first_time, lear
     else:
         do_clean_final_fm = 0
 
+    # Get the initial model
+    model_firstguess = ffd_obj.get_initial_model(init_model)
+    # Render the reference model
+    if init_model is None and bool(new_ref):
+        reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
+        
+        reference_model[reference_model != reference_model] = 0.
+    else:
+        reference_model = model_firstguess
+    reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
     total_pixels = np.prod(reduced_data.shape)
-
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
     annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
     disk_mask *= annular_mask
@@ -629,7 +635,7 @@ if __name__ == "__main__":
                         type=float,
                         default=1e-1,
                         help='Learning rate')
-    parser.add_argument(
+    parser.add_argument('-i',
                         '--iterations',
                         type=int,
                         required=True,
@@ -650,12 +656,18 @@ if __name__ == "__main__":
                         required=False,
                         default=1,
                         help='Delta for Huber loss')
-    parser.add_argument(
-                        '--first-time',
+    parser.add_argument('-b',
+                        '--new-basis',
                         action="store_true",
                         required=False,
                         # default=False,
-                        help='Startup procedure only')
+                        help='Make new KLIP basis')
+    parser.add_argument('-r',
+                        '--new-ref',
+                        action="store_true",
+                        required=False,
+                        # default=False,
+                        help='Fit new reference model')
     args = parser.parse_args()
     if args.param_file is None: #grab param file if no command line input, JKK
         str_yaml = f'initialization_files/{default_parameter_file}'
@@ -670,6 +682,7 @@ if __name__ == "__main__":
         init_model=args.initial_model,
         reg_lambda=args.reg,
         delta=args.delta,
-        first_time=args.first_time,
+        new_basis=args.new_basis,
+        new_ref=args.new_ref,
         learning_rate=args.learning_rate,
     )

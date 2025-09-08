@@ -2048,7 +2048,12 @@ def klip_dataset(dataset, fm_class, mode="ADI+SDI", outputdir=".", fileprefix="p
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 if time_collapse == 'median':
-                    KLmode_cube = np.nanmedian(klipped, axis=(1,2))
+                    if klipped.shape[2] == 1:
+                        import bottleneck   
+                        KLmode_cube = bottleneck.nanmedian(klipped, axis=(1))
+                    else:
+                        KLmode_cube = np.nanmedian(klipped, axis=(1,2))
+                    # KLmode_cube = np.nanmedian(klipped, axis=(1,2))
                 else:
                     KLmode_cube = np.nanmean(pixel_weights * klipped, axis=(1,2))
             if weighted:

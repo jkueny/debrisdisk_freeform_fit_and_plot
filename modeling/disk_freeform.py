@@ -30,6 +30,9 @@ import dev.pyklip.fm as fm
 from utils.make_gpi_psf_for_disks import make_disk_mask
 import utils.astro_unit_conversion as convert
 from modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
+from scipy.signal import fftconvolve
+from scipy.special import huber
+from scipy.optimize import minimize
 # import multiprocessing as mp
 
 def get_basedir():
@@ -84,6 +87,7 @@ class FreeFormDisk:
         self._load_dirs()
         self._load_metadata()
         self._load_klparams()
+        self._load_initial_model_params()
         # self._render_reference_model()
         # self.klbasis = self._loadbasis()
 
@@ -137,7 +141,19 @@ class FreeFormDisk:
         self.hp = self.params_file["HP_FILTER"]
         self.clean_final_fm = self.params_file["CLEAN_FINAL_FM"]
 
-    def _load_reference_model_params(self):
+    
+    def _engineer_noise_map(self):
+        delta_parang = 20
+        sweep_angle = np.arange(-delta_parang, delta_parang + 1, 1)
+        combined_masks = np.zeros_like(self.mask4noisemap)
+        for angle in sweep_angle:
+            disk_mask = rotate(self.mask4noisemap, angle, reshape=False)
+            combined_masks += disk_mask
+        combined_masks[combined_masks > 0.5] = 1
+        combined_masks[combined_masks < 0.5] = 0
+        return combined_masks.astype(np.int32)
+    
+    def _load_initial_model_params(self):
         disk_params = {}
         disk_params["r1"] = self.params_file["r1_init"]
         disk_params["r2"] = self.params_file["r2_init"]
@@ -155,37 +171,26 @@ class FreeFormDisk:
         disk_params["g2"] = self.params_file["g2_init"]
         disk_params["alpha1"] = self.params_file["alpha1_init"]
 
-        self.disk_params = disk_params
+        self.params_init = disk_params    
     
-    def _engineer_noise_map(self):
-        delta_parang = 20
-        sweep_angle = np.arange(-delta_parang, delta_parang + 1, 1)
-        combined_masks = np.zeros_like(self.mask4noisemap)
-        for angle in sweep_angle:
-            disk_mask = rotate(self.mask4noisemap, angle, reshape=False)
-            combined_masks += disk_mask
-        combined_masks[combined_masks > 0.5] = 1
-        combined_masks[combined_masks < 0.5] = 0
-        return combined_masks.astype(np.int32)
+    def render_initial_disk_model(self):
 
-    def render_reference_model(self):
+        self._load_initial_model_params()
 
-        self._load_reference_model_params()
+        beta = self.params_init["beta"]
+        a_r = self.params_init["a_r"]
+        inc = self.params_init["inc"]
+        pa = self.params_init["pa"]
+        dx = self.params_init["dx"]
+        dy = self.params_init["dy"]
 
-        beta = self.disk_params["beta"]
-        a_r = self.disk_params["a_r"]
-        inc = self.disk_params["inc"]
-        pa = self.disk_params["pa"]
-        dx = self.disk_params["dx"]
-        dy = self.disk_params["dy"]
+        R1 = self.params_init['r1']
+        R2 = self.params_init['r2']
 
-        R1 = self.disk_params['r1']
-        R2 = self.disk_params['r2']
-
-        Norm = self.disk_params['Norm']
-        g1 = self.disk_params['g1']
-        g2 = self.disk_params['g2']
-        alpha1 = self.disk_params['alpha1']
+        Norm = self.params_init['Norm']
+        g1 = self.params_init['g1']
+        g2 = self.params_init['g2']
+        alpha1 = self.params_init['alpha1']
 
         max_fov = self.image_size / 2. * self.pixscale  #maximum radial distance in AU from the center to the edge
         n_pts = int(np.floor(self.image_size / 1))
@@ -201,17 +206,140 @@ class FreeFormDisk:
         z = np.linspace(-xsize, xsize, num=n_pts)
         
         beta = 1.
-        rc = self.disk_params['rc']
-        m = self.disk_params['alpha_in']
-        n = self.disk_params['alpha_out']
+        rc = self.params_init['rc']
+        m = self.params_init['alpha_in']
+        n = self.params_init['alpha_out']
         model = fastmodgen_disk_dxdy_2g(R1, R2, beta, inc, pa, dx, dy, Norm,
                                     g1, g2, alpha1, a_r, rc, m, n,
                                     y_arr=y,
                                     z_arr=z,
                                     npts=n_pts,
                                     mask=(1 - self.mask2generatedisk))
-        save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), model)
         return model
+    
+    def _render_disk_model(self, params):
+        # Unpack the parameters
+        # Fixed parameters
+        R1 = self.R1
+        R2 = self.R2
+        beta = 1.
+        # Free parameters
+        rc = params[0]
+        m = params[1]
+        n = params[2]
+        a_r = params[3]
+        inc = params[4]
+        pa = params[5]
+        dx = params[6]
+        dy = params[7]
+        Norm = np.exp(params[8])
+        g1 = params[9]
+        g2 = params[10]
+        alpha1 = params[11]
+
+
+        max_fov = self.image_size / 2. * self.pixscale  #maximum radial distance in AU from the center to the edge
+        n_pts = int(np.floor(self.image_size / 1))
+        xsize = max_fov * self.distance  #maximum radial distance in AU from the center to the edge
+
+        #The coordinate system here [x,y,z] is defined :
+        # +ve x is the line of sight
+        # +ve y is going right from the center
+        # +ve z is going up from the center
+
+        # y = np.linspace(0,xsize,num=npts/2)
+        y = np.linspace(-xsize, xsize, num=n_pts)
+        z = np.linspace(-xsize, xsize, num=n_pts)
+        
+        model = fastmodgen_disk_dxdy_2g(R1, R2, beta, inc, pa, dx, dy, Norm,
+                                    g1, g2, alpha1, a_r, rc, m, n,
+                                    y_arr=y,
+                                    z_arr=z,
+                                    npts=n_pts,
+                                    mask=(1 - self.mask2generatedisk)) 
+        return model
+    def _objective_function(self, params):
+        '''
+        Objective function for the simple disk model fit.
+        '''
+        # print(f"Iteration {self.iteration}: {params}")
+        model = self._render_disk_model(params)
+        # Convolve the disk model with the PSF
+        psf = self.psf
+        model_image = fftconvolve(model, psf, mode="same")
+
+        weights = 1. / self.noise_map**2
+        raw_loss = (model_image - self.data)**2 * weights
+        mean_huber = np.mean(huber(0.1, raw_loss))
+
+        # self.iteration += 1
+        return mean_huber
+    
+    def fit_simple_disk_model(self):
+        '''
+        Use scipy.optimize.minimize to fit a simple disk model to the data.
+        '''
+        # Use scipy.optimize.minimize to fit a simple disk model to the data.
+        self.iteration = 0
+        self.R1 = self.params_init["r1"]
+        self.R2 = self.params_init["r2"]
+        # self.a_r = self.params_init["a_r"]
+        x0 = np.asarray([
+                         self.params_init["rc"], #0
+                         self.params_init["alpha_in"], #1
+                         self.params_init["alpha_out"], #2
+                         self.params_init["a_r"], #3
+                         self.params_init["inc"], #4
+                         self.params_init["pa"], #5
+                         self.params_init["dx"], #6
+                         self.params_init["dy"], #7
+                         np.log(self.params_init["Norm"]), #8
+                         self.params_init["g1"], #9    
+                         self.params_init["g2"], #10
+                         self.params_init["alpha1"]]) #11
+        bounds = [(70, 80), #0
+                  (0.1, 100), #1
+                  (-20, -12), #2
+                  (0.0001, 0.05), #3
+                  (75, 80), #4
+                  (23, 28), #5
+                  (-5, 5), #6
+                  (-5, 5), #7
+                  (0, None), #8
+                  (0.5, 0.9999), #9
+                  (-0.50, -0.0001), #10
+                  (0.0001, 0.9999), #11
+                  ]
+
+        result = minimize(self._objective_function, x0,
+                          method="L-BFGS-B", bounds=bounds,
+                          options={"maxiter": 1000, "ftol": 1e-10, "gtol": 1e-8,
+                          "disp": True},
+                          callback=self._callback_function,
+                          )
+        self.params_opt = result.x
+        best_model = self._render_disk_model(self.params_opt)
+        self.best_model = best_model
+        print(f"Reference model fit converged in {result.nit} iterations")
+        print(f"Final loss: {result.fun}")
+        print(f"Final parameters: {self.params_opt}")
+        return best_model
+    
+    def _callback_function(self, params):
+        '''
+        Callback function for the simple disk model fit.
+        '''
+        print(f"Iteration {self.iteration}: {params}")
+        self.iteration += 1
+    def fit_reference_model(self, noise_map, reduced_data):
+        reduced_data[reduced_data != reduced_data] = 0.
+        reduced_data *= self.mask2generatedisk
+        self.data = reduced_data
+        noise_map[noise_map != noise_map] = 1.
+        self.noise_map = noise_map
+        reference_model = self.fit_simple_disk_model()
+        save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), reference_model)
+        return reference_model
 
     def high_pass_reference_model(self, reference_model):
         sigma_size = min(self.window_params["width_x"], self.window_params["width_y"])
@@ -242,7 +370,7 @@ class FreeFormDisk:
         print("Fitting the optimal window func to the reference model PSD...")
         params, window_opt = fit_elgauss_window(psd_ref_model)
         self.window_params = params
-        psd_ref_model_win = window_opt #+ psd_ref_model
+        psd_ref_model_win = window_opt + psd_ref_model
         # psd_ref_model_win_hp = window_opt + psd_ref_model_hp
         # ref_model_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")
@@ -251,7 +379,7 @@ class FreeFormDisk:
         # save_fits(ref_model_hp_saveto, reference_model_hp_clamped)
         save_fits(psd_ref_model_win_saveto, psd_ref_model)
         # save_fits(psd_ref_model_win_hp_saveto, psd_ref_model_win_hp)
-        save_fits(window_saveto, window_opt)
+        save_fits(window_saveto, psd_ref_model_win)
         return psd_ref_model_win, window_opt
     
 

@@ -6,12 +6,12 @@ Freeform disk modeling:
     ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
     ✘ See if using just the fitted PSD window func is equivalent to using the full ref PSD @cancelled(25-08-26 15:30)
-    ☐ Understand what changing the generosity of the window function really does
+    ✘ Understand what changing the generosity of the window function really does @cancelled(25-09-04 16:02)
 
   i'-band data:
     ✘ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning @started(25-08-22 16:57) @cancelled(25-09-02 12:14)
     ✔ Rerun the SPF extraction with 18 Legendre modes, 0.3 HSF reg value @started(25-08-21 21:46) @done(25-08-22 10:19) @lasted(12h33m58s)
-
+    ☐ Implement a MCMC procedure to obtain a quick reference model from the KLIP image.
     
   r'-band data:
     ✔ Rerun the SPF extraction with 18 Legendre modes, mode regularization 1.0, hsf regularization 0.3 @started(25-08-21 21:32) @done(25-08-22 10:47) @lasted(13h15m5s)
@@ -35,7 +35,17 @@ Papers:
     ☐ Update the suite of SNR images that reflect the full size datasets.
   JAX freeform disk modeling:
     ☐ Choose a journal for submission (likely AJ)
-    ☐ Create the template for the paper on Overleaf
+    ☐ Make a figure comparing the extracted RDI SPFs vs. the freeform SPFs
+    ☐ Make a figure comparing the simple disk model residuals vs. the freeform model residuals
+    ☐ Sub/section on state of the art for disk forward modeling + challenges
+    ☐ Sub/section on data prepartion, optimal KLIP parameters
+    ✔ Create the template for the paper on Overleaf @done(25-09-04 12:33)
+    ✔ Make a flowchart of the freeform disk modeling pipeline @done(25-09-03 13:23)
+    Fine-tune the reference model fitting procedure:
+      ☐ Put the param priors in the config file
+      ☐ Make the reference model fit a command line toggle
+      ☐ Make the KLIP reduced image a command line toggle
+      ☐ Make a command line argument for skipping the setup phase
 
 Todos:
   ✔ Move the r'-band and g'-band data to Lilla @done(25-08-21 11:42)
