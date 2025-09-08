@@ -59,7 +59,7 @@ alpha_out_init: -14.08
 beta_init: 14.8
 a_r_init: 0.01
 inc_init: 76.77
-pa_init: 116.94
+pa_init: 26.94
 dx_init: -3.16
 dy_init: 1.49
 N_init: 1385.77
