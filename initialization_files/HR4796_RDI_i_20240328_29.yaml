@@ -8,6 +8,8 @@ MODE: RDI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow t
 # KLIP RDI parameters
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 CLEAN_FINAL_FM: true # do a final post-KLIP median radial profile subtraction
+OPTIMIZE_REFERENCE: false
+RPROFSUB: True
 
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
 # KLMODE_NUMBER: 64 # number of KL modes used in the reduction < nb images in the basis
@@ -67,7 +69,6 @@ alpha1_init: 0.3184
 r_inner: 65
 r_outer: 110
 
-OPTIMIZE_REFERENCE: True
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
 r1_state: 1
 r2_state: 1
@@ -92,7 +93,6 @@ alpha1_state: 1
 g3_state: 0
 alpha2_state: 0
 
-RPROFSUB: True
 
 # APERTURE PHOTOMETRY
 AP_RING_RAD: 90 #circle defining where to plop down apertures, deprojected disk

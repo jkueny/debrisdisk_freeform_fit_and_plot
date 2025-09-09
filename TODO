@@ -6,7 +6,7 @@ Freeform disk modeling:
     ✔ Make the reference model fit a command line toggle @done(25-09-08 09:18)
     ✔ Make the KLIP reduced image a command line toggle @done(25-09-08 09:18)
     ✘ Make a command line argument for skipping the setup phase @cancelled(25-09-08 12:54)
-    ☐ Add option to fit a reference model or use the current disk model params in the config file
+    ✔ Add option to fit a reference model or use the current disk model params in the config file @done(25-09-09 10:10)
  
   z'-band data:
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
