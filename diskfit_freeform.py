@@ -494,8 +494,9 @@ def main(config,
                                   )
 
         # disk_spine = ffd_obj.high_pass_reference_model(reference_model)
-        print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
-        sys.exit(0)
+        if not bool(new_ref):
+            print('First time initializing, check klip_fm_files directory and modify the yaml file first_time flag.')
+            sys.exit(0)
     # Read in the basis data
     fm_dict = load_kl_basis(basis_path)
     # fm_dict contains 
@@ -535,6 +536,8 @@ def main(config,
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
         
         reference_model[reference_model != reference_model] = 0.
+        print("New reference model created. Check klip_fm_files dir and relaunch the script.")
+        sys.exit(0)
     elif init_model is None and not bool(new_basis):
         reference_model = fits.getdata(os.path.join(klipdir, f"{file_prefix}_ReferenceModel.fits"))
         reference_model[reference_model != reference_model] = 0.
