@@ -7,6 +7,7 @@ MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow t
 DO_RDI_CORRELATION: false # Measure the correlation matrix of the RDI PSF lib. Very long.
 CLEAN_FINAL_FM: false # do a final post-KLIP median radial profile subtraction
 
+OPTIMIZE_REFERENCE: true
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
 KLMODE_NUMBER: 17 # number of KL modes used in the reduction < nb images in the basis
 # KLMODE_NUMBER: 26 # number of KL modes used in the reduction < nb images in the basis

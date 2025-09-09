@@ -88,20 +88,17 @@ r_outer: 110
 
 
 
-# MODEL PARAMETER STATES [0,1] --> [fixed, free]
-r1_state: 1
-r2_state: 1
-rc_state: 0
-alpha_in_state: 0
-alpha_out_state: 0
-beta_state: 1
-a_r_state: 0
-inc_state: 1
-pa_state: 1
-dx_state: 1
-dy_state: 1
-N_state: 1
-rscale_state: 1
+# MODEL PARAMETER PRIORS [LOWER, UPPER]
+rc_prior: [70, 80]
+alpha_in_prior: [0, 50]
+alpha_out_prior: [0, 50]
+beta_prior: [10, 20]
+a_r_prior: [0, 0.02]
+inc_prior: [0, 90]
+pa_prior: [0, 360]
+dx_prior: [0, 10]
+dy_prior: [0, 10]
+N_prior: [1000, 2000]
 
 # amin: 0
 # amax: 0
