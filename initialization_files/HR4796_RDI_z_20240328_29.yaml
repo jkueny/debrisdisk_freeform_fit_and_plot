@@ -11,14 +11,14 @@ CLEAN_FINAL_FM: true # do a final post-KLIP median radial profile subtraction
 
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
 # KLMODE_NUMBER: 64 # number of KL modes used in the reduction < nb images in the basis
-KLMODE_NUMBER: 51 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 35 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-IWA: 6 # pixels
+IWA: 13 # pixels
 OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 # OWA: 32 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 0  #minrot in PyKLIP ADI
-HP_FILTER: 21 #size of FWHM for HP filter
+HP_FILTER: 22 #size of FWHM for HP filter
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
@@ -74,15 +74,19 @@ alpha_out_init: -14.08
 beta_init: 14.8
 a_r_init: 0.01
 inc_init: 76.77
-pa_init: 26.94
+pa_init: 24.66
 dx_init: -3.16
 dy_init: 1.49
 N_init: 1385.77
-g1_init: 0.9362701093872723
-g2_init: -0.16415682435397846
-alpha1_init: 0.43996397848721225
+g1_init: 0.8993
+g2_init: -0.1744
+alpha1_init: 0.3184
 r_inner: 65
 r_outer: 110
+
+OPTIMIZE_REFERENCE: False
+
+
 
 # MODEL PARAMETER STATES [0,1] --> [fixed, free]
 r1_state: 1
@@ -120,7 +124,7 @@ CONV_FACTOR: 1.6192783494243498e-07 # Jy / Ang.
 
 # MASKING PARAMETERS
 MASK_IN_SCALING: 5 #bigger means shrink inner bound, nominally 4
-MASK_OUT_SCALING: 5 #bigger means expand outer bound, nominally 6
+MASK_OUT_SCALING: 10 #bigger means expand outer bound, nominally 6
 MASK_SPECKLES: 12 #central circle mask
 MASK_MINOR: 68 #OWA to isolate minor axis
 MASK_DX: 0

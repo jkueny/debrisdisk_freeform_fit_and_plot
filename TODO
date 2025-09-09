@@ -1,28 +1,26 @@
 Freeform disk modeling:
 
-  ✔ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48) @done(25-08-26 21:48) @lasted(8h43s)
-  ✔ Engineer a better noise map mask to get a better estimate. @today @done(25-09-02 21:58)
+    
+  Fine-tune the reference model fitting procedure:
+    ☐ Put the param priors in the config file
+    ✔ Make the reference model fit a command line toggle @done(25-09-08 09:18)
+    ✔ Make the KLIP reduced image a command line toggle @done(25-09-08 09:18)
+    ✘ Make a command line argument for skipping the setup phase @cancelled(25-09-08 12:54)
+    ☐ Add option to fit a reference model or use the current disk model params in the config file
+ 
   z'-band data:
-    ☐ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning
     ☐ The current freeform model used KLIP image with 16 KLIP modes, but it really needs to be 17. @low
     ✘ See if using just the fitted PSD window func is equivalent to using the full ref PSD @cancelled(25-08-26 15:30)
-    ✘ Understand what changing the generosity of the window function really does @cancelled(25-09-04 16:02)
+    ☐ Perform pyklip grid search for the RDI data made using 10 sec binning (up from 5 sec) @started(25-09-09 08:19)
 
   i'-band data:
-    ✘ H100 is a beast, let's see if we can expand the dataset, re-reduce with 0.2 degree parang binning @started(25-08-22 16:57) @cancelled(25-09-02 12:14)
-    ✔ Rerun the SPF extraction with 18 Legendre modes, 0.3 HSF reg value @started(25-08-21 21:46) @done(25-08-22 10:19) @lasted(12h33m58s)
     ☐ Implement a MCMC procedure to obtain a quick reference model from the KLIP image.
-    
+    ☐ Perform pyklip grid search for the ADI data made using 10 sec binning (up from 5 sec) @started(25-09-09 08:19)
+    ☐ See if using just the fitted PSD window func is equivalent to using the full ref PSD @started(25-09-09 08:56)
+    ☐ Try using the straight literature model as a reference and fit again
   r'-band data:
-    ✔ Rerun the SPF extraction with 18 Legendre modes, mode regularization 1.0, hsf regularization 0.3 @started(25-08-21 21:32) @done(25-08-22 10:47) @lasted(13h15m5s)
-    ☐ Rerun the SPF extraction with 18 Legendre modes, mode regularization 1.0, hsf regularization 0.2
 
   g'-band data:
-    ☐ Rerun freeform optimization with lambda reg value of 0.5 @started(25-08-22 16:25)
-    ✔ Rerun the SPF extraction with 18 Legendre modes @done(25-08-21 21:31)
-    ✔ Rerun the SPF extraction with 16 Legendre modes @started(25-08-21 21:32) @done(25-08-22 10:56) @lasted(13h24m57s)
-    ✘ Rerun the SPF extraction with 12 Legendre modes, 0.3 HSF reg value @started(25-08-22 11:26) #bad fit @cancelled(25-08-22 13:44)
-    ✔ Rerun the SPF extraction with 14 Legendre modes, 0.3 HSF reg value @started(25-08-22 13:44) @done(25-08-22 15:51) @lasted(2h7m23s)
 
 
 Papers:
@@ -42,12 +40,6 @@ Papers:
     ☐ Sub/section on data prepartion, optimal KLIP parameters
     ✔ Create the template for the paper on Overleaf @done(25-09-04 12:33)
     ✔ Make a flowchart of the freeform disk modeling pipeline @done(25-09-03 13:23)
-    Fine-tune the reference model fitting procedure:
-      ☐ Put the param priors in the config file
-      ✔ Make the reference model fit a command line toggle @done(25-09-08 09:18)
-      ✔ Make the KLIP reduced image a command line toggle @done(25-09-08 09:18)
-      ✘ Make a command line argument for skipping the setup phase @cancelled(25-09-08 12:54)
-      ☐ Add option to fit a reference model or use the current disk model params in the config file
 
 Todos:
   ✔ Move the r'-band and g'-band data to Lilla @done(25-08-21 11:42)
@@ -77,3 +69,5 @@ Archive:
     ✔ Ask Jared about the median radial profile calculation @done(25-08-14 15:58)
     ✔ Be granted use of an h100 for the full size datasets by Ewan @done(25-08-21 13:47)
     ✔ Be granted use of an h100 by Joseph @done(25-09-02 17:09)
+    ✔ Engineer a better noise map mask to get a better estimate. @today @done(25-09-02 21:58)
+    ✔ Add RDI functionality to the freeform pipeline @started(25-08-26 13:48) @done(25-08-26 21:48) @lasted(8h43s)

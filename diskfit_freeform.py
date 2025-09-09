@@ -536,7 +536,8 @@ def main(config,
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
         
         reference_model[reference_model != reference_model] = 0.
-        print("New reference model created. Check klip_fm_files dir and relaunch the script.")
+        reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
+        print("New reference model + spectrum created. Check klip_fm_files dir and relaunch the script.")
         sys.exit(0)
     elif init_model is None and not bool(new_basis):
         reference_model = fits.getdata(os.path.join(klipdir, f"{file_prefix}_ReferenceModel.fits"))
