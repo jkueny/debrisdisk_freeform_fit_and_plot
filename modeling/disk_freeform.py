@@ -172,6 +172,30 @@ class FreeFormDisk:
         disk_params["alpha1"] = self.params_file["alpha1_init"]
 
         self.params_init = disk_params    
+
+        param_priors = {}
+        param_priors["rc"] = self.params_file["rc_prior"]
+        param_priors["alpha_in"] = self.params_file["alpha_in_prior"]
+        param_priors["alpha_out"] = self.params_file["alpha_out_prior"]
+        param_priors["beta"] = self.params_file["beta_prior"]
+        param_priors["a_r"] = self.params_file["a_r_prior"]
+        param_priors["inc"] = self.params_file["inc_prior"]
+        param_priors["pa"] = self.params_file["pa_prior"]
+        param_priors["dx"] = self.params_file["dx_prior"]
+        param_priors["dy"] = self.params_file["dy_prior"]
+        param_priors["Norm"] = self.params_file["N_prior"]
+        param_priors["g1"] = self.params_file["g1_prior"]
+        param_priors["g2"] = self.params_file["g2_prior"]
+        param_priors["alpha1"] = self.params_file["alpha1_prior"]
+        
+        # If we assign None in the param file it will be a string,
+        # so we need to convert it to None
+        for key, value in param_priors.items():
+            for each, v in enumerate(value):
+                if isinstance(v, str):
+                    param_priors[key][each] = None
+        self.param_priors = param_priors
+        print(f"Using parameter priors: {self.param_priors}")
     
     def render_initial_disk_model(self):
 
@@ -262,7 +286,9 @@ class FreeFormDisk:
         '''
         Objective function for the simple disk model fit.
         '''
+        # The parameter a_r is a problem and needs to be regularized
         # print(f"Iteration {self.iteration}: {params}")
+        penalty = np.square((params[3] - self.params_init["a_r"]) / (0.5 * self.params_init["a_r"]))
         model = self._render_disk_model(params)
         # Convolve the disk model with the PSF
         psf = self.psf
@@ -273,7 +299,7 @@ class FreeFormDisk:
         mean_huber = np.mean(huber(0.1, raw_loss))
 
         # self.iteration += 1
-        return mean_huber
+        return mean_huber + penalty
     
     def fit_simple_disk_model(self):
         '''
@@ -297,18 +323,19 @@ class FreeFormDisk:
                          self.params_init["g1"], #9    
                          self.params_init["g2"], #10
                          self.params_init["alpha1"]]) #11
-        bounds = [(70, 80), #0
-                  (0.1, 100), #1
-                  (-20, -12), #2
-                  (0.0001, 0.05), #3
-                  (75, 80), #4
-                  (23, 28), #5
-                  (-5, 5), #6
-                  (-5, 5), #7
-                  (0, None), #8
-                  (0.5, 0.9999), #9
-                  (-0.50, -0.0001), #10
-                  (0.0001, 0.9999), #11
+        
+        bounds = [(self.param_priors["rc"][0], self.param_priors["rc"][1]), #0
+                  (self.param_priors["alpha_in"][0], self.param_priors["alpha_in"][1]), #1
+                  (self.param_priors["alpha_out"][0], self.param_priors["alpha_out"][1]), #2
+                  (self.param_priors["a_r"][0], self.param_priors["a_r"][1]), #3
+                  (self.param_priors["inc"][0], self.param_priors["inc"][1]), #4
+                  (self.param_priors["pa"][0], self.param_priors["pa"][1]), #5
+                  (self.param_priors["dx"][0], self.param_priors["dx"][1]), #6
+                  (self.param_priors["dy"][0], self.param_priors["dy"][1]), #7
+                  (self.param_priors["Norm"][0], self.param_priors["Norm"][1]), #8
+                  (self.param_priors["g1"][0], self.param_priors["g1"][1]), #9
+                  (self.param_priors["g2"][0], self.param_priors["g2"][1]), #10
+                  (self.param_priors["alpha1"][0], self.param_priors["alpha1"][1]), #11
                   ]
 
         result = minimize(self._objective_function, x0,

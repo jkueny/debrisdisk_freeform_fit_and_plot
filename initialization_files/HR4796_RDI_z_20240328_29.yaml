@@ -90,24 +90,19 @@ r_outer: 110
 
 # MODEL PARAMETER PRIORS [LOWER, UPPER]
 rc_prior: [70, 80]
-alpha_in_prior: [0, 50]
-alpha_out_prior: [0, 50]
-beta_prior: [10, 20]
-a_r_prior: [0, 0.02]
-inc_prior: [0, 90]
-pa_prior: [0, 360]
-dx_prior: [0, 10]
-dy_prior: [0, 10]
-N_prior: [1000, 2000]
+alpha_in_prior: [10, 100]
+alpha_out_prior: [-100, -10]
+beta_prior: [10, 30]
+a_r_prior: [0.005, 0.015]
+inc_prior: [75, 80]
+pa_prior: [30, 20]
+dx_prior: [-5, 5]
+dy_prior: [-5, 5]
+N_prior: [0, None]
+g1_prior: [0.50, 0.9999]
+g2_prior: [-0.9999, -0.0001]
+alpha1_prior: [0.0001, 0.9999]
 
-# amin: 0
-# amax: 0
-aexp: 2.6
-g1_state: 1
-g2_state: 1
-alpha1_state: 1
-g3_state: 0
-alpha2_state: 0
 
 RPROFSUB: false
 # APERTURE PHOTOMETRY

@@ -65,28 +65,21 @@ g2_init: -0.2027
 alpha1_init: 0.2871
 
 
-# MODEL PARAMETER STATES [0,1] --> [fixed, free]
-r1_state: 1
-r2_state: 0
-rc_state: 0
-alpha_in_state: 0
-alpha_out_state: 0
-beta_state: 1
-a_r_state: 1
-inc_state: 0
-pa_state: 0
-dx_state: 1
-dy_state: 1
-N_state: 1
-rscale_state: 0
-# amin: 0
-# amax: 0
-aexp: 2.5
-g1_state: 1
-g2_state: 1
-alpha1_state: 1
-g3_state: 0
-alpha2_state: 0
+
+# MODEL PARAMETER PRIORS [LOWER, UPPER]
+rc_prior: [70, 80]
+alpha_in_prior: [10, 100]
+alpha_out_prior: [-100, -10]
+beta_prior: [10, 30]
+a_r_prior: [0.005, 0.015]
+inc_prior: [75, 80]
+pa_prior: [30, 20]
+dx_prior: [-5, 5]
+dy_prior: [-5, 5]
+N_prior: [0, None]
+g1_prior: [0.50, 0.9999]
+g2_prior: [-0.9999, -0.0001]
+alpha1_prior: [0.0001, 0.9999]
 
 RPROFSUB: True
 
