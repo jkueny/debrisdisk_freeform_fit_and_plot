@@ -337,7 +337,10 @@ class FreeFormDisk:
         self.data = reduced_data
         noise_map[noise_map != noise_map] = 1.
         self.noise_map = noise_map
-        reference_model = self.fit_simple_disk_model()
+        if self.params_file["OPTIMIZE_REFERENCE"]:
+            reference_model = self.fit_simple_disk_model()
+        else:
+            reference_model = self.render_initial_disk_model()
         save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), reference_model)
         return reference_model
 
@@ -370,7 +373,7 @@ class FreeFormDisk:
         print("Fitting the optimal window func to the reference model PSD...")
         params, window_opt = fit_elgauss_window(psd_ref_model)
         self.window_params = params
-        psd_ref_model_win = window_opt #+ psd_ref_model
+        psd_ref_model_win = window_opt + psd_ref_model
         # psd_ref_model_win_hp = window_opt + psd_ref_model_hp
         # ref_model_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")

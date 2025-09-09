@@ -84,7 +84,7 @@ alpha1_init: 0.3184
 r_inner: 65
 r_outer: 110
 
-OPTIMIZE_REFERENCE: False
+OPTIMIZE_REFERENCE: True
 
 
 
