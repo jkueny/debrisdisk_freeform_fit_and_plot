@@ -288,7 +288,7 @@ class FreeFormDisk:
         '''
         # The parameter a_r can be a problem and needs to be regularized
         # print(f"Iteration {self.iteration}: {params}")
-        penalty = np.square((params[3] - self.params_init["a_r"]) / (0.5 * self.params_init["a_r"]))
+        penalty = np.square((params[3] - self.params_init["a_r"]) / (0.75 * self.params_init["a_r"]))
         model = self._render_disk_model(params)
         # Convolve the disk model with the PSF
         psf = self.psf
