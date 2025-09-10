@@ -14,9 +14,8 @@ KLMODE_NUMBER: 16 # number of KL modes used in the reduction < nb images in the 
 ANNULI: 1 # number of annuli in the KLIP reduction
   # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 10 # pixels
-  # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 9  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
@@ -70,11 +69,11 @@ alpha_out_prior: [-100, -10]
 beta_prior: [10, 30]
 a_r_prior: [0.005, 0.015]
 inc_prior: [75, 80]
-pa_prior: [30, 20]
+pa_prior: [20, 30]
 dx_prior: [-5, 5]
 dy_prior: [-5, 5]
 N_prior: [0, None]
-g1_prior: [0.50, 0.9999]
+g1_prior: [0.0001, 0.9999]
 g2_prior: [-0.9999, -0.0001]
 alpha1_prior: [0.0001, 0.9999]
 

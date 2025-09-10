@@ -286,7 +286,7 @@ class FreeFormDisk:
         '''
         Objective function for the simple disk model fit.
         '''
-        # The parameter a_r is a problem and needs to be regularized
+        # The parameter a_r can be a problem and needs to be regularized
         # print(f"Iteration {self.iteration}: {params}")
         penalty = np.square((params[3] - self.params_init["a_r"]) / (0.5 * self.params_init["a_r"]))
         model = self._render_disk_model(params)
@@ -294,7 +294,7 @@ class FreeFormDisk:
         psf = self.psf
         model_image = fftconvolve(model, psf, mode="same")
 
-        weights = 1. / self.noise_map**2
+        weights = 1. / self.noise_map
         raw_loss = (model_image - self.data)**2 * weights
         mean_huber = np.mean(huber(0.1, raw_loss))
 
@@ -403,13 +403,15 @@ class FreeFormDisk:
         psd_ref_model_win = window_opt + psd_ref_model
         # psd_ref_model_win_hp = window_opt + psd_ref_model_hp
         # ref_model_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
-        psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD.fits")
+        psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Frequencies.fits")
         # psd_ref_model_win_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD_HighPass.fits")
         window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")
+        freq_template_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_Reference_FreqTemplate.fits")
         # save_fits(ref_model_hp_saveto, reference_model_hp_clamped)
         save_fits(psd_ref_model_win_saveto, psd_ref_model)
+        save_fits(freq_template_saveto, psd_ref_model_win)
         # save_fits(psd_ref_model_win_hp_saveto, psd_ref_model_win_hp)
-        save_fits(window_saveto, psd_ref_model_win)
+        save_fits(window_saveto, window_opt)
         return psd_ref_model_win, window_opt
     
 

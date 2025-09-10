@@ -1,8 +1,8 @@
 Freeform disk modeling:
 
-    
+   
   Fine-tune the reference model fitting procedure:
-    ☐ Put the param priors in the config file
+    ✔ Put the param priors in the config file @done(25-09-10 01:36)
     ✔ Make the reference model fit a command line toggle @done(25-09-08 09:18)
     ✔ Make the KLIP reduced image a command line toggle @done(25-09-08 09:18)
     ✘ Make a command line argument for skipping the setup phase @cancelled(25-09-08 12:54)
@@ -16,8 +16,9 @@ Freeform disk modeling:
   i'-band data:
     ☐ Implement a MCMC procedure to obtain a quick reference model from the KLIP image.
     ☐ Perform pyklip grid search for the ADI data made using 10 sec binning (up from 5 sec) @started(25-09-09 08:19)
-    ☐ See if using just the fitted PSD window func is equivalent to using the full ref PSD @started(25-09-09 08:56)
-    ☐ Try using the straight literature model as a reference and fit again
+    ✘ See if using just the fitted PSD window func is equivalent to using the full ref PSD @started(25-09-09 08:56) @cancelled(25-09-09 23:06) @wasted(14h10m40s)
+    ✔ Try using the straight literature model as a reference and fit again @done(25-09-10 01:36)
+    ☐ Redo the reference model creation with the newer fitting procedure and rerun the freeform fit.
   r'-band data:
 
   g'-band data:
@@ -33,9 +34,10 @@ Papers:
     ☐ Update the suite of SNR images that reflect the full size datasets.
   JAX freeform disk modeling:
     ☐ Choose a journal for submission (likely AJ)
-    ☐ Make a figure comparing the Legendre RDI SPFs vs. the freeform RDI SPFs vs. the freeform ADI SPFs @started(25-09-08 15:01)
-    ☐ Make a figure comparing the simple disk model residuals vs. the freeform model residuals
-    ☐ Make a figure showing the result of rotating the reference model and RoI mask and fitting to the ADI background.
+    ✔ Make a figure comparing the Legendre RDI SPFs vs. the freeform RDI SPFs vs. the freeform ADI SPFs @started(25-09-08 15:01) @done(25-09-10 01:36) @lasted(1d10h35m36s)
+    ✔ Make a figure comparing the simple disk model residuals vs. the freeform model residuals @done(25-09-10 01:36)
+    ✘ Make a figure showing the result of rotating the reference model and RoI mask and fitting to the ADI background. @cancelled(25-09-10 01:36)
+    ☐ Make a figure showing the regularized freeform model results vs. unregularized freeform model results
     ☐ Sub/section on state of the art for disk forward modeling + challenges
     ☐ Sub/section on data prepartion, optimal KLIP parameters
     ✔ Create the template for the paper on Overleaf @done(25-09-04 12:33)
