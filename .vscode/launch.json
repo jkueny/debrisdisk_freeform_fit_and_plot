@@ -11,7 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             // "args": "-p initialization_files/HR4796_g_camsci2_20230312_13.yaml --iterations 10"
-            "args": "-p initialization_files/HR4796_RDI_z_20240328_29.yaml --iterations 10"
+            "args": "-p initialization_files/HR4796_i_camsci1_20230309_10.yaml --iterations 10 --new-basis"
+        
         }
     ]
 }

@@ -2051,6 +2051,7 @@ def klip_dataset(dataset, fm_class, mode="ADI+SDI", outputdir=".", fileprefix="p
                     if klipped.shape[2] == 1:
                         import bottleneck   
                         KLmode_cube = bottleneck.nanmedian(klipped, axis=(1))
+                        KLmode_cube = np.squeeze(KLmode_cube, axis=1)
                     else:
                         KLmode_cube = np.nanmedian(klipped, axis=(1,2))
                     # KLmode_cube = np.nanmedian(klipped, axis=(1,2))
