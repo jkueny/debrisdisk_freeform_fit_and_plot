@@ -51,7 +51,7 @@ from jax import lax
 import optax
 from optax.losses import huber_loss
 
-jax.config.update('jax_disable_jit', True)
+# jax.config.update('jax_disable_jit', True)
 # jax.config.update("jax_debug_nans", True)
 
 
