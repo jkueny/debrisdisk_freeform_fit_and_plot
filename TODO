@@ -28,18 +28,20 @@ Papers:
   HR4796 disk modeling:
     ☐ Regenerate the deprojected disk image figure with the centering from the freeform models
     ☐ Reduce the trapezium data to get the 2025 astrometric solution
+    ☐ Apply the astrometric solutions to all the disk images/models
+    ☐ Write an appendix on the astrometric solution
     ☐ Decide whether we want to use the freeform models in lieue of the HG disk models for photometry.
     ☐ Figure out once and for all the issues with RDI photometry.
     ☐ Update the suite of KLIP-ADI images that reflect the full size datasets.
     ☐ Update the suite of SNR images that reflect the full size datasets.
   JAX freeform disk modeling:
-    ☐ Choose a journal for submission (likely AJ)
+    ✔ Choose a journal for submission (likely AJ) @done(25-10-12 22:31)
     ✔ Make a figure comparing the Legendre RDI SPFs vs. the freeform RDI SPFs vs. the freeform ADI SPFs @started(25-09-08 15:01) @done(25-09-10 01:36) @lasted(1d10h35m36s)
     ✔ Make a figure comparing the simple disk model residuals vs. the freeform model residuals @done(25-09-10 01:36)
     ✘ Make a figure showing the result of rotating the reference model and RoI mask and fitting to the ADI background. @cancelled(25-09-10 01:36)
-    ☐ Make a figure showing the regularized freeform model results vs. unregularized freeform model results
-    ☐ Sub/section on state of the art for disk forward modeling + challenges
-    ☐ Sub/section on data prepartion, optimal KLIP parameters
+    ✔ Make a figure showing the regularized freeform model results vs. unregularized freeform model results @done(25-10-12 22:31)
+    ✔ Sub/section on state of the art for disk forward modeling + challenges @done(25-10-12 22:31)
+    ✔ Sub/section on data prepartion, optimal KLIP parameters @done(25-10-12 22:31)
     ✔ Create the template for the paper on Overleaf @done(25-09-04 12:33)
     ✔ Make a flowchart of the freeform disk modeling pipeline @done(25-09-03 13:23)
 

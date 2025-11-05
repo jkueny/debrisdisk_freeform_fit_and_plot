@@ -6,7 +6,7 @@ DISK_MODEL: original # original or modified Max MB model code
 MODE: RDI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 
 # KLIP RDI parameters
-DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
+DO_RDI_CORRELATION: false # Measure the correlation matrix of the RDI PSF lib. Very long.
 CLEAN_FINAL_FM: true # do a final post-KLIP median radial profile subtraction
 OPTIMIZE_REFERENCE: True
 RPROFSUB: True
@@ -45,7 +45,22 @@ BAND_NAME: 2024 Mar 28, $i'$ band #for plot titles uniquely
 WL: 0.762 #wavelength in microns
 FILTER_NAME: $i'$
 PRIM_MIRROR_SZ: 6.5 #meters
+NORTH_UP_OFFSET: 1.56
 
+# MODEL PARAMETER PRIORS [LOWER, UPPER]
+rc_prior: [70, 80]
+alpha_in_prior: [10, 100]
+alpha_out_prior: [-100, -10]
+beta_prior: [10, 30]
+a_r_prior: [0.005, 0.015]
+inc_prior: [75, 80]
+pa_prior: [20, 30]
+dx_prior: [-5, 5]
+dy_prior: [-5, 5]
+N_prior: [0, None]
+g1_prior: [0.0001, 0.9999]
+g2_prior: [-0.9999, -0.0001]
+alpha1_prior: [0.0001, 0.9999]
 
 # INITIAL MODEL PARAMETERS
 r1_init: 76.0 #include just for initializing the mask function
@@ -68,21 +83,20 @@ alpha1_init: 0.3184
 r_inner: 65
 r_outer: 110
 
-
-# MODEL PARAMETER PRIORS [LOWER, UPPER]
-rc_prior: [70, 80]
-alpha_in_prior: [10, 100]
-alpha_out_prior: [-100, -10]
-beta_prior: [10, 30]
-a_r_prior: [0.005, 0.015]
-inc_prior: [75, 80]
-pa_prior: [20, 30]
-dx_prior: [-5, 5]
-dy_prior: [-5, 5]
-N_prior: [0, None]
-g1_prior: [0.0001, 0.9999]
-g2_prior: [-0.9999, -0.0001]
-alpha1_prior: [0.0001, 0.9999]
+# BEST MODEL PARAMETERS
+rc_best: 74.31
+alpha_in_best: 50.
+alpha_out_best: -14.08
+beta_best: 14.8
+a_r_best: 0.01
+inc_best: 76.77
+pa_best: 24.66
+dx_best: -3.16
+dy_best: 1.49
+N_best: 1385.77
+g1_best: 0.8993
+g2_best: -0.1744
+alpha1_best: 0.3184
 
 
 
@@ -102,8 +116,8 @@ MASK_MINOR: 68 #OWA to isolate minor axis
 MASK_DX: 0
 MASK_DY: -3
   # Make a tight mask for the noisemap calculation
-MASK_NOISE_IN: 3
-MASK_NOISE_OUT: 3
+MASK_NOISE_IN: 2.5
+MASK_NOISE_OUT: 2.5
 
 USE_NOISE: true
 NOISE_DELTA_RADII: 1 #width of noisemap rings

@@ -66,6 +66,36 @@ def median_radial_profile(image, center, noise, radial_inds):
 
     return median_profile_image
 
+
+def measure_stddev_image(image, center, radial_inds):
+    """Measure the median radial profile with respect to the image center.
+
+    Args:
+        image (jnp.Array): 2D square image.
+    Returns:
+        stddev_image (jnp.Array): 2D stddev image.
+    """
+
+    max_distance = np.hypot(center[1], center[0])
+
+    radii = jnp.arange(max_distance + 1)
+    
+    def stddev_at_radius(r):
+        mask = radial_inds == r
+        ring_vals = jnp.where(mask, image, jnp.nan)
+        # jax.debug.print("nanmedian ring_vals -> {x}", x=jnp.nanmedian(ring_vals))
+        return jnp.nanstd(ring_vals)
+
+    stddev_profile_1d = jax.vmap(stddev_at_radius)(radii)
+    # jax.debug.print("med prof 1D -> {x}", x=median_profile_1d_no_nan)
+
+    # Cast the profile to a 2D array
+    stddev_profile_image = stddev_profile_1d[radial_inds]
+
+    # jax.debug.print("median_profile_image sum -> {x}", x=jnp.sum(median_profile_image))
+
+    return stddev_profile_image
+
 def subtract_radial_profile(image, center, noise, radial_inds):
 
     median_profile_image = median_radial_profile(image, center, noise, radial_inds)

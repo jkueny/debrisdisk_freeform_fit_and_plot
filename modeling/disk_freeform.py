@@ -570,13 +570,16 @@ class FreeFormDisk:
 
         self.mask2generatedisk = mask2generatedisk
         self.mask4noisemap = mask4noisemap
+        engineered_noise_map = self._engineer_noise_map()
+        fits.writeto(f"{save_mask_part}_engineered_noise_map.fits",
+                     engineered_noise_map, overwrite=True)
 
         fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
                      mask2generatedisk, overwrite=True)
         
         fits.writeto(f"{save_mask_part}_mask4noisemap.fits",
                      mask4noisemap, overwrite=True)
-        return mask2generatedisk
+        return engineered_noise_map, mask2generatedisk
 
     def initialize_diskfm(self, dataset, model_init, psflib=None):
 

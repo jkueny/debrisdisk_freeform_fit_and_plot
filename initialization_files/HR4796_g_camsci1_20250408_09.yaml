@@ -40,7 +40,22 @@ INSTRUMENT: MagAO-X  # SPHERE or GPI
 WL: 0.527 #wavelength in microns
 BAND_NAME: 2025 Apr 09, $g'$ band #for plot titles uniquely
 PRIM_MIRROR_SZ: 6.5 #meters
+NORTH_UP_OFFSET: 2.67 #26.94 - 24.27 (r'band corrected minus g MCMC result)
 
+# MODEL PARAMETER PRIORS [LOWER, UPPER]
+rc_prior: [70, 80]
+alpha_in_prior: [10, 100]
+alpha_out_prior: [-100, -10]
+beta_prior: [10, 30]
+a_r_prior: [0.005, 0.015]
+inc_prior: [75, 80]
+pa_prior: [20, 30]
+dx_prior: [-5, 5]
+dy_prior: [-5, 5]
+N_prior: [0, None]
+g1_prior: [0.50, 0.9999]
+g2_prior: [-0.9999, -0.0001]
+alpha1_prior: [0.0001, 0.9999]
 
 # Disk model parameters
   # INITIAL MODEL PARAMETERS
@@ -64,22 +79,22 @@ g1_init: 0.7960
 g2_init: -0.2027
 alpha1_init: 0.2871
 
+# BEST MODEL PARAMETERS
+rc_best: 77.7
+alpha_in_best: 35.0
+alpha_out_best: -12.4
+beta_best: 14.8
+a_r_best: 0.017
+inc_best: 76.41
+pa_best: 24.27
+dx_best: -1.55
+dy_best: 1.0
+N_best: 2554.23
+g1_best: 0.7960
+g2_best: -0.2027
+alpha1_best: 0.2871
 
 
-# MODEL PARAMETER PRIORS [LOWER, UPPER]
-rc_prior: [70, 80]
-alpha_in_prior: [10, 100]
-alpha_out_prior: [-100, -10]
-beta_prior: [10, 30]
-a_r_prior: [0.005, 0.015]
-inc_prior: [75, 80]
-pa_prior: [20, 30]
-dx_prior: [-5, 5]
-dy_prior: [-5, 5]
-N_prior: [0, None]
-g1_prior: [0.50, 0.9999]
-g2_prior: [-0.9999, -0.0001]
-alpha1_prior: [0.0001, 0.9999]
 
 RPROFSUB: True
 

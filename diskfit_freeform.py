@@ -134,7 +134,7 @@ def asym_weights(res, tau, alpha):
     return alpha + (1.0 - alpha) * 0.5*(1.0 + s)
 
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
-                  aligned_images, PAs, disk_mask_inds, iowa_sec_inds_arr, 
+                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, iowa_sec_inds_arr, 
                   klmodes_stacked, radial_inds, aligned_center,
                   isRDI, do_radial_profile_sub, do_clean_final_fm,
                   total_pixels, reg_lambda, 
@@ -163,6 +163,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
      - aligned_images: dataset of centered images, flattened (N_images, n_pixels)
      - PAs: PARANG header values for each image.
      - disk_mask_inds: indices for the disk ROI, flattened (1, m_pixels)
+     - opt_mask_indices: indices for the optimization ROI, flattened (1, m_pixels)
      - iowa_sec_inds_arr: inner-outer-working angle ROI indices, flattened (1, n_pixels)
      - all_reference_images_selectors: N_images x N_images vectors that are True/1 where a source image is included in the final dataset and false otherwise
      - klmodes_stacked: flattened KL modes array (N_images, num_KL_modes, n_pixels)
@@ -176,7 +177,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     """
     pos_mod_pix_params = jnp.abs(mod_pix_params)
     full_model_image = reconstruct_full_image(pos_mod_pix_params, total_pixels, disk_mask_inds)
-    full_noise_image = reconstruct_full_image(noise_map, total_pixels, disk_mask_inds)
+    full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     # TODO: move the hsf penalty calc. to a separate function
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
     full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
@@ -248,7 +249,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 
 
     # Grab just the disk ROI pixels
-    freeform_fm_interest = freeform_fm_flat[disk_mask_inds]
+    freeform_fm_interest = freeform_fm_flat[opt_mask_inds]
 
 
     residuals = (freeform_fm_interest - disk_image) #/ noise_map
@@ -268,7 +269,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 def optimize_model(
-    target_image, model_init, ref_psd, noise_map, mask_indices, disk_support_mask,
+    target_image, model_init, ref_psd, noise_map, disk_mask_indices, opt_mask_indices,
     psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
     radial_inds, delta,
     aligned_center, do_radial_profile_sub, do_clean_final_fm,
@@ -330,7 +331,7 @@ def optimize_model(
     def step(image_params, opt_state, reg_lambda_here):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image, psf, noise_map, ref_psd,
-            aligned_image_sections, PAs, mask_indices, iowa_sec_inds,
+            aligned_image_sections, PAs, disk_mask_indices, opt_mask_indices, iowa_sec_inds,
             klmodes_sections,
             radial_inds, aligned_center,
             mode, do_radial_profile_sub, do_clean_final_fm,
@@ -369,19 +370,19 @@ def optimize_model(
                     reduced_data,
                     freeform_fm_full,
                     full_model_image,
-                    reconstruct_full_image(updates, total_pixels, mask_indices),
-                    mask_indices
+                    reconstruct_full_image(updates, total_pixels, disk_mask_indices),
+                    opt_mask_indices
                 )
                 plot_idx += 1
     
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
-    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), mask_indices)
+    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
 
     optimized_model = jnp.abs(image_params)
     return optimized_model, loss_history, weights_asym, weights_nominal
 
-def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices,
-                            disk_mask,aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
+def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices, opt_mask_indices,
+                            disk_mask, optimization_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
                             noise_interest, weights_asym, weights_nominal):
     outputs_dict = {}
     # optimized_model = np.asarray(reconstruct_full_image(optimized_model, total_pixels, mask2generate_indices))
@@ -394,15 +395,15 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
 
     noise_reconstructed = reconstruct_full_image(jnp.array(noise_interest),
                                                  total_pixels,
-                                                 disk_mask_indices,
+                                                 opt_mask_indices,
                                                 )
     w_reconstructed = reconstruct_full_image(jnp.array(weights_nominal),
                                              total_pixels,
-                                             disk_mask_indices,
+                                             opt_mask_indices,
                                             )
     asymw_reconstructed = reconstruct_full_image(jnp.array(weights_asym),
                                                  total_pixels,
-                                                 disk_mask_indices,
+                                                 opt_mask_indices,
                                                 )
     if bool(do_radial_profile_sub):
         opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
@@ -439,7 +440,7 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
 
     print("Calculating residuals between reduced data and optimized forward model...")
     residuals = np.asarray(reduced_data - optimized_fm_rprofsub)
-    residuals_roi = residuals * disk_mask
+    residuals_roi = residuals * optimization_mask
     residuals_roi[residuals_roi == 0.] = np.nan
     residuals_roi = residuals_roi / noise_reconstructed
 
@@ -475,7 +476,7 @@ def main(config,
     file_prefix = ffd_obj.file_prefix # Ex. camsci1_i_20230309_10
     aligned_center = ffd_obj.aligned_center
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
-    mask2generatedisk = ffd_obj.prep_binary_masks()
+    mask4noisemap, mask2generatedisk = ffd_obj.prep_binary_masks()
 
 
     # load PSF
@@ -547,20 +548,23 @@ def main(config,
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
     total_pixels = np.prod(reduced_data.shape)
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
+    optimization_mask = np.array(mask4noisemap)
     annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
     disk_mask *= annular_mask
+    optimization_mask *= annular_mask
     disk_mask[disk_mask != disk_mask] = 0.
     disk_mask_indices = jnp.flatnonzero(disk_mask)
     disk_support_mask = disk_mask.copy()
+    optimization_mask_indices = jnp.flatnonzero(optimization_mask)
 
     reduced_data_flat = reduced_data.flatten()
-    reduced_flat_interest = reduced_data_flat[disk_mask_indices]
+    reduced_flat_interest = reduced_data_flat[optimization_mask_indices]
     model_firstguess *= disk_mask
     init_model = jnp.array(model_firstguess)
     init_model_flat = init_model.reshape(init_model.shape[0] * init_model.shape[1])
     init_model_interest = init_model_flat[disk_mask_indices]
 
-    noise_interest = noise_map_flat[disk_mask_indices]
+    noise_interest = noise_map_flat[optimization_mask_indices]
     run_dir = get_next_run_dir(resultsdir)
 
     aligned_center = float(fm_dict["klparam_dict"]["aligned_center_x"]), float(fm_dict["klparam_dict"]["aligned_center_y"])
@@ -577,8 +581,8 @@ def main(config,
                                                    model_init=init_model_interest, ref_psd=reference_model_psd,
                                                    noise_map=noise_interest,
                                                 #    mask_indices=mask2generate_indices,
-                                                   mask_indices=disk_mask_indices,
-                                                   disk_support_mask=disk_support_mask,
+                                                   disk_mask_indices=disk_mask_indices,
+                                                   opt_mask_indices=optimization_mask_indices,
                                                    psf=jax_psf, basis_data=fm_dict,
                                                    total_pixels=total_pixels,
                                                    num_steps=num_iterations,
@@ -611,7 +615,7 @@ def main(config,
                                             )
     
     outputs_dict = harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices,
-                            disk_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
+                            optimization_mask_indices, disk_mask, optimization_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
                             noise_interest, weights_asym, weights_nominal)
 
     save_ffdfit_outputs(run_dir=run_dir,

@@ -48,29 +48,7 @@ PIXSCALE_INS: 0.012  #picscale of your data
 WL: 0.908 #wavelength in microns
 FILTER_NAME: $i'$
 PRIM_MIRROR_SZ: 6.5 #meters
-
-
-# INITIAL MODEL PARAMETERS
-# Disk model parameters
-r1_init: 76.0 #include just for initializing the mask function
-r2_init: 88.00 #include just for initializing the mask function
-rc_init: 74.31 #35.5 #trying 39. for the masks
-alpha_in_init: 50.
-alpha_out_init: -14.08
-beta_init: 14.8
-a_r_init: 0.01
-inc_init: 76.77
-pa_init: 26.94
-dx_init: -3.16
-dy_init: 1.49
-N_init: 1385.77
-r_inner: 65
-r_outer: 110
-g1_init: 0.8993
-g2_init: -0.1744
-alpha1_init: 0.3184  
-r_inner: 65
-r_outer: 110
+NORTH_UP_OFFSET: 1.53
 
 # MODEL PARAMETER PRIORS [LOWER, UPPER]
 rc_prior: [70, 80]
@@ -86,6 +64,44 @@ N_prior: [0, None]
 g1_prior: [0.50, 0.9999]
 g2_prior: [-0.9999, -0.0001]
 alpha1_prior: [0.0001, 0.9999]
+
+# INITIAL MODEL PARAMETERS
+# Disk model parameters
+r1_init: 76.0 #include just for initializing the mask function
+r2_init: 88.00 #include just for initializing the mask function
+rc_init: 74.31 #35.5 #trying 39. for the masks
+alpha_in_init: 50.
+alpha_out_init: -14.08
+beta_init: 14.8
+a_r_init: 0.01
+inc_init: 76.77
+pa_init: 25.0
+dx_init: -3.16
+dy_init: 1.49
+N_init: 1385.77
+r_inner: 65
+r_outer: 110
+g1_init: 0.8993
+g2_init: -0.1744
+alpha1_init: 0.3184  
+r_inner: 65
+r_outer: 110
+
+# BEST MODEL PARAMETERS
+rc_best: 74.31
+alpha_in_best: 50.
+alpha_out_best: -14.08
+beta_best: 14.8
+a_r_best: 0.01
+inc_best: 76.77
+pa_best: 26.94
+dx_best: -3.16
+dy_best: 1.49
+N_best: 1385.77
+g1_best: 0.8993
+g2_best: -0.1744
+alpha1_best: 0.3184
+
 
 RPROFSUB: True
 
