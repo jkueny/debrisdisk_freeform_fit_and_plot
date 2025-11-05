@@ -121,8 +121,8 @@ MASK_IN_SCALING: 4 #bigger means shrink inner bound
 MASK_OUT_SCALING: 6 #bigger means expand outer bound
 MASK_SPECKLES: 10 #central circle mask
 # Make a tight mask for the noisemap calculation
-MASK_NOISE_IN: 0.5
-MASK_NOISE_OUT: 0.5
+MASK_NOISE_IN: 2
+MASK_NOISE_OUT: 0.1
 MASK_MINOR: 81 #OWA to isolate minor axis
 MASK_DX: 0
 MASK_DY: -3.6
