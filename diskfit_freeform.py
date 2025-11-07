@@ -476,13 +476,14 @@ def main(config,
     file_prefix = ffd_obj.file_prefix # Ex. camsci1_i_20230309_10
     aligned_center = ffd_obj.aligned_center
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
-    mask4noisemap, mask2generatedisk = ffd_obj.prep_binary_masks()
 
 
     # load PSF
     psf = ffd_obj.psf #psf gets normalized in the class
     jax_psf = jnp.array(psf)
     # Get the initial model
+    ffd_obj.allocate_dataset()
+    optimization_mask = ffd_obj.prep_binary_masks()
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
     if ffd_obj.params_file["FIRST_TIME"] or bool(new_basis):
@@ -500,6 +501,8 @@ def main(config,
             sys.exit(0)
     # Read in the basis data
     fm_dict = load_kl_basis(basis_path)
+    mask4noisemap = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits"))
+    mask2generatedisk = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits"))
     # fm_dict contains 
     # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
     # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
@@ -548,14 +551,14 @@ def main(config,
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
     total_pixels = np.prod(reduced_data.shape)
     disk_mask = np.array(mask2generatedisk)  # convert to JAX array if needed
-    optimization_mask = np.array(mask4noisemap)
+    optimization_mask = np.array(optimization_mask)
     annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
     disk_mask *= annular_mask
-    optimization_mask *= annular_mask
-    disk_mask[disk_mask != disk_mask] = 0.
-    disk_mask_indices = jnp.flatnonzero(disk_mask)
+    # optimization_mask *= annular_mask
+    # disk_mask[disk_mask != disk_mask] = 0.
+    disk_mask_indices = jnp.flatnonzero(jnp.array(disk_mask))
     disk_support_mask = disk_mask.copy()
-    optimization_mask_indices = jnp.flatnonzero(optimization_mask)
+    optimization_mask_indices = jnp.flatnonzero(jnp.array(optimization_mask))
 
     reduced_data_flat = reduced_data.flatten()
     reduced_flat_interest = reduced_data_flat[optimization_mask_indices]

@@ -142,12 +142,13 @@ class FreeFormDisk:
         self.clean_final_fm = self.params_file["CLEAN_FINAL_FM"]
 
     
-    def _engineer_noise_map(self):
-        delta_parang = 20
-        sweep_angle = np.arange(-delta_parang, delta_parang + 1, 1)
-        combined_masks = np.zeros_like(self.mask4noisemap)
+    def _engineer_disk_mask(self, mask2engineer):
+        # self.par_angs should already be sorted, first element is negative
+        delta_parang = (np.max(self.par_angs) - np.min(self.par_angs)) / 4.
+        sweep_angle = np.arange(-delta_parang, delta_parang, 1)
+        combined_masks = np.zeros_like(mask2engineer)
         for angle in sweep_angle:
-            disk_mask = rotate(self.mask4noisemap, angle, reshape=False)
+            disk_mask = rotate(mask2engineer, angle, reshape=False)
             combined_masks += disk_mask
         combined_masks[combined_masks > 0.5] = 1
         combined_masks[combined_masks < 0.5] = 0
@@ -431,23 +432,27 @@ class FreeFormDisk:
         model_init *= self.mask2generatedisk
 
         return model_init
-    
-    def prep_dataset(self):
-        
+
+    def allocate_dataset(self):
         filelist = sorted(glob.glob(f'{self.datadir}/camsci*.fits'),
                           key=parang_sort)
         if len(filelist) == 0:
             raise ValueError(f"Could not find files in the dir: {self.datadir}")
         input_data, par_angs  = diskprep_image_frames_parangs(filelist)
+        self.filelist = filelist
         self.par_angs = par_angs
+        self.input_data = input_data
         self.frame_shape = input_data[0].shape
-        input_centers = np.array([self.aligned_center for _ in range(len(filelist))])
+    
+    def prep_dataset(self):
+        
+        input_centers = np.array([self.aligned_center for _ in range(len(self.filelist))])
         # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
         IWA = self.iwa
-        dataset = GenericData(input_data,
+        dataset = GenericData(self.input_data,
                              input_centers,
                              parangs=self.par_angs,
-                             IWA=IWA,filenames=filelist)
+                             IWA=IWA,filenames=self.filelist)
 
         dataset.OWA = self.params_file["OWA"]
         if dataset.input.shape[1] != dataset.input.shape[2]:
@@ -570,16 +575,10 @@ class FreeFormDisk:
 
         self.mask2generatedisk = mask2generatedisk
         self.mask4noisemap = mask4noisemap
-        engineered_noise_map = self._engineer_noise_map()
-        fits.writeto(f"{save_mask_part}_engineered_noise_map.fits",
-                     engineered_noise_map, overwrite=True)
-
-        fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
-                     mask2generatedisk, overwrite=True)
-        
-        fits.writeto(f"{save_mask_part}_mask4noisemap.fits",
-                     mask4noisemap, overwrite=True)
-        return engineered_noise_map, mask2generatedisk
+        engineered_optimization_map = self._engineer_disk_mask(mask2generatedisk)
+        fits.writeto(f"{save_mask_part}_engineered_optimization_map.fits",
+                     engineered_optimization_map, overwrite=True)
+        return engineered_optimization_map
 
     def initialize_diskfm(self, dataset, model_init, psflib=None):
 
