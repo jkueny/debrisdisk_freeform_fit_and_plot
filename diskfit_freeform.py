@@ -515,7 +515,7 @@ def main(config,
 
     if ffd_obj.params_file["USE_NOISE"]:
         noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
-        noise_map += 1e-2 #get rid of any zeros
+        noise_map += 1. #get rid of any zeros
         noise_map_flat = noise_map.flatten()
         noise_map_flat[noise_map_flat != noise_map_flat] = 1.
     else:
