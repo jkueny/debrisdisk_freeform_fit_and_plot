@@ -154,6 +154,7 @@ def save_ffdfit_outputs(run_dir: Path,
                         median_profile_image: np.ndarray,
                         loss_history: list,
                         hsf_regularization: float,
+                        huber_delta: float,
                         optimizer_name: str = "Optax Adam",
                         pyklip_params: dict = None,
                         weights_asym: np.ndarray = None,
@@ -169,6 +170,7 @@ def save_ffdfit_outputs(run_dir: Path,
         residuals_image (np.ndarray): KLIP data minus optimized FM.
         loss_history (list): loss vs. n_iterations.
         hsf_regularization (float): Chosen reg_lambda value for run.
+        huber_delta (float): Chosen huber delta value for run.
         optimizer_name (str, optional): Chosen optimizer. Defaults to "Optax Adam".
         pyklip_params (dict, optional): Chosen pyklip parameters for target image.
 
@@ -193,6 +195,7 @@ def save_ffdfit_outputs(run_dir: Path,
         "timestamp_utc": str(datetime.now()),
         "loss": float(loss_history[-1]),
         "lambda_reg": float(hsf_regularization),
+        "huber_delta": float(huber_delta),
         "optimizer": optimizer_name,
         "pyklip_params": pyklip_params or "unknown",
         # "param_file": "bestfit_params.json",

@@ -631,6 +631,7 @@ def main(config,
                         median_profile_image=outputs_dict["median_profile_image"],
                         loss_history=loss_history,
                         hsf_regularization=reg_lambda,
+                        huber_delta=delta,
                         pyklip_params=pyklip_params_dict,
                         weights_asym=outputs_dict["weights_asym"],
                         weights_nominal=outputs_dict["weights_nominal"]
