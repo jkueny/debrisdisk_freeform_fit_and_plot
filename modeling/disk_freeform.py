@@ -21,6 +21,7 @@ from datetime import datetime
 from utils.io.yaml_handling import read_config
 from utils.io.fits_handling import save_fits
 from utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
+from utils.masks import make_annular_mask
 from utils.improc_tools import fft_power_spectrum, subtract_median_profile_np
 from dev.pyklip.klip import high_pass_filter
 from dev.pyklip.instruments.Instrument import GenericData
@@ -564,12 +565,13 @@ class FreeFormDisk:
 
         ### a few lines to create a circular central mask to hide center regions with a lot
         ### of speckles. Currently not using it but it's there
-        mask_speckle_region = np.ones(image_size)
-        x = np.arange(image_size[0], dtype=float)[None,:] - aligned_center[0]
-        y = np.arange(image_size[1], dtype=float)[:,None] - aligned_center[1]
-        rho2d = np.sqrt(x**2 + y**2)
-        mask_speckle_region[np.where(rho2d < mask_speckles)] = 0.
-        mask2generatedisk = mask2generatedisk*mask_speckle_region
+        mask_out_of_bounds = make_annular_mask(image_size, mask_speckles, self.owa)
+        # x = np.arange(image_size[0], dtype=float)[None,:] - aligned_center[0]
+        # y = np.arange(image_size[1], dtype=float)[:,None] - aligned_center[1]
+        # rho2d = np.sqrt(x**2 + y**2)
+        # out_of_bounds = rho2d < self.owa | rho2d > mask_speckles
+        # mask_out_of_bounds[np.where(out_of_bounds)] = 0.
+        mask2generatedisk = mask2generatedisk*(mask_out_of_bounds)
         mask2generatedisk[np.where(mask2generatedisk < 0.5)] = 0
         mask2generatedisk[np.where(mask2generatedisk > 0.5)] = 1
 
@@ -578,6 +580,10 @@ class FreeFormDisk:
         engineered_optimization_map = self._engineer_disk_mask(mask2generatedisk)
         fits.writeto(f"{save_mask_part}_engineered_optimization_map.fits",
                      engineered_optimization_map, overwrite=True)
+        fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
+                     mask2generatedisk, overwrite=True)
+        fits.writeto(f"{save_mask_part}_mask_out_of_bounds.fits",
+                     mask_out_of_bounds, overwrite=True)
         return engineered_optimization_map
 
     def initialize_diskfm(self, dataset, model_init, psflib=None):
@@ -638,7 +644,7 @@ class FreeFormDisk:
                                                     self.aligned_center)
             save_fits(path_rd, reduced_data)
 
-        bespoke_noise_mask = self._engineer_noise_map()
+        bespoke_noise_mask = self._engineer_disk_mask(self.mask2generatedisk)
         if self.mode == "ADI":
             reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
             tosave_reduced_noise_masked = reduced_data * bespoke_noise_mask
