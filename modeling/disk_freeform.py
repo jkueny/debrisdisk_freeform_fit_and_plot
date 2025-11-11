@@ -143,9 +143,9 @@ class FreeFormDisk:
         self.clean_final_fm = self.params_file["CLEAN_FINAL_FM"]
 
     
-    def _engineer_disk_mask(self, mask2engineer):
+    def _engineer_disk_mask(self, mask2engineer, angle_sweep_factor):
         # self.par_angs should already be sorted, first element is negative
-        delta_parang = (np.max(self.par_angs) - np.min(self.par_angs)) / 4.
+        delta_parang = (np.max(self.par_angs) - np.min(self.par_angs)) / angle_sweep_factor
         sweep_angle = np.arange(-delta_parang, delta_parang, 1)
         combined_masks = np.zeros_like(mask2engineer)
         for angle in sweep_angle:
@@ -577,7 +577,7 @@ class FreeFormDisk:
 
         self.mask2generatedisk = mask2generatedisk
         self.mask4noisemap = mask4noisemap
-        engineered_optimization_map = self._engineer_disk_mask(mask2generatedisk)
+        engineered_optimization_map = self._engineer_disk_mask(mask4noisemap, angle_sweep_factor=8)
         fits.writeto(f"{save_mask_part}_engineered_optimization_map.fits",
                      engineered_optimization_map, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
@@ -644,7 +644,7 @@ class FreeFormDisk:
                                                     self.aligned_center)
             save_fits(path_rd, reduced_data)
 
-        bespoke_noise_mask = self._engineer_disk_mask(self.mask2generatedisk)
+        bespoke_noise_mask = self._engineer_disk_mask(self.mask4noisemap, angle_sweep_factor=4)
         if self.mode == "ADI":
             reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
             tosave_reduced_noise_masked = reduced_data * bespoke_noise_mask
