@@ -1,0 +1,8 @@
+#+title: Speckle Stats
+#+author: Jay Kueny
+* Soummer et al. (2007) "Speckle Noise and Dynamic Range in Coronagraphic Images" :noise:
+
+- Speckles follow a *modified Rician* distribution.
+- Coronagraph modifies the noise distribution towards an exponential
+  - For a perfect coronagraph
+  - Also valid for far away from the star (outside dark hole)
