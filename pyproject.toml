@@ -1,0 +1,55 @@
+[build-system]
+requires = ["uv_build >= 0.9.21, <0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "ffortissimo"
+version = "0.1.0"
+description = "FFortissiMo - Pixel-based Freeform Forward Modeling of extended objects."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "Jay Kueny", email = "jkueny@arizona.edu" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "numpy==1.26.4",
+    "jax>=0.4.0",
+    "jaxlib>=0.4.0",
+    "optax>=0.1.0",
+    "astropy>=5.0.0",
+    "scipy>=1.7.0",
+    "matplotlib>=3.5.0",
+    "pyyaml>=6.0",
+    "emcee>=3.1.0",
+    "numba>=0.56.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "ipython>=8.0.0",
+    "jupyter>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.dat", "*.flx", "*.ini", "*.txt"]
