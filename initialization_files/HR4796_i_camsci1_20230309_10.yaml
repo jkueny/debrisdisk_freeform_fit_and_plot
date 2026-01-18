@@ -98,9 +98,9 @@ pa_best: 26.94
 dx_best: -3.16
 dy_best: 1.49
 N_best: 1385.77
-g1_best: 0.8993
-g2_best: -0.1744
-alpha1_best: 0.3184
+g1_best: 0.9045
+g2_best: -0.1452
+alpha1_best: 0.3651
 
 
 RPROFSUB: True

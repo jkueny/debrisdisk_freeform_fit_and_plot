@@ -96,13 +96,13 @@ alpha_out_best: -14.08
 beta_best: 14.8
 a_r_best: 0.01
 inc_best: 76.77
-pa_best: 26.94
+pa_best: 25.18
 dx_best: -3.16
 dy_best: 1.49
 N_best: 1385.77
-g1_best: 0.8993
-g2_best: -0.1744
-alpha1_best: 0.3184
+g1_best: 0.9565
+g2_best: -0.1427
+alpha1_best: 0.5234
 
 
 RPROFSUB: True
