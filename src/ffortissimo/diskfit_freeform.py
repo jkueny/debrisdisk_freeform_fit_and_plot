@@ -27,21 +27,21 @@ magma_g.set_bad('0.5')
 viridis_g = cm.viridis.copy()
 viridis_g.set_bad('0.5')
 
-from modeling.disk_freeform import FreeFormDisk
-from utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
+from ffortissimo.modeling.disk_freeform import FreeFormDisk
+from ffortissimo.utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
 
-from dev.pyklip.fmlib.funcs_JDFM import (
+from ffortissimo.dev.pyklip.fmlib.funcs_JDFM import (
     update_disk, fm_from_eigen_adi, fm_from_eigen_rdi, derotate_and_average
 )
 
-from utils.klip_basis import load_kl_basis, unpack_basis_data
-from utils.regularization import penalize_residual_disk
-from utils.masks import make_annular_mask
+from ffortissimo.utils.klip_basis import load_kl_basis, unpack_basis_data
+from ffortissimo.utils.regularization import penalize_residual_disk
+from ffortissimo.utils.masks import make_annular_mask
 
-from utils.improc_tools import reconstruct_full_image, fft_power_spectrum, subtract_radial_profile, \
-    get_radial_inds, high_pass_filter
+from ffortissimo.utils.improc_tools import reconstruct_full_image, fft_power_spectrum, \
+    subtract_radial_profile, get_radial_inds, high_pass_filter
 
-from utils.diskfit_tools import convolve_model, record_pyklip_params, \
+from ffortissimo.utils.diskfit_tools import convolve_model, record_pyklip_params, \
     penalize_spatial_freq
 
 import jax

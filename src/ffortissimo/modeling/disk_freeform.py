@@ -15,22 +15,22 @@ from astropy.io import fits
 import numpy as np
 from scipy.signal import convolve2d
 from scipy.ndimage import rotate
-from utils.regularization import fit_elgauss_window 
+from ffortissimo.utils.regularization import fit_elgauss_window 
 from datetime import datetime
 
-from utils.io.yaml_handling import read_config
-from utils.io.fits_handling import save_fits
-from utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
-from utils.masks import make_annular_mask
-from utils.improc_tools import fft_power_spectrum, subtract_median_profile_np
-from dev.pyklip.klip import high_pass_filter
-from dev.pyklip.instruments.Instrument import GenericData
-from dev.pyklip.rdi import PSFLibrary
-from dev.pyklip.fmlib.diskfm import DiskFM
-import dev.pyklip.fm as fm
-from utils.make_gpi_psf_for_disks import make_disk_mask
-import utils.astro_unit_conversion as convert
-from modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
+from ffortissimo.utils.io.yaml_handling import read_config
+from ffortissimo.utils.io.fits_handling import save_fits
+from ffortissimo.utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
+from ffortissimo.utils.masks import make_annular_mask
+from ffortissimo.utils.improc_tools import fft_power_spectrum, subtract_median_profile_np
+from ffortissimo.dev.pyklip.klip import high_pass_filter
+from ffortissimo.dev.pyklip.instruments.Instrument import GenericData
+from ffortissimo.dev.pyklip.rdi import PSFLibrary
+from ffortissimo.dev.pyklip.fmlib.diskfm import DiskFM
+import ffortissimo.dev.pyklip.fm as fm
+from ffortissimo.utils.make_gpi_psf_for_disks import make_disk_mask
+import ffortissimo.utils.astro_unit_conversion as convert
+from ffortissimo.modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 from scipy.signal import fftconvolve
 from scipy.special import huber
 from scipy.optimize import minimize
@@ -586,38 +586,45 @@ class FreeFormDisk:
                      mask_out_of_bounds, overwrite=True)
         return engineered_optimization_map
 
-    def initialize_diskfm(self, dataset, model_init, psflib=None):
-
-        model_convolved = convolve2d(model_init, self.psf, mode="same")
-        model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
-        model_convolved_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel_Conv.fits")
-        save_fits(model_init_saveto, model_init)
-        save_fits(model_convolved_saveto, model_convolved)
-
-
+    def run_klip_reduction(self, dataset, model_init=None, psflib=None):
+        """
+        Run KLIP data reduction and save the basis file and reduced image.
+        
+        This method handles only the KLIP reduction process:
+        - Creates DiskFM object and saves KL basis
+        - Runs KLIP reduction via fm.klip_dataset()
+        - Loads and optionally cleans the reduced data
+        - Saves the reduced data to disk
+        
+        Args:
+            dataset: GenericData object containing the input images
+            model_init: Initial disk model image (2D array, optional). If None, 
+                       runs pure KLIP reduction without forward modeling.
+            psflib: PSF library for RDI mode (optional)
+            
+        Returns:
+            reduced_data: The KLIP-reduced image (2D array)
+        """
+        # Create DiskFM object for forward modeling (or pure KLIP if no model)
+        if model_init is not None:
+            model_disk = np.asarray(model_init)
+        else:
+            model_disk = None
+        
         diskobj = DiskFM(dataset.input.shape,
                         self.numbasis,
                         dataset,
-                        model_disk=np.asarray(model_init),
+                        model_disk=model_disk,
                         basis_filename=os.path.join(
                             self.klipdir, self.file_prefix + '_klbasis.h5'),
                         save_basis=True,
                         aligned_center=self.aligned_center)
-        # nofm_obj = BasisOnly(dataset.input.shape,
-        #                 np.atleast_1d([self.numbasis]),
-        #                 # dataset,
-        #                 # model_wdh_list=np.asarray(first_models),
-        #                 # model_pas_mask=model_pas_mask,
-        #                 basis_filename=os.path.join(
-        #                     self.klipdir, self.file_prefix + '_klbasis.h5'),
-        #                 save_basis=True,
-        #                 # aligned_center=self.aligned_center,
-        #                 )
+        
+        # Run KLIP reduction
         maxnumbasis = dataset.input.shape[0]
         time_start = datetime.now()
         fm.klip_dataset(dataset,
                         fm_class=diskobj,
-                        # fm_class=nofm_obj,
                         numbasis=self.numbasis,
                         maxnumbasis=maxnumbasis,
                         annuli=self.annuli,
@@ -626,23 +633,50 @@ class FreeFormDisk:
                         outputdir=self.klipdir,
                         fileprefix=self.file_prefix,
                         aligned_center=self.aligned_center,
-                        # mute_progression=True,
                         highpass=self.hp,
                         minrot=self.move_here,
                         calibrate_flux=False,
-                        # numthreads=mp.cpu_count(), #default: use all
                         time_collapse='median',
                         psf_library=psflib)
         
         print(f"klip_dataset() took {datetime.now() - time_start}.")
 
+        # Load the reduced data
         path_rd = os.path.join(self.klipdir, f"{self.file_prefix}-klipped-KLmodes-all.fits")
         reduced_data = fits.getdata(path_rd)
 
+        # Optionally clean the reduced data with median profile subtraction
         if self.clean_final_fm:
             reduced_data, _ = subtract_median_profile_np(reduced_data,
                                                     self.aligned_center)
             save_fits(path_rd, reduced_data)
+        
+        return reduced_data
+
+    def initialize_diskfm(self, dataset, model_init, psflib=None):
+        """
+        Initialize disk forward modeling: run KLIP reduction and perform model operations.
+        
+        This method:
+        1. Saves initial model files
+        2. Runs KLIP reduction (via run_klip_reduction)
+        3. Creates noise maps and masked data files
+        4. Performs forward modeling of the initial model
+        
+        Args:
+            dataset: GenericData object containing the input images
+            model_init: Initial disk model image (2D array)
+            psflib: PSF library for RDI mode (optional)
+        """
+        # Save initial model files
+        model_convolved = convolve2d(model_init, self.psf, mode="same")
+        model_init_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
+        model_convolved_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel_Conv.fits")
+        save_fits(model_init_saveto, model_init)
+        save_fits(model_convolved_saveto, model_convolved)
+
+        # Run KLIP reduction (this saves the basis and reduced image)
+        reduced_data = self.run_klip_reduction(dataset, model_init, psflib)
 
         bespoke_noise_mask = self._engineer_disk_mask(self.mask4noisemap, angle_sweep_factor=4)
         if self.mode == "ADI":
@@ -676,6 +710,7 @@ class FreeFormDisk:
         save_fits(model_fm_saveto, model_fm_init)
 
         sys.stdout = sys.__stdout__
+    
 
     def single_fm(self, model_image):
         # Refresh the windFM object

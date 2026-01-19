@@ -13,9 +13,9 @@ import h5py
 import numpy as np
 import scipy.ndimage as ndimage
 
-from dev.pyklip.fmlib.nofm import NoFM
-import dev.pyklip.fm as fm
-from dev.pyklip.klip import rotate, rotate_image
+from ffortissimo.dev.pyklip.fmlib.nofm import NoFM
+import ffortissimo.dev.pyklip.fm as fm
+from ffortissimo.dev.pyklip.klip import rotate, rotate_image
 
 # import matplotlib.pyplot as plt
 # define the global variables for that code
@@ -71,7 +71,7 @@ class DiskFM(NoFM):
                  inputs_shape,
                  numbasis,
                  dataset,
-                 model_disk,
+                 model_disk=None,
                  basis_filename="",
                  kl_basis_file=None,
                  load_from_basis=False,
@@ -214,8 +214,15 @@ class DiskFM(NoFM):
             # define the center
             self.aligned_center = aligned_center
 
-        # Prepare the first disk for FM
-        self.update_disk(model_disk)
+        # Prepare the first disk for FM (only if model is provided)
+        if model_disk is not None:
+            self.has_model = True
+            self.update_disk(model_disk)
+        else:
+            self.has_model = False
+            # Initialize model_disks to None to indicate no forward modeling
+            self.model_disks = None
+            self.model_disk = None
 
     def update_disk(self, model_disk, wind_PAs=None):
         """
@@ -377,6 +384,7 @@ class DiskFM(NoFM):
             print(err_string)
             raise Exception(err_string)
 
+        # Get aligned images for basis saving (needed regardless of model)
         if self.load_from_basis == False:
             sci = aligned_imgs[input_img_num, section_ind[0]]
             refs = aligned_imgs[ref_psfs_indicies, :]
@@ -390,70 +398,72 @@ class DiskFM(NoFM):
             # Mbytes (per cpu) by not saving them
             # and just passing them to the nex function
 
-        # use the disk model stored
-        model_sci = self.model_disks[input_img_num, section_ind[0]]
-        # model_sci[np.where(np.isnan(model_sci))] = 0
-        model_sci[model_sci != model_sci] = 0
-        model_ref = self.model_disks[ref_psfs_indicies, :]
-        model_ref = model_ref[:, section_ind[0]]
-        # model_ref[np.where(np.isnan(model_ref))] = 0
-        model_ref[model_ref != model_ref] = 0
-        if mode == 'RDI':
-            #if only RDI we skip the deltaKL calculation since we do only over-subctraction
-            delta_KL = klmodes * 0.
-        else:
-            # using original Kl modes and reference models, compute the perturbed KL modes
-            # (spectra is already in models)
-            if self.load_from_basis == False:
-                delta_KL = fm.perturb_specIncluded(
-                    evals,
-                    evecs,
-                    klmodes,
-                    refs,
-                    model_ref,
-                    # return_perturb_covar=False,
-                )
+        # Only perform forward modeling if a model was provided
+        if self.has_model:
+            # use the disk model stored
+            model_sci = self.model_disks[input_img_num, section_ind[0]]
+            # model_sci[np.where(np.isnan(model_sci))] = 0
+            model_sci[model_sci != model_sci] = 0
+            model_ref = self.model_disks[ref_psfs_indicies, :]
+            model_ref = model_ref[:, section_ind[0]]
+            # model_ref[np.where(np.isnan(model_ref))] = 0
+            model_ref[model_ref != model_ref] = 0
+            if mode == 'RDI':
+                #if only RDI we skip the deltaKL calculation since we do only over-subctraction
+                delta_KL = klmodes * 0.
             else:
-                # in the case of load_from_basis, the images are already saved in the
-                # DiskFM object, we can save a few tens of Mbytes (per cpu) by not 
-                # saving them and just passing them to the nex function
-                delta_KL = fm.perturb_specIncluded(
-                    evals,
-                    evecs,
-                    klmodes,
-                    self.aligned_images_dict[wlstrkey][ref_psfs_indicies, :]
-                    [:, section_ind[0]],
-                    model_ref,
-                    # return_perturb_covar=False,
-                )
+                # using original Kl modes and reference models, compute the perturbed KL modes
+                # (spectra is already in models)
+                if self.load_from_basis == False:
+                    delta_KL = fm.perturb_specIncluded(
+                        evals,
+                        evecs,
+                        klmodes,
+                        refs,
+                        model_ref,
+                        # return_perturb_covar=False,
+                    )
+                else:
+                    # in the case of load_from_basis, the images are already saved in the
+                    # DiskFM object, we can save a few tens of Mbytes (per cpu) by not 
+                    # saving them and just passing them to the nex function
+                    delta_KL = fm.perturb_specIncluded(
+                        evals,
+                        evecs,
+                        klmodes,
+                        self.aligned_images_dict[wlstrkey][ref_psfs_indicies, :]
+                        [:, section_ind[0]],
+                        model_ref,
+                        # return_perturb_covar=False,
+                    )
 
-        # calculate postklip_psf using delta_KL
-        postklip_psf, _, _ = fm.calculate_fm(delta_KL,
-                                             klmodes,
-                                             numbasis,
-                                             sci,
-                                             model_sci,
-                                             inputflux=None)
+            # calculate postklip_psf using delta_KL
+            postklip_psf, _, _ = fm.calculate_fm(delta_KL,
+                                                 klmodes,
+                                                 numbasis,
+                                                 sci,
+                                                 model_sci,
+                                                 inputflux=None)
 
-        # write forward modelled disk to fmout (as output)
-        # need to derotate the image in this step
+            # write forward modelled disk to fmout (as output)
+            # need to derotate the image in this step
 
-        for thisnumbasisindex in range(np.size(numbasis)):
-            fm._save_rotated_section(input_img_shape,
-                                     postklip_psf[thisnumbasisindex],
-                                     section_ind,
-                                     fmout[input_img_num, :, :,
-                                           thisnumbasisindex],
-                                     None,
-                                     parang,
-                                     radstart,
-                                     radend,
-                                     phistart,
-                                     phiend,
-                                     padding,
-                                     IOWA,
-                                     ref_center,
-                                     flipx=flipx)
+            for thisnumbasisindex in range(np.size(numbasis)):
+                fm._save_rotated_section(input_img_shape,
+                                         postklip_psf[thisnumbasisindex],
+                                         section_ind,
+                                         fmout[input_img_num, :, :,
+                                               thisnumbasisindex],
+                                         None,
+                                         parang,
+                                         radstart,
+                                         radend,
+                                         phistart,
+                                         phiend,
+                                         padding,
+                                         IOWA,
+                                         ref_center,
+                                         flipx=flipx)
 
         # We save the KL basis and params for this image and section in a dictionnaries
         if self.save_basis is True:
@@ -648,21 +658,21 @@ class DiskFM(NoFM):
             # transform mp dicts to normal dicts
             pkl_file = open(self.basis_filename, "wb")
 
-            pickle.dump(dict(aligned_images_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.aligned_images_dict), pkl_file, protocol=2)
 
-            pickle.dump(dict(klmodes_dict), pkl_file, protocol=2)
-            pickle.dump(dict(evecs_dict), pkl_file, protocol=2)
-            pickle.dump(dict(evals_dict), pkl_file, protocol=2)
-            pickle.dump(dict(ref_psfs_indicies_dict), pkl_file, protocol=2)
-            pickle.dump(dict(section_ind_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.klmodes_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.evecs_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.evals_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.ref_psfs_indicies_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.section_ind_dict), pkl_file, protocol=2)
 
-            pickle.dump(dict(radstart_dict), pkl_file, protocol=2)
-            pickle.dump(dict(radend_dict), pkl_file, protocol=2)
-            pickle.dump(dict(phistart_dict), pkl_file, protocol=2)
-            pickle.dump(dict(phiend_dict), pkl_file, protocol=2)
-            pickle.dump(dict(input_img_num_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.radstart_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.radend_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.phistart_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.phiend_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.input_img_num_dict), pkl_file, protocol=2)
 
-            pickle.dump(dict(klparam_dict), pkl_file, protocol=2)
+            pickle.dump(dict(self.klparam_dict), pkl_file, protocol=2)
 
         elif file_extension == ".h5":
             # transform mp dicts to normal dicts

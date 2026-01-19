@@ -11,9 +11,9 @@ import warnings
 import numpy as np
 import scipy.ndimage.filters as scipy_filters
 
-import dev.pyklip.klip as klip
+import ffortissimo.dev.pyklip.klip as klip
 
-import utils.astro_unit_conversion as convert
+import ffortissimo.utils.astro_unit_conversion as convert
 import astropy.io.fits as fits
 
 

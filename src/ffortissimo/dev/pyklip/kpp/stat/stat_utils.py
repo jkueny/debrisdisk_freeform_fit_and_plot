@@ -5,8 +5,8 @@ import warnings
 from scipy.optimize import leastsq
 from scipy.interpolate import interp1d
 from astropy.modeling import models, fitting
-from dev.pyklip.kpp.utils.mathfunc import *
-from dev.pyklip.kpp.utils.GPIimage import *
+from ffortissimo.dev.pyklip.kpp.utils.mathfunc import *
+from ffortissimo.dev.pyklip.kpp.utils.GPIimage import *
 
 
 def get_image_stat_map(image,

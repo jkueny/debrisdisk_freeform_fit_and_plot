@@ -13,8 +13,8 @@ from scipy.stats import norm
 import scipy.ndimage as ndimage
 import scipy.interpolate as sinterp
 
-import dev.pyklip.klip as klip
-from dev.pyklip.parallelized import _arraytonumpy, high_pass_filter_imgs, generate_noise_maps
+import ffortissimo.dev.pyklip.klip as klip
+from ffortissimo.dev.pyklip.parallelized import _arraytonumpy, high_pass_filter_imgs, generate_noise_maps
 
 
 #Logic to test mkl exists

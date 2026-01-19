@@ -2,7 +2,7 @@ import numpy as np
 import os
 from sys import stdout
 from astropy.io import fits
-from dev.pyklip.parallelized import high_pass_filter_imgs
+from ffortissimo.dev.pyklip.parallelized import high_pass_filter_imgs
 
 class PSFLibrary(object):
     """

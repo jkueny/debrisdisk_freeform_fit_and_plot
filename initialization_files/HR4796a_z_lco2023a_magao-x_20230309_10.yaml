@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: False
+FIRST_TIME: True
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: original # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)

@@ -7,7 +7,7 @@ name = "ffortissimo"
 version = "0.1.0"
 description = "FFortissiMo - Pixel-based Freeform Forward Modeling of extended objects."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
     { name = "Jay Kueny", email = "jkueny@arizona.edu" }
@@ -35,6 +35,10 @@ dependencies = [
     "pyyaml>=6.0",
     "emcee>=3.1.0",
     "numba>=0.56.0",
+    "pandas>=2.3.3",
+    "opencv-python>=4.11.0.86",
+    "h5py>=3.14.0",
+    "bottleneck>=1.5.0",
 ]
 
 [project.optional-dependencies]
@@ -53,3 +57,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = ["*.dat", "*.flx", "*.ini", "*.txt"]
+
+[project.scripts]
+ff_klip = "ffortissimo.ff_klip:main"
+ff_mask = "ffortissimo.ff_mask:main"
+ff_diskfit = "ffortissimo.diskfit_freeform:main"

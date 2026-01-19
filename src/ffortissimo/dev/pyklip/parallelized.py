@@ -1,8 +1,6 @@
-import dev.pyklip.klip as klip
-import dev.pyklip.spectra_management as spec
-import dev.pyklip.fakes as fakes
-import dev.pyklip.kpp.stat.stat_utils as stat_utils
-import dev.pyklip.empca as empca
+import ffortissimo.dev.pyklip.klip as klip
+import ffortissimo.dev.pyklip.kpp.stat.stat_utils as stat_utils
+import ffortissimo.dev.pyklip.empca as empca
 import multiprocessing as mp
 import ctypes
 import numpy as np
