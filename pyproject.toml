@@ -59,6 +59,6 @@ where = ["src"]
 "*" = ["*.dat", "*.flx", "*.ini", "*.txt"]
 
 [project.scripts]
-ff_prepare = "ffortissimo.ff_prepare:main"
-ff_mask = "ffortissimo.ff_mask:main"
+ff_klip = "ffortissimo.ff_klip:main"
+ff_setup = "ffortissimo.ff_setup:main"
 ff_diskfit = "ffortissimo.diskfit_freeform:main"
