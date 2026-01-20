@@ -36,8 +36,8 @@ ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center th
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 
-# BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib  # name of folder where are the data (from basedir)
-BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/injected_psflib  # name of folder where are the data (from basedir)
+BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib  # name of folder where are the data (from basedir)
+# INJECTED_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/injected_psflib  # name of folder where are the data (from basedir)
 FILE_PREFIX: camsci2_z_20230309_10 #prefix for all saved files (carefull not to erase your results)
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 
@@ -80,8 +80,8 @@ alpha_out_init: -14.08
 beta_init: 14.8
 a_r_init: 0.01
 inc_init: 76.77
-# pa_init: 25.0
-pa_init: -90.0
+pa_init: 25.0
+# pa_init: -90.0
 dx_init: -3.16
 dy_init: 1.49
 N_init: 1385.77

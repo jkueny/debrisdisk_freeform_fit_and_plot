@@ -29,11 +29,6 @@ from ffortissimo.modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 from ffortissimo.dev.pyklip.klip import rotate
 
 
-def get_basedir():
-    """Get the base directory for data files."""
-    basedir = os.environ.get("DISKFIT_BASEDIR", f'{os.environ["HOME"]}/data')
-    return basedir
-
 
 def get_disk_params(params, use_best=True):
     """
@@ -79,6 +74,35 @@ def get_disk_params(params, use_best=True):
     
     return disk_params
 
+def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:int) -> np.ndarray:
+    """
+    Add a small high-res feature to the base disk model.
+    Add it at the specified position angle and radius from the center of the image.
+
+    Args:
+        base_disk: The base disk model
+        feature_PA: The position angle of the feature
+        feature_radius: The radius of the feature in pixels
+    Returns:
+        The base disk model with the feature added
+    """
+    # Create a small high-res feature at the specified position angle and radius
+    print(f"Base disk shape: {base_disk.shape}")
+    im_center = [int(base_disk.shape[0]/2), int(base_disk.shape[1]/2)]
+    pixel_value = np.max(base_disk)
+    feature = np.zeros_like(base_disk)
+    # Calculate the rotated coordinates of the feature to avoid interpolation artifacts
+    print(f"Feature coordinates: {im_center[0], im_center[1]+feature_radius+1}, {im_center[0], im_center[1]+feature_radius-1}, {im_center[0]+1, im_center[1]+feature_radius}, {im_center[0]-1, im_center[1]+feature_radius}")
+    feature[im_center[0]+1, im_center[1]-feature_radius-1] = pixel_value
+    feature[im_center[0]-1, im_center[1]-feature_radius+1] = pixel_value
+    feature[im_center[0]+1, im_center[1]-feature_radius+1] = pixel_value
+    feature[im_center[0]-1, im_center[1]-feature_radius-1] = pixel_value
+    feature[im_center[0]+1, im_center[1]+feature_radius-1] = pixel_value
+    feature[im_center[0]-1, im_center[1]+feature_radius+1] = pixel_value
+    feature[im_center[0]+1, im_center[1]+feature_radius+1] = pixel_value
+    feature[im_center[0]-1, im_center[1]+feature_radius-1] = pixel_value
+    base_disk += feature
+    return base_disk
 
 def main():
     """
@@ -120,8 +144,7 @@ Examples:
     args = parser.parse_args()
     
     if not os.path.exists(args.param_file):
-        print(f"Error: Parameter file not found: {args.param_file}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Parameter file not found: {args.param_file}")
     
     # Read YAML configuration
     print(f"Reading configuration from: {args.param_file}")
@@ -131,15 +154,14 @@ Examples:
     if args.data_dir:
         data_dir = args.data_dir
     elif "BAND_DIR" in params:
-        basedir = get_basedir()
+        basedir = os.environ.get("DISKFIT_BASEDIR", f'{os.environ["HOME"]}/data')
         data_dir = os.path.join(basedir, params["BAND_DIR"])
     else:
         print("Error: Data directory not specified. Provide --data-dir or BAND_DIR in YAML.")
         sys.exit(1)
     
     if not os.path.exists(data_dir):
-        print(f"Error: Data directory not found: {data_dir}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Data directory not found: {data_dir}")
     
     # Get metadata
     distance = params.get("DISTANCE_STAR")
@@ -153,31 +175,32 @@ Examples:
     
     # Load instrument PSF
     print("\nLoading instrument PSF...")
-    basedir = get_basedir()
+    basedir = os.environ.get("DISKFIT_BASEDIR", f'{os.environ["HOME"]}/data')
     if "BAND_DIR" in params:
         klipdir = os.path.join(basedir, params["BAND_DIR"], "klip_fm_files")
     else:
         # Try to construct klipdir from data_dir
         klipdir = os.path.join(os.path.dirname(data_dir), "klip_fm_files")
+        print(f"INFO: BAND_DIR not found in params, using klip_fm_files from data_dir: {klipdir}")
     
     psf_path = os.path.join(klipdir, f"{file_prefix}_instrPSF.fits")
     
     if not os.path.exists(psf_path):
-        print(f"Error: PSF file not found: {psf_path}")
-        print("Please ensure the instrument PSF file exists in the klip_fm_files directory.")
-        sys.exit(1)
+        print("Please add the instrument PSF file to the klip_fm_files directory.")
+        raise FileNotFoundError(f"PSF file not found: {psf_path}")
     
     psf = fits.getdata(psf_path)
     psf = psf / np.sum(psf)  # Normalize PSF
-    print(f"  ✓ PSF loaded: {psf.shape}, normalized")
+    print(f"PSF loaded: {psf.shape}, L1-normalized")
     
     # Get disk parameters
     print("Extracting disk parameters from YAML...")
     disk_params = get_disk_params(params, use_best=True)
     
     # Apply PA offset
-    base_pa = disk_params['pa'] + args.pa_offset
-    print(f"Base disk PA: {disk_params['pa']}° + offset {args.pa_offset}° = {base_pa}°")
+    # base_pa = disk_params['pa'] + args.pa_offset
+    base_pa = args.pa_offset
+    print(f"Base disk PA: {disk_params['pa']} + offset {args.pa_offset} = {base_pa} deg")
     
     # Find FITS files
     print(f"\nSearching for FITS files in: {data_dir}")
@@ -221,17 +244,15 @@ Examples:
     print(f"\nCreating base disk model...")
     print(f"  R1: {disk_params['r1']} AU")
     print(f"  R2: {disk_params['r2']} AU")
-    print(f"  Inclination: {disk_params['inc']}°")
-    print(f"  PA: {base_pa}°")
+    print(f"  Inclination: {disk_params['inc']} deg")
+    print(f"  PA: {base_pa} deg")
     
-    # Note: beta is set to 1.0 in the render function, but we'll use beta from params
-    # Actually, looking at the code, beta is set to 1.0 and then rc, m, n are used
-    beta = 1.0  # As per the render_initial_disk_model function
     
     base_disk = fastmodgen_disk_dxdy_2g(
         R1=disk_params['r1'],
         R2=disk_params['r2'],
-        beta=beta,
+        # beta=disk_params['beta'],
+        beta=1.0,
         inc=disk_params['inc'],
         pa=base_pa,
         dx=disk_params['dx'],
@@ -249,6 +270,15 @@ Examples:
         npts=n_pts,
         mask=mask
     )
+
+    # Add hi-res feature to the base disk model
+    base_disk = add_hi_res_features(base_disk, base_pa + 90.0, int(72))
+
+    # # debug view the base disk model
+    # plt.imshow(base_disk, origin='lower')
+    # plt.colorbar()
+    # plt.show()
+    # sys.exit()
     
     # Zero out any NaNs in the base disk model
     nan_count = np.sum(np.isnan(base_disk))
@@ -258,34 +288,8 @@ Examples:
     
     # Crop or pad disk model to match image dimensions exactly
     if base_disk.shape != image_shape:
-        from scipy.ndimage import zoom
-        if base_disk.shape[0] == base_disk.shape[1] and image_shape[0] == image_shape[1]:
-            # Both square, simple zoom
-            zoom_factor = image_shape[0] / base_disk.shape[0]
-            base_disk = zoom(base_disk, zoom_factor, order=1)
-        else:
-            # Different aspect ratios, zoom each dimension separately
-            zoom_factors = (image_shape[0] / base_disk.shape[0], 
-                           image_shape[1] / base_disk.shape[1])
-            base_disk = zoom(base_disk, zoom_factors, order=1)
-        print(f"  Resized disk model from {base_disk.shape} to {image_shape}")
+        raise ValueError(f"Base disk model shape {base_disk.shape} does not match image shape {image_shape}")
     
-    # Ensure exact match
-    if base_disk.shape != image_shape:
-        # If still not matching, crop or pad
-        if base_disk.shape[0] >= image_shape[0] and base_disk.shape[1] >= image_shape[1]:
-            # Crop
-            y_start = (base_disk.shape[0] - image_shape[0]) // 2
-            x_start = (base_disk.shape[1] - image_shape[1]) // 2
-            base_disk = base_disk[y_start:y_start+image_shape[0], x_start:x_start+image_shape[1]]
-        else:
-            # Pad with zeros
-            pad_y = (image_shape[0] - base_disk.shape[0]) // 2
-            pad_x = (image_shape[1] - base_disk.shape[1]) // 2
-            base_disk = np.pad(base_disk, ((pad_y, image_shape[0] - base_disk.shape[0] - pad_y),
-                                          (pad_x, image_shape[1] - base_disk.shape[1] - pad_x)),
-                              mode='constant', constant_values=0)
-        print(f"  Adjusted disk model to match image: {base_disk.shape}")
     
     # Final NaN check after resizing/cropping
     nan_count = np.sum(np.isnan(base_disk))
@@ -293,48 +297,47 @@ Examples:
         print(f"  Warning: Found {nan_count} NaNs after resizing, zeroing them out")
         base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
     
-    print(f"  ✓ Base disk model created: {base_disk.shape}")
+    print(f"Base disk model created: {base_disk.shape}")
     
     # Convolve base disk model with instrument PSF
     print(f"\nConvolving disk model with instrument PSF...")
     base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
     
-    # Zero out any NaNs after convolution
+    # check for NaNs after convolution
     nan_count_conv = np.sum(np.isnan(base_disk_convolved))
     if nan_count_conv > 0:
-        print(f"  Warning: Found {nan_count_conv} NaNs after convolution, zeroing them out")
-        base_disk_convolved = np.nan_to_num(base_disk_convolved, nan=0.0, posinf=0.0, neginf=0.0)
+        raise ValueError(f"Found {nan_count_conv} NaNs after convolution, aborting...")
     
-    print(f"  ✓ Disk model convolved with PSF: {base_disk_convolved.shape}")
+    print(f".... done. Disk model image created.")
     
-    # Use convolved model for rotation and injection
-    base_disk = base_disk_convolved
     
     # Create output directory
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
-    print(f"\nOutput directory: {output_dir}")
+    print(f"\nOutput dir: {output_dir}")
     klipdir = os.path.join(output_dir, "klip_fm_files")
     os.makedirs(klipdir, exist_ok=True)
+    # Save the base disk model to a FITS file
+    base_disk_path = os.path.join(klipdir, "disk_model_to_inject.fits")
+    fits.writeto(base_disk_path, base_disk, overwrite=True)
     # Save the disk model to be injected
-    disk_model_path = os.path.join(klipdir, "injected_disk_model.fits")
-    fits.writeto(disk_model_path, base_disk, overwrite=True)
+    disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
+    fits.writeto(disk_model_path, base_disk_convolved, overwrite=True)
     print(f"  Saved disk model to: {disk_model_path}")
     
     # Process each image
     print(f"\nProcessing {len(fits_files)} images...")
-    for idx, fits_file in enumerate(fits_files):
+    for ea, fits_file in enumerate(fits_files):
         filename = os.path.basename(fits_file)
-        # print(f"  [{idx+1}/{len(fits_files)}] Processing {filename}...", end=' ')
         
-        # Read image and header
+        # Read in image and header
         with fits.open(fits_file) as hdul:
             image_data = hdul[0].data.copy()
             header = hdul[0].header.copy()
         
-        # Squeeze if needed
+        # Check image dimensions
         if len(image_data.shape) > 2:
-            image_data = np.squeeze(image_data)
+            raise ValueError(f"Image {filename} has more than 2 dimensions!")
         
         # Zero out any NaNs in the original image data
         nan_count_img = np.sum(np.isnan(image_data))
@@ -344,18 +347,17 @@ Examples:
         
         # Get PARANG value
         if 'PARANG' not in header:
-            print(f"\n    Warning: PARANG not found in header, skipping {filename}")
-            continue
-        
+            raise ValueError(f"PARANG not found in header for {filename}")
+
+
         parang = float(header['PARANG'])
         
-        # Calculate rotation angle: base_pa - PARANG (conjugate PARANG)
+        # Calculate rotation angle: base_pa - PARANG (conjugate PARANG) - 90.0 for N up E left
         rotation_angle = base_pa - parang - 90.0
-        # print(f"PARANG={parang:.2f}°, rotation={rotation_angle:.2f}°", end=' ')
         
         # Rotate disk model
         rotated_disk = rotate(
-            img=base_disk,
+            img=base_disk_convolved,
             angle=-rotation_angle,
             center=aligned_center,
             new_center=None,
@@ -395,11 +397,11 @@ Examples:
         fits.writeto(output_path, image_data, header, overwrite=True)
         
     
-    print(f"\n✓ Synthetic dataset created successfully!")
-    print(f"  Output directory: {output_dir}")
-    print(f"  Number of images processed: {len(fits_files)}")
-    print(f"  Base disk PA: {base_pa}°")
-    print(f"  PARANG values have been negated in headers for counter-rotation")
+    print(f"\nDisk injection successful...!")
+    print(f"  Output dir: {output_dir}")
+    print(f"  Num. images processed: {len(fits_files)}")
+    print(f"  Injected disk PA: {base_pa}°")
+    print(f"  PARANG values have been set to -PARANG in headers for counter-rotation....")
 
 
 if __name__ == "__main__":

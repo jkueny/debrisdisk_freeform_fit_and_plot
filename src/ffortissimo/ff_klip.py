@@ -75,6 +75,10 @@ Examples:
     parser.add_argument('--force',
                         action='store_true',
                         help='Force regeneration even if basis file exists')
+    parser.add_argument('--injected-dir',
+                        type=str,
+                        required=False,
+                        help='Path to injected PSF library directory (optional)')
     
     args = parser.parse_args()
     
@@ -84,13 +88,17 @@ Examples:
     config = args.param_file
     force = args.force
     init_model = args.initial_model if args.initial_model is not None else None
+    injected_dir = args.injected_dir if args.injected_dir is not None else None
 
     # Initialize the freeform disk object
     print(f"Initializing FreeFormDisk object with config: {config}")
     ffd_obj = FreeFormDisk(config)
     
     # Define needed variables
-    klipdir = ffd_obj.klipdir
+    if injected_dir is not None:
+        klipdir = os.path.join(injected_dir, "klip_fm_files")
+    else:
+        klipdir = ffd_obj.klipdir
     file_prefix = ffd_obj.file_prefix
     aligned_center = ffd_obj.aligned_center
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
