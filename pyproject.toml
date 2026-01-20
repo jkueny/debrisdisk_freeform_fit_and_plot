@@ -61,4 +61,4 @@ where = ["src"]
 [project.scripts]
 ff_klip = "ffortissimo.ff_klip:main"
 ff_setup = "ffortissimo.ff_setup:main"
-ff_diskfit = "ffortissimo.diskfit_freeform:main"
+ff_optimize = "ffortissimo.ff_optimize:main"

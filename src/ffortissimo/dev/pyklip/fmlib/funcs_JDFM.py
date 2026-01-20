@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax.profiler
 
 from functools import partial
-from dev.pyklip.j_klip import rotate_image
+from ffortissimo.dev.pyklip.j_klip import rotate_image
 
 def derotate_and_average(flat_postklip_psfs, PAs, total_pixels, section_inds):
     '''Given (N_images, p_pixels) `flat_postklip_psfs` and (N_images,) PAs
