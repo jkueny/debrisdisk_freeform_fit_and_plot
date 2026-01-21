@@ -662,11 +662,6 @@ Examples:
     # Verify prerequisites
     verify_prerequisites(ffd_obj)
     
-    # If dry-run, perform forward modeling and exit
-    if dry_run:
-        perform_forward_modeling_dry_run(ffd_obj, init_model_path=init_model)
-        print("\n✓ Dry run complete. Exiting.")
-        return
     
     # Load PSF
     psf = ffd_obj.psf
@@ -756,6 +751,12 @@ Examples:
     
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
     print("   ✓ Reference model PSD computed")
+
+    # If dry-run, perform forward modeling and exit
+    if dry_run:
+        perform_forward_modeling_dry_run(ffd_obj, init_model_path=init_model)
+        print("\n✓ Dry run complete. Exiting.")
+        return
     
     # Prepare data arrays and indices
     print("\n[5/6] Preparing data arrays and indices...")
