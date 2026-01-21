@@ -7,7 +7,7 @@ name = "ffortissimo"
 version = "0.1.0"
 description = "FFortissiMo - Pixel-based Freeform Forward Modeling of extended objects."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Jay Kueny", email = "jkueny@arizona.edu" }
