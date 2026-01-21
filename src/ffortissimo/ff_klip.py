@@ -62,6 +62,9 @@ Examples:
   
   # Force regeneration of existing basis
   python ff_klip.py -p initialization_files/config.yaml --force
+  
+  # Process injected synthetic dataset
+  python ff_klip.py -p initialization_files/config.yaml --injected-dir /path/to/injected_data
         """
     )
     
@@ -78,7 +81,7 @@ Examples:
     parser.add_argument('--injected-dir',
                         type=str,
                         required=False,
-                        help='Path to injected PSF library directory (optional)')
+                        help='Path to directory containing injected synthetic disk data (overrides data directory from config)')
     
     args = parser.parse_args()
     
@@ -94,13 +97,23 @@ Examples:
     print(f"Initializing FreeFormDisk object with config: {config}")
     ffd_obj = FreeFormDisk(config)
     
-    # Define needed variables
+    # Override data and output directories if injected directory is provided
     if injected_dir is not None:
-        klipdir = os.path.join(injected_dir, "klip_fm_files")
-    else:
-        klipdir = ffd_obj.klipdir
+        if not os.path.exists(injected_dir):
+            print(f"Error: Injected directory not found: {injected_dir}")
+            sys.exit(1)
+        print(f"Using injected data directory: {injected_dir}")
+        # Override datadir to point to injected directory (where FITS files are)
+        ffd_obj.datadir = injected_dir
+        # Override klipdir to point to klip_fm_files subdirectory in injected directory
+        ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
+        os.makedirs(ffd_obj.klipdir, exist_ok=True)
+        print(f"Output will be saved to: {ffd_obj.klipdir}")
+    
+    # Define needed variables
     file_prefix = ffd_obj.file_prefix
     aligned_center = ffd_obj.aligned_center
+    klipdir = ffd_obj.klipdir
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
     
     # Allocate dataset (load data files)

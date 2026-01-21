@@ -118,10 +118,10 @@ Examples:
   python ff_setup.py -p initialization_files/config.yaml --initial-model path/to/model.fits
   
   # Skip forward model computation (faster)
-  python ff_setup.py -p initialization_files/config.yaml --skip-forward-model
+  python ff_setup.py -p initialization_files/config.yaml --no-fm
   
-  # Force regeneration of noise map
-  python ff_setup.py -p initialization_files/config.yaml --force
+  # Process injected synthetic dataset (PA must be specified)
+  python ff_setup.py -p initialization_files/config.yaml --injected-dir /path/to/injected_data --injected-pa 90.0
         """
     )
     
@@ -135,24 +135,58 @@ Examples:
     parser.add_argument('--no-fm',
                         action='store_true',
                         help='Skip initial forward model computation (saves time)')
-    parser.add_argument('--force',
-                        action='store_true',
-                        help='Force regeneration of noise map if it exists')
+    parser.add_argument('--injected-dir',
+                        type=str,
+                        required=False,
+                        help='Path to directory containing injected synthetic disk data (overrides data directory from config)')
+    parser.add_argument('--injected-pa',
+                        type=float,
+                        required=False,
+                        help='Position angle (degrees) of injected disk (required when --injected-dir is provided)')
     
     args = parser.parse_args()
+    
+    # Validate that --injected-pa is provided when --injected-dir is provided
+    if args.injected_dir is not None and args.injected_pa is None:
+        print("Error: --injected-pa is required when --injected-dir is provided.")
+        print("The injected disk has a different PA than the config file, so masks must be created with the correct PA.")
+        sys.exit(1)
     
     if not os.path.exists(args.param_file):
         print(f"Error: Configuration file not found: {args.param_file}")
         sys.exit(1)
     
     config = args.param_file
-    force = args.force
     skip_forward_model = args.no_fm
     init_model = args.initial_model if args.initial_model is not None else None
+    injected_dir = args.injected_dir if args.injected_dir is not None else None
+    injected_pa = args.injected_pa if args.injected_pa is not None else None
     
     # Initialize the freeform disk object
     print(f"Initializing FreeFormDisk object with config: {config}")
     ffd_obj = FreeFormDisk(config)
+    
+    # Override data and output directories if injected directory is provided
+    if injected_dir is not None:
+        if not os.path.exists(injected_dir):
+            print(f"Error: Injected directory not found: {injected_dir}")
+            sys.exit(1)
+        print(f"Using injected data directory: {injected_dir}")
+        print(f"Using injected disk PA: {injected_pa}° (overriding config PA: {ffd_obj.params_file.get('pa_init', 'N/A')}°)")
+        # Override datadir to point to injected directory (where FITS files are)
+        ffd_obj.datadir = injected_dir
+        # Override klipdir to point to klip_fm_files subdirectory in injected directory
+        ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
+        os.makedirs(ffd_obj.klipdir, exist_ok=True)
+        print(f"Output will be saved to: {ffd_obj.klipdir}")
+        
+        # Override PA in params_file for mask creation
+        # Store original values to restore later if needed
+        ffd_obj._original_pa_init = ffd_obj.params_file.get('pa_init')
+        ffd_obj._original_pa_best = ffd_obj.params_file.get('pa_best')
+        ffd_obj.params_file['pa_init'] = injected_pa
+        if 'pa_best' in ffd_obj.params_file:
+            ffd_obj.params_file['pa_best'] = injected_pa
     
     klipdir = ffd_obj.klipdir
     file_prefix = ffd_obj.file_prefix
@@ -198,66 +232,61 @@ Examples:
     print(f"     - mask2generatedisk: {np.sum(masks['mask2generatedisk'])} pixels")
     print(f"     - mask4noisemap: {np.sum(masks['mask4noisemap'])} pixels")
     
-    # Step 4: Estimate noise map
+    # Step 4: Estimate noise map (always regenerate)
     print("\n[3/4] Estimating noise map from reduced data...")
     
     noise_map_path = os.path.join(klipdir, f"{file_prefix}_noisemap.fits")
     reduced_data_path = os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits")
     
-    # Check if noise map exists
-    if os.path.exists(noise_map_path) and not force:
-        print("   Noise map already exists. Use --force to regenerate.")
-        noise_map = fits.getdata(noise_map_path)
-    else:
-        # Load reduced data
-        reduced_data = fits.getdata(reduced_data_path)
-        reduced_data = np.squeeze(reduced_data)
-        reduced_data[reduced_data != reduced_data] = 0.  # Zero out NaNs
-        
-        # Create engineered noise mask for ADI mode
-        if ffd_obj.mode == "ADI":
-            print("   ADI mode: Using engineered noise mask")
-            bespoke_noise_mask = ffd_obj._engineer_disk_mask(
-                masks['mask4noisemap'], 
-                angle_sweep_factor=4
-            )
-            reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
-            tosave_reduced_noise_masked = reduced_data * bespoke_noise_mask
-            
-            # Save the engineered noise mask
-            bespoke_noise_path = os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits")
-            save_fits(bespoke_noise_path, bespoke_noise_mask)
-        else:
-            print("   RDI mode: Using standard noise mask")
-            reduced_noise_masked = reduced_data * (1 - masks['mask4noisemap'])
-            tosave_reduced_noise_masked = reduced_data * masks['mask4noisemap']
-        
-        # Get noise delta radii parameter
-        delta_radii = ffd_obj.params_file.get("NOISE_DELTA_RADII", 1)
-        print(f"   Using ring width: {delta_radii} pixels")
-        
-        # Estimate noise map
-        noise_map = ffd_obj.make_noise_map_rings(
-            reduced_data_no_disk=reduced_noise_masked,
-            delta_radii=delta_radii
+    # Load reduced data
+    reduced_data = fits.getdata(reduced_data_path)
+    reduced_data = np.squeeze(reduced_data)
+    reduced_data[reduced_data != reduced_data] = 0.  # Zero out NaNs
+    
+    # Create engineered noise mask for ADI mode
+    if ffd_obj.mode == "ADI":
+        print("   ADI mode: Using engineered noise mask")
+        bespoke_noise_mask = ffd_obj._engineer_disk_mask(
+            masks['mask4noisemap'], 
+            angle_sweep_factor=4
         )
+        reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
+        tosave_reduced_noise_masked = reduced_data * bespoke_noise_mask
         
-        # Save noise map
-        fits.writeto(noise_map_path, noise_map, overwrite=True)
-        
-        # Save masked data for inspection
-        masked_data_path = os.path.join(klipdir, f"{file_prefix}_masked_data.fits")
-        masked_noise_path = os.path.join(klipdir, f"{file_prefix}_use4noisemap.fits")
-        save_fits(masked_data_path, reduced_data * masks['mask2generatedisk'])
-        save_fits(masked_noise_path, tosave_reduced_noise_masked)
-        
-        print(f"   ✓ Noise map created and saved to {noise_map_path}")
-        print(f"     Noise map statistics:")
-        print(f"       Mean: {np.nanmean(noise_map):.6f}")
-        print(f"       Median: {np.nanmedian(noise_map):.6f}")
-        print(f"       Std: {np.nanstd(noise_map):.6f}")
-        print(f"       Min: {np.nanmin(noise_map):.6f}")
-        print(f"       Max: {np.nanmax(noise_map):.6f}")
+        # Save the engineered noise mask (always regenerate)
+        bespoke_noise_path = os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits")
+        save_fits(bespoke_noise_path, bespoke_noise_mask)
+    else:
+        print("   RDI mode: Using standard noise mask")
+        reduced_noise_masked = reduced_data * (1 - masks['mask4noisemap'])
+        tosave_reduced_noise_masked = reduced_data * masks['mask4noisemap']
+    
+    # Get noise delta radii parameter
+    delta_radii = ffd_obj.params_file.get("NOISE_DELTA_RADII", 1)
+    print(f"   Using ring width: {delta_radii} pixels")
+    
+    # Estimate noise map (always regenerate)
+    noise_map = ffd_obj.make_noise_map_rings(
+        reduced_data_no_disk=reduced_noise_masked,
+        delta_radii=delta_radii
+    )
+    
+    # Save noise map (always overwrite)
+    fits.writeto(noise_map_path, noise_map, overwrite=True)
+    
+    # Save masked data for inspection (always regenerate)
+    masked_data_path = os.path.join(klipdir, f"{file_prefix}_masked_data.fits")
+    masked_noise_path = os.path.join(klipdir, f"{file_prefix}_use4noisemap.fits")
+    save_fits(masked_data_path, reduced_data * masks['mask2generatedisk'])
+    save_fits(masked_noise_path, tosave_reduced_noise_masked)
+    
+    print(f"   ✓ Noise map created and saved to {noise_map_path}")
+    print(f"     Noise map statistics:")
+    print(f"       Mean: {np.nanmean(noise_map):.6f}")
+    print(f"       Median: {np.nanmedian(noise_map):.6f}")
+    print(f"       Std: {np.nanstd(noise_map):.6f}")
+    print(f"       Min: {np.nanmin(noise_map):.6f}")
+    print(f"       Max: {np.nanmax(noise_map):.6f}")
     
     # Step 5: Perform optimization dry run (unless skipped)
     if skip_forward_model:
