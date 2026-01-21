@@ -79,6 +79,8 @@ def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:i
     Add a small high-res feature to the base disk model.
     Add it at the specified position angle and radius from the center of the image.
 
+    TODO new strategy: add a small bullseye feature instead of a small cross
+
     Args:
         base_disk: The base disk model
         feature_PA: The position angle of the feature
@@ -86,22 +88,32 @@ def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:i
     Returns:
         The base disk model with the feature added
     """
-    # Create a small high-res feature at the specified position angle and radius
+    Y,X = np.indices(base_disk.shape)
     print(f"Base disk shape: {base_disk.shape}")
     im_center = [int(base_disk.shape[0]/2), int(base_disk.shape[1]/2)]
+    distance_from_center = np.sqrt((X - im_center[0])**2 + (Y - im_center[1])**2)
+    # # Given the feature_PA and feature_radius, calculate the coordinates of the feature
+    # feature_x = round(im_center[0] + feature_radius * np.cos(feature_PA))
+    # feature_y = round(im_center[1] + feature_radius * np.sin(feature_PA))
+    feature_x = round(im_center[0])
+    feature_y = round(im_center[1])
+    distance_from_feature = np.sqrt((X - feature_x)**2 + (Y - feature_y)**2)
+    blank_feature = np.zeros_like(base_disk)
+    # Create a small high-res feature at the specified position angle and radius
     pixel_value = np.max(base_disk)
-    feature = np.zeros_like(base_disk)
     # Calculate the rotated coordinates of the feature to avoid interpolation artifacts
-    print(f"Feature coordinates: {im_center[0], im_center[1]+feature_radius+1}, {im_center[0], im_center[1]+feature_radius-1}, {im_center[0]+1, im_center[1]+feature_radius}, {im_center[0]-1, im_center[1]+feature_radius}")
-    feature[im_center[0]+1, im_center[1]-feature_radius-1] = pixel_value
-    feature[im_center[0]-1, im_center[1]-feature_radius+1] = pixel_value
-    feature[im_center[0]+1, im_center[1]-feature_radius+1] = pixel_value
-    feature[im_center[0]-1, im_center[1]-feature_radius-1] = pixel_value
-    feature[im_center[0]+1, im_center[1]+feature_radius-1] = pixel_value
-    feature[im_center[0]-1, im_center[1]+feature_radius+1] = pixel_value
-    feature[im_center[0]+1, im_center[1]+feature_radius+1] = pixel_value
-    feature[im_center[0]-1, im_center[1]+feature_radius-1] = pixel_value
-    base_disk += feature
+    print(f"Feature coordinates: {feature_x}, {feature_y}")
+    # Add a small bullseye feature instead of a small cross
+    # use masking to add the feature
+    inner_radius = feature_radius - 2
+    outer_radius = feature_radius + 2
+    inner_ring = (distance_from_feature >= inner_radius) & (distance_from_feature < inner_radius + 1)
+    med_ring = (distance_from_feature >= feature_radius) & (distance_from_feature < feature_radius + 1)
+    outer_ring = (distance_from_feature >= outer_radius) & (distance_from_feature < outer_radius + 1)
+    blank_feature[inner_ring] = pixel_value
+    blank_feature[med_ring] = pixel_value
+    blank_feature[outer_ring] = pixel_value
+    base_disk += blank_feature
     return base_disk
 
 def main():
@@ -248,67 +260,7 @@ Examples:
     print(f"  PA: {base_pa} deg")
     
     
-    base_disk = fastmodgen_disk_dxdy_2g(
-        R1=disk_params['r1'],
-        R2=disk_params['r2'],
-        # beta=disk_params['beta'],
-        beta=1.0,
-        inc=disk_params['inc'],
-        pa=base_pa,
-        dx=disk_params['dx'],
-        dy=disk_params['dy'],
-        Norm=disk_params['Norm'],
-        g1=disk_params['g1'],
-        g2=disk_params['g2'],
-        alpha1=disk_params['alpha1'],
-        a_r=disk_params['a_r'],
-        Rc=disk_params['rc'],
-        m=disk_params['alpha_in'],
-        n=disk_params['alpha_out'],
-        y_arr=y_arr,
-        z_arr=z_arr,
-        npts=n_pts,
-        mask=mask
-    )
-
-    # Add hi-res feature to the base disk model
-    base_disk = add_hi_res_features(base_disk, base_pa + 90.0, int(72))
-
-    # # debug view the base disk model
-    # plt.imshow(base_disk, origin='lower')
-    # plt.colorbar()
-    # plt.show()
-    # sys.exit()
     
-    # Zero out any NaNs in the base disk model
-    nan_count = np.sum(np.isnan(base_disk))
-    if nan_count > 0:
-        print(f"  Warning: Found {nan_count} NaNs in base disk model, zeroing them out")
-        base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
-    
-    # Crop or pad disk model to match image dimensions exactly
-    if base_disk.shape != image_shape:
-        raise ValueError(f"Base disk model shape {base_disk.shape} does not match image shape {image_shape}")
-    
-    
-    # Final NaN check after resizing/cropping
-    nan_count = np.sum(np.isnan(base_disk))
-    if nan_count > 0:
-        print(f"  Warning: Found {nan_count} NaNs after resizing, zeroing them out")
-        base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
-    
-    print(f"Base disk model created: {base_disk.shape}")
-    
-    # Convolve base disk model with instrument PSF
-    print(f"\nConvolving disk model with instrument PSF...")
-    base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
-    
-    # check for NaNs after convolution
-    nan_count_conv = np.sum(np.isnan(base_disk_convolved))
-    if nan_count_conv > 0:
-        raise ValueError(f"Found {nan_count_conv} NaNs after convolution, aborting...")
-    
-    print(f".... done. Disk model image created.")
     
     
     # Create output directory
@@ -317,15 +269,9 @@ Examples:
     print(f"\nOutput dir: {output_dir}")
     klipdir = os.path.join(output_dir, "klip_fm_files")
     os.makedirs(klipdir, exist_ok=True)
-    # Save the base disk model to a FITS file
-    base_disk_path = os.path.join(klipdir, "disk_model_to_inject.fits")
-    fits.writeto(base_disk_path, base_disk, overwrite=True)
-    # Save the disk model to be injected
-    disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
-    fits.writeto(disk_model_path, base_disk_convolved, overwrite=True)
-    print(f"  Saved disk model to: {disk_model_path}")
     
     # Process each image
+    # We need to generate the disk model + disk image per image to avoid interpolation artifacts
     print(f"\nProcessing {len(fits_files)} images...")
     for ea, fits_file in enumerate(fits_files):
         filename = os.path.basename(fits_file)
@@ -353,17 +299,87 @@ Examples:
         parang = float(header['PARANG'])
         
         # Calculate rotation angle: base_pa - PARANG (conjugate PARANG) - 90.0 for N up E left
-        rotation_angle = base_pa - parang - 90.0
+        rotation_angle = base_pa + parang #- 90.0
+        print(f"base_pa: {base_pa}, parang: {parang}, rotation_angle: {rotation_angle}")
         
-        # Rotate disk model
-        rotated_disk = rotate(
-            img=base_disk_convolved,
-            angle=-rotation_angle,
-            center=aligned_center,
-            new_center=None,
-            flipx=False
+        # # Rotate disk model
+        # rotated_disk = rotate(
+        #     img=base_disk_convolved,
+        #     angle=-rotation_angle,
+        #     center=aligned_center,
+        #     new_center=None,
+        #     flipx=False
+        # )
+
+        base_disk = fastmodgen_disk_dxdy_2g(
+            R1=disk_params['r1'],
+            R2=disk_params['r2'],
+            # beta=disk_params['beta'],
+            beta=1.0,
+            inc=disk_params['inc'],
+            # pa=base_pa,
+            pa=rotation_angle,
+            dx=disk_params['dx'],
+            dy=disk_params['dy'],
+            Norm=disk_params['Norm'],
+            g1=disk_params['g1'],
+            g2=disk_params['g2'],
+            alpha1=disk_params['alpha1'],
+            a_r=disk_params['a_r'],
+            Rc=disk_params['rc'],
+            m=disk_params['alpha_in'],
+            n=disk_params['alpha_out'],
+            y_arr=y_arr,
+            z_arr=z_arr,
+            npts=n_pts,
+            mask=mask
         )
 
+        # # Add hi-res feature to the base disk model
+        # base_disk = add_hi_res_features(base_disk, rotation_angle, int(72))
+        # print(f"Rotation angle: {rotation_angle}")
+
+        # # debug view the base disk model
+        # plt.imshow(base_disk, origin='lower')
+        # plt.colorbar()
+        # plt.show()
+        # sys.exit()
+        
+        # Zero out any NaNs in the base disk model
+        nan_count = np.sum(np.isnan(base_disk))
+        if nan_count > 0:
+            print(f"  Warning: Found {nan_count} NaNs in base disk model, zeroing them out")
+            base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        # Crop or pad disk model to match image dimensions exactly
+        if base_disk.shape != image_shape:
+            raise ValueError(f"Base disk model shape {base_disk.shape} does not match image shape {image_shape}")
+        
+        
+        # Final NaN check after resizing/cropping
+        nan_count = np.sum(np.isnan(base_disk))
+        if nan_count > 0:
+            print(f"  Warning: Found {nan_count} NaNs after resizing, zeroing them out")
+            base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        
+        # Convolve base disk model with instrument PSF
+        base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
+        
+        # check for NaNs after convolution
+        nan_count_conv = np.sum(np.isnan(base_disk_convolved))
+        if nan_count_conv > 0:
+            raise ValueError(f"Found {nan_count_conv} NaNs after convolution, aborting...")
+        
+        if ea == 0:
+            print(f"Base disk model created: {base_disk.shape}")
+            # Save the base disk model to a FITS file
+            base_disk_path = os.path.join(klipdir, "disk_model_to_inject.fits")
+            fits.writeto(base_disk_path, base_disk, overwrite=True)
+            # Save the disk model to be injected
+            disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
+            fits.writeto(disk_model_path, base_disk_convolved, overwrite=True)
+            print(f"  Saved disk model to: {disk_model_path}")
         # #debug print and display the rotated disk
         # print(f"Rotated angle: {rotation_angle}")
         # print(f"base_pa: {base_pa}")
@@ -374,14 +390,8 @@ Examples:
         # sys.exit()
 
         
-        # Zero out any NaNs in the rotated disk model before adding to image
-        nan_count_rot = np.sum(np.isnan(rotated_disk))
-        if nan_count_rot > 0:
-            # print(f"\n    Warning: Found {nan_count_rot} NaNs in rotated disk, zeroing them out")
-            rotated_disk = np.nan_to_num(rotated_disk, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        # Add rotated disk to image
-        image_data = image_data + rotated_disk
+        # Add conv disk model to image
+        image_data = image_data + base_disk_convolved
         
         # Final check: ensure no NaNs in the final result
         nan_count_final = np.sum(np.isnan(image_data))
