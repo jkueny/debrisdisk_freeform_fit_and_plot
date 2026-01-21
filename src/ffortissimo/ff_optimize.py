@@ -34,8 +34,7 @@ from optax.losses import huber_loss
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
 from ffortissimo.utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
 from ffortissimo.dev.pyklip.fmlib.funcs_JDFM import (
-    update_disk, fm_from_eigen_adi, fm_from_eigen_rdi, derotate_and_average
-)
+    update_disk, fm_from_eigen_adi, fm_from_eigen_rdi, derotate_and_average)
 from ffortissimo.utils.klip_basis import load_kl_basis, unpack_basis_data
 from ffortissimo.utils.masks import make_annular_mask
 from ffortissimo.utils.improc_tools import reconstruct_full_image, fft_power_spectrum, \
@@ -524,8 +523,8 @@ Examples:
   # Custom optimization parameters
   python ff_optimize.py -p initialization_files/config.yaml -i 1000 --reg 0.5 --delta 2.0 --learning-rate 0.01
   
-  # Process injected synthetic dataset
-  python ff_optimize.py -p initialization_files/config.yaml -i 1000 --injected-dir /path/to/injected_data
+  # Process injected synthetic dataset (PA must be specified)
+  python ff_optimize.py -p initialization_files/config.yaml -i 1000 --injected-dir /path/to/injected_data --injected-pa 90.0
         """
     )
     
@@ -563,8 +562,18 @@ Examples:
                         type=str,
                         required=False,
                         help='Path to directory containing injected synthetic disk data (overrides data directory from config)')
+    parser.add_argument('--injected-pa',
+                        type=float,
+                        required=False,
+                        help='Position angle (degrees) of injected disk (required when --injected-dir is provided)')
     
     args = parser.parse_args()
+    
+    # Validate that --injected-pa is provided when --injected-dir is provided
+    if args.injected_dir is not None and args.injected_pa is None:
+        print("Error: --injected-pa is required when --injected-dir is provided.")
+        print("The injected disk has a different PA than the config file, so the PA prior must be specified.")
+        sys.exit(1)
     
     if not os.path.exists(args.param_file):
         print(f"Error: Configuration file not found: {args.param_file}")
@@ -584,6 +593,7 @@ Examples:
     new_ref = args.new_ref
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
+    injected_pa = args.injected_pa if args.injected_pa is not None else None
     
     # Initialize the freeform disk object
     print(f"Initializing FreeFormDisk object with config: {config}")
@@ -595,6 +605,7 @@ Examples:
             print(f"Error: Injected directory not found: {injected_dir}")
             sys.exit(1)
         print(f"Using injected data directory: {injected_dir}")
+        print(f"Using injected disk PA: {injected_pa}° (overriding config PA: {ffd_obj.params_file.get('pa_init', 'N/A')}°)")
         # Override datadir to point to injected directory (where FITS files are)
         ffd_obj.datadir = injected_dir
         # Override klipdir to point to klip_fm_files subdirectory in injected directory
@@ -605,6 +616,37 @@ Examples:
         os.makedirs(ffd_obj.resultsdir, exist_ok=True)
         print(f"Output will be saved to: {ffd_obj.klipdir}")
         print(f"Results will be saved to: {ffd_obj.resultsdir}")
+        
+        # Override PA in params_file for reference model fitting
+        # Store original values to restore later if needed
+        ffd_obj._original_pa_init = ffd_obj.params_file.get('pa_init')
+        ffd_obj._original_pa_best = ffd_obj.params_file.get('pa_best')
+        ffd_obj._original_pa_prior = ffd_obj.params_file.get('pa_prior', [None, None])
+        
+        # Override PA init and best values
+        ffd_obj.params_file['pa_init'] = injected_pa
+        if 'pa_best' in ffd_obj.params_file:
+            ffd_obj.params_file['pa_best'] = injected_pa
+        
+        # Override PA prior bounds to center around injected PA
+        # Calculate a reasonable range around the injected PA (e.g., ±30 degrees)
+        pa_prior_range = 30.0  # degrees
+        pa_prior_lower = injected_pa - pa_prior_range
+        pa_prior_upper = injected_pa + pa_prior_range
+        
+        # Ensure bounds are in [0, 360) range
+        pa_prior_lower = pa_prior_lower % 360
+        pa_prior_upper = pa_prior_upper % 360
+        
+        # If the range wraps around, we might need special handling, but for now
+        # just use the modulo values
+        ffd_obj.params_file['pa_prior'] = [pa_prior_lower, pa_prior_upper]
+        
+        # Also update params_init and param_priors in the object (used by fit_simple_disk_model)
+        ffd_obj.params_init['pa'] = injected_pa
+        ffd_obj.param_priors['pa'] = [pa_prior_lower, pa_prior_upper]
+        
+        print(f"  PA prior bounds updated to: [{pa_prior_lower:.1f}°, {pa_prior_upper:.1f}°]")
     
     klipdir = ffd_obj.klipdir
     resultsdir = ffd_obj.resultsdir
