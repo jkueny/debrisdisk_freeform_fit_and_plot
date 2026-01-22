@@ -577,9 +577,10 @@ class FreeFormDisk:
 
         self.mask2generatedisk = mask2generatedisk
         self.mask4noisemap = mask4noisemap
-        engineered_optimization_map = self._engineer_disk_mask(mask4noisemap, angle_sweep_factor=8)
+        # engineered_optimization_map = self._engineer_disk_mask(mask4noisemap, angle_sweep_factor=8)
+        engineered_optimization_map = mask2generatedisk
         fits.writeto(f"{save_mask_part}_engineered_optimization_map.fits",
-                     engineered_optimization_map, overwrite=True)
+                     mask2generatedisk, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
                      mask2generatedisk, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask_out_of_bounds.fits",
