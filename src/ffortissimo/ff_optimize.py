@@ -718,13 +718,13 @@ Examples:
     print("\n[4/6] Preparing reference model...")
     
     # Load optimization mask from disk (created by ff_setup.py)
-    engineered_optimization_path = os.path.join(klipdir, f"{file_prefix}_engineered_optimization_map.fits")
-    if not os.path.exists(engineered_optimization_path):
+    optimization_mask_path = os.path.join(klipdir, f"{file_prefix}_optimization_mask.fits")
+    if not os.path.exists(optimization_mask_path):
         raise FileNotFoundError(
-            f"Mask file not found: {engineered_optimization_path}\n"
+            f"Mask file not found: {optimization_mask_path}\n"
             "Please run ff_setup.py first to create the masks."
         )
-    optimization_mask_obj = fits.getdata(engineered_optimization_path)
+    optimization_mask_obj = fits.getdata(optimization_mask_path)
     
     ffd_obj.allocate_dataset()
     model_firstguess = ffd_obj.get_initial_model(init_model)

@@ -404,7 +404,8 @@ class FreeFormDisk:
         self.window_params = params
         psd_ref_model_win = window_opt + psd_ref_model
         # psd_ref_model_win_hp = window_opt + psd_ref_model_hp
-        # ref_model_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_HighPass.fits")
+        ref_model_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits")
+        save_fits(ref_model_saveto, reference_model)
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Frequencies.fits")
         # psd_ref_model_win_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD_HighPass.fits")
         window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")
@@ -578,14 +579,14 @@ class FreeFormDisk:
         self.mask2generatedisk = mask2generatedisk
         self.mask4noisemap = mask4noisemap
         # engineered_optimization_map = self._engineer_disk_mask(mask4noisemap, angle_sweep_factor=8)
-        engineered_optimization_map = mask2generatedisk
-        fits.writeto(f"{save_mask_part}_engineered_optimization_map.fits",
-                     mask2generatedisk, overwrite=True)
+        optimization_mask = mask2generatedisk
+        fits.writeto(f"{save_mask_part}_optimization_mask.fits",
+                     optimization_mask, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
                      mask2generatedisk, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask_out_of_bounds.fits",
                      mask_out_of_bounds, overwrite=True)
-        return engineered_optimization_map
+        return optimization_mask
 
     def run_klip_reduction(self, dataset, model_init=None, psflib=None):
         """

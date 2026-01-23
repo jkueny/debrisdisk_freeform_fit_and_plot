@@ -79,7 +79,7 @@ def penalize_residual_disk(disk_spine, residuals_image, reg_lambda):
     return jnp.max(residual_disk_norm) * (10 * reg_lambda)
 
 
-def fit_elgauss_window(ref_psd, generosity=1., verbose=True):
+def fit_elgauss_window(ref_psd, generosity=2., verbose=True):
     psd_norm = ref_psd
 
     H, W = ref_psd.shape
@@ -107,9 +107,12 @@ def fit_elgauss_window(ref_psd, generosity=1., verbose=True):
 
     wx, wy, theta_deg, scale = result.x
     # wx, wy, theta_deg = res.x
-    # scale = scale * psd.max()
+    scale_by = generosity * psd_norm.max()
     # window_opt = asymmetric_tukey(psd.shape, wx, wy, theta_deg, alpha) * scale
-    window_opt = elliptical_gaussian(ref_psd.shape, wx*generosity, wy*generosity, theta_deg) * (psd_norm.max())
+    window_opt = elliptical_gaussian(ref_psd.shape,
+                                     wx*generosity,
+                                     wy*generosity,
+                                     theta_deg) * scale_by
     params = dict(width_x=wx, width_y=wy, angle_deg=theta_deg, scale=scale)
     # params = dict(width_x=wx, width_y=wy, angle_deg=theta_deg)
     return params, window_opt
