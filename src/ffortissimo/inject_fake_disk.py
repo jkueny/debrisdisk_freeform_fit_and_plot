@@ -79,7 +79,7 @@ def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:i
     Add a small high-res feature to the base disk model.
     Add it at the specified position angle and radius from the center of the image.
 
-    TODO new strategy: add a small bullseye feature instead of a small cross
+    TODO new strategy: add a single bright pixel by the ansae.
 
     Args:
         base_disk: The base disk model
@@ -88,31 +88,36 @@ def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:i
     Returns:
         The base disk model with the feature added
     """
+    PA_rad = np.radians(feature_PA + 90)
     Y,X = np.indices(base_disk.shape)
     print(f"Base disk shape: {base_disk.shape}")
     im_center = [int(base_disk.shape[0]/2), int(base_disk.shape[1]/2)]
     distance_from_center = np.sqrt((X - im_center[0])**2 + (Y - im_center[1])**2)
     # # Given the feature_PA and feature_radius, calculate the coordinates of the feature
-    # feature_x = round(im_center[0] + feature_radius * np.cos(feature_PA))
-    # feature_y = round(im_center[1] + feature_radius * np.sin(feature_PA))
-    feature_x = round(im_center[0])
-    feature_y = round(im_center[1])
-    distance_from_feature = np.sqrt((X - feature_x)**2 + (Y - feature_y)**2)
+    feature_x1 = round(im_center[0] + feature_radius * np.sin(PA_rad))
+    feature_y1 = round(im_center[1] + feature_radius * np.cos(PA_rad))
+    feature_x2 = round(im_center[0] - feature_radius * np.sin(PA_rad))
+    feature_y2 = round(im_center[1] - feature_radius * np.cos(PA_rad))
+    # feature_x = round(im_center[0])
+    # feature_y = round(im_center[1])
+    # distance_from_feature = np.sqrt((X - feature_x)**2 + (Y - feature_y)**2)
     blank_feature = np.zeros_like(base_disk)
     # Create a small high-res feature at the specified position angle and radius
     pixel_value = np.max(base_disk)
     # Calculate the rotated coordinates of the feature to avoid interpolation artifacts
-    print(f"Feature coordinates: {feature_x}, {feature_y}")
+    # print(f"Feature coordinates: {feature_x}, {feature_y}")
     # Add a small bullseye feature instead of a small cross
     # use masking to add the feature
-    inner_radius = feature_radius - 2
-    outer_radius = feature_radius + 2
-    inner_ring = (distance_from_feature >= inner_radius) & (distance_from_feature < inner_radius + 1)
-    med_ring = (distance_from_feature >= feature_radius) & (distance_from_feature < feature_radius + 1)
-    outer_ring = (distance_from_feature >= outer_radius) & (distance_from_feature < outer_radius + 1)
-    blank_feature[inner_ring] = pixel_value
-    blank_feature[med_ring] = pixel_value
-    blank_feature[outer_ring] = pixel_value
+    # inner_radius = feature_radius - 2
+    # outer_radius = feature_radius + 2
+    # inner_ring = (distance_from_feature >= inner_radius) & (distance_from_feature < inner_radius + 1)
+    # med_ring = (distance_from_feature >= feature_radius) & (distance_from_feature < feature_radius + 1)
+    # outer_ring = (distance_from_feature >= outer_radius) & (distance_from_feature < outer_radius + 1)
+    # blank_feature[inner_ring] = pixel_value
+    # blank_feature[med_ring] = pixel_value
+    # blank_feature[outer_ring] = pixel_value
+    blank_feature[feature_x1, feature_y1] = pixel_value
+    blank_feature[feature_x2, feature_y2] = pixel_value
     base_disk += blank_feature
     return base_disk
 
@@ -336,7 +341,7 @@ Examples:
         )
 
         # # Add hi-res feature to the base disk model
-        # base_disk = add_hi_res_features(base_disk, rotation_angle, int(72))
+        base_disk = add_hi_res_features(base_disk, rotation_angle, int(75))
         # print(f"Rotation angle: {rotation_angle}")
 
         # # debug view the base disk model

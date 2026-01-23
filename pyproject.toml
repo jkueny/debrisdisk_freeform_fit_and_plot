@@ -62,4 +62,4 @@ where = ["src"]
 ff_klip = "ffortissimo.ff_klip:main"
 ff_setup = "ffortissimo.ff_setup:main"
 ff_optimize = "ffortissimo.ff_optimize:main"
-build_synthetic_dataset = "ffortissimo.build_synthetic_dataset:main"
+inject_fake_disk = "ffortissimo.inject_fake_disk:main"

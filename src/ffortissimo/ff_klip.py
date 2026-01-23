@@ -71,10 +71,6 @@ Examples:
     parser.add_argument('-p', '--param-file',
                         required=True,
                         help='Path to YAML parameter file')
-    parser.add_argument('--initial-model',
-                        type=str,
-                        required=False,
-                        help='Path to initial model FITS file (optional)')
     parser.add_argument('--force',
                         action='store_true',
                         help='Force regeneration even if basis file exists')
@@ -90,7 +86,6 @@ Examples:
         sys.exit(1)
     config = args.param_file
     force = args.force
-    init_model = args.initial_model if args.initial_model is not None else None
     injected_dir = args.injected_dir if args.injected_dir is not None else None
 
     # Initialize the freeform disk object
@@ -125,17 +120,8 @@ Examples:
         dataset, psflib = ffd_obj.prep_dataset()
         
         # Run KLIP reduction and create basis file (without forward modeling)
-        # If an initial model is provided, load it directly (no mask required for pure KLIP)
-        model_init = None
-        if init_model is not None:
-            if not os.path.exists(init_model):
-                print(f"Warning: Initial model file not found: {init_model}")
-                print("Proceeding with pure KLIP reduction (no forward modeling)")
-            else:
-                model_init = fits.getdata(init_model)
         
         ffd_obj.run_klip_reduction(dataset,
-                                  model_init=model_init,
                                   psflib=psflib)
         
         print(f"\n✓ KLIP reduction complete!")

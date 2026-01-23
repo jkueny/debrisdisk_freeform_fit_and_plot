@@ -70,7 +70,7 @@ def verify_prerequisites(ffd_obj):
     mask_files = {
         'mask2generatedisk': os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits"),
         'mask4noisemap': os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits"),
-        'engineered_optimization': os.path.join(klipdir, f"{file_prefix}_engineered_optimization_map.fits"),
+        'optimization_mask': os.path.join(klipdir, f"{file_prefix}_optimization_mask.fits"),
         'mask_out_of_bounds': os.path.join(klipdir, f"{file_prefix}_mask_out_of_bounds.fits"),
     }
     noise_map_path = os.path.join(klipdir, f"{file_prefix}_noisemap.fits")
