@@ -20,7 +20,7 @@ import multiprocessing
 import logging
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
-from ffortissimo.utils.io.log_handling import configure_logging
+from ffortissimo.io.log_handling import configure_logging
 logger = logging.getLogger(__name__)
 
 
