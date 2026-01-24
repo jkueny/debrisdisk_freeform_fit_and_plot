@@ -17,8 +17,13 @@ import os
 import sys
 import argparse
 import multiprocessing
+import logging
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
+from ffortissimo.utils.io.log_handling import configure_logging
+logger = logging.getLogger(__name__)
+
+
 
 
 def main():
@@ -64,32 +69,54 @@ Examples:
                         type=str,
                         required=False,
                         help='Path to directory containing injected synthetic disk data (overrides data directory from config)')
+    parser.add_argument('--log-to-file',
+                        action='store_true',
+                        help='Write a timestamped log file instead of stdout')
     
     args = parser.parse_args()
-    
-    if not os.path.exists(args.param_file):
-        print(f"Error: Configuration file not found: {args.param_file}")
-        sys.exit(1)
+
     config = args.param_file
     force = args.force
-    injected_dir = args.injected_dir if args.injected_dir is not None else None
 
     # Initialize the freeform disk object
-    print(f"Initializing FreeFormDisk object with config: {config}")
     ffd_obj = FreeFormDisk(config)
-    
+    injected_dir = args.injected_dir if args.injected_dir is not None else None
+
     # Override data and output directories if injected directory is provided
     if injected_dir is not None:
         if not os.path.exists(injected_dir):
-            print(f"Error: Injected directory not found: {injected_dir}")
+            logger.error("Injected directory not found: %s", injected_dir)
             sys.exit(1)
-        print(f"Using injected data directory: {injected_dir}")
+        logger.info("Using injected data directory: %s", injected_dir)
         # Override datadir to point to injected directory (where FITS files are)
         ffd_obj.datadir = injected_dir
         # Override klipdir to point to klip_fm_files subdirectory in injected directory
         ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
         os.makedirs(ffd_obj.klipdir, exist_ok=True)
-        print(f"Output will be saved to: {ffd_obj.klipdir}")
+        logger.info("Output will be saved to: %s", ffd_obj.klipdir)
+    # data_dir = os.join(os.environ["HOME"], "data", ffd_obj.params_file["BAND_DIR"])
+    save_to_dir = args.log_to_file if args.log_to_file is not None else False
+
+    if save_to_dir:
+        save_dir = os.path.join(ffd_obj.datadir, "ff_logs")
+        log_path = configure_logging(args.log_to_file,
+                                    "ff_klip",
+                                    save_dir)
+    else:
+        log_path = configure_logging(args.log_to_file,
+                                    "ff_klip",
+                                    None)
+
+    if log_path:
+        print(f"Writing log to {log_path}")
+
+    if not os.path.exists(args.param_file):
+        print(f"Configuration file not found: {args.param_file}")
+        sys.exit(1)
+
+
+    logger.info("Initializing FreeFormDisk object with config: %s", config)
+    
     
     # Define needed variables
     file_prefix = ffd_obj.file_prefix
@@ -110,13 +137,13 @@ Examples:
         ffd_obj.run_klip_reduction(dataset,
                                   psflib=psflib)
         
-        print(f"\n✦ KLIP reduction complete! ✦")
-        print(f"  Basis file: {basis_path}")
-        print(f"  Reduced data: {os.path.join(klipdir, f'{file_prefix}-klipped-KLmodes-all.fits')}")
-        print("\nYou can now run ff_setup to generate the masks and noise map.")
+        logger.info("KLIP reduction complete.")
+        logger.info("Basis file: %s", basis_path)
+        logger.info("Reduced data: %s", os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
+        logger.info("Next step: run ff_setup to generate masks and noise map.")
     else:
-        print(f"Basis file already exists: {basis_path}")
-        print("Set FIRST_TIME=True in config file or use --force to regenerate.")
+        logger.info("Basis file already exists: %s", basis_path)
+        logger.info("Set FIRST_TIME=True in config file or use --force to regenerate.")
 
     
 
