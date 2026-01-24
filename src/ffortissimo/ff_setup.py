@@ -277,7 +277,8 @@ Examples:
     # Save masked data for inspection (always regenerate)
     masked_data_path = os.path.join(klipdir, f"{file_prefix}_masked_data.fits")
     masked_noise_path = os.path.join(klipdir, f"{file_prefix}_use4noisemap.fits")
-    save_fits(masked_data_path, reduced_data * masks['mask2generatedisk'])
+    # save_fits(masked_data_path, reduced_data * masks['mask2generatedisk'])
+    save_fits(masked_data_path, reduced_data * masks['optimization_mask'])
     save_fits(masked_noise_path, tosave_reduced_noise_masked)
     
     print(f"   ✓ Noise map created and saved to {noise_map_path}")
