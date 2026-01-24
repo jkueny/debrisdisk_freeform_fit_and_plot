@@ -21,8 +21,8 @@ import astropy.io.fits as fits
 from scipy.signal import convolve2d
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
-from ffortissimo.utils.io.fits_handling import save_fits
-from ffortissimo.utils.io.log_handling import configure_logging
+from ffortissimo.io.fits_handling import save_fits
+from ffortissimo.io.log_handling import configure_logging
 logger = logging.getLogger(__name__)
 
 
