@@ -25,23 +25,16 @@ def main():
     """
     Run KLIP data reduction and create basis file.
     
-    This function accomplishes the first phase of the freeform fitting pipeline:
+    Accomplishes the first phase of the 𝒇𝒇 pipeline:
     - Initializes the FreeFormDisk object
     - Allocates dataset
-    - Runs KLIP reduction (with optional forward modeling if model provided)
+    - Runs KLIP reduction
     - Creates and saves the KLIP basis file
     
-    Note: This function does NOT require binary masks or initial models for
-    pure KLIP reduction. If an initial model is provided, it will be used
-    for forward modeling, but it's optional.
-    
     Args:
-        config (str): Path to YAML configuration file
-        init_model (str, optional): Path to initial model FITS file (optional)
-        force (bool): Force regeneration even if basis file exists
-    
-    Returns:
-        None
+        config (str): Path to YAML parameters/config file
+        force (bool): Force regeneration even if basis file exists or
+        FIRST_TIME is True in the config file
     """
     multiprocessing.set_start_method('forkserver')
     
@@ -51,16 +44,13 @@ def main():
         epilog="""
 Examples:
   # Basic usage
-  python ff_klip.py -p initialization_files/config.yaml
+  python ff_klip.py -p initialization_files/params.yaml
   
-  # With custom initial model
-  python ff_klip.py -p initialization_files/config.yaml --initial-model path/to/model.fits
-  
-  # Force regeneration of existing basis
-  python ff_klip.py -p initialization_files/config.yaml --force
+  # Force regeneration of existing basis using CLI flag
+  python ff_klip.py -p initialization_files/params.yaml --force
   
   # Process injected synthetic dataset
-  python ff_klip.py -p initialization_files/config.yaml --injected-dir /path/to/injected_data
+  python ff_klip.py -p initialization_files/params.yaml --injected-dir /path/to/injected_data
         """
     )
     
