@@ -151,11 +151,6 @@ Examples:
     
     args = parser.parse_args()
     
-    log_path = configure_logging(args.log_to_file,
-                                 "ff_setup",
-                                 args.save_to_dir)
-    if log_path:
-        logger.info("Writing logs to %s", log_path)
 
     # Validate that --injected-pa is provided when --injected-dir is provided
     if args.injected_dir is not None and args.injected_pa is None:
@@ -174,26 +169,25 @@ Examples:
     injected_pa = args.injected_pa if args.injected_pa is not None else None
     
     # Initialize the freeform disk object
-    logger.info("Initializing FreeFormDisk object with config: %s", config)
+    print(f"Initializing FreeFormDisk object with config: {config}")
     ffd_obj = FreeFormDisk(config)
+
+    save_to_dir = os.path.join(ffd_obj.datadir, 'ff_logs')
+
+    if args.log_to_file:
+        print(f"Writing logs to {save_to_dir}")
     
     # Override data and output directories if injected directory is provided
     if injected_dir is not None:
         if not os.path.exists(injected_dir):
-            logger.error("Injected directory not found: %s", injected_dir)
+            print(f"Injected directory not found: {injected_dir}")
             sys.exit(1)
-        logger.info("Using injected data directory: %s", injected_dir)
-        logger.info(
-            "Using injected disk PA: %s deg (overriding config PA: %s deg)",
-            injected_pa,
-            ffd_obj.params_file.get("pa_init", "N/A"),
-        )
+
         # Override datadir to point to injected directory (where FITS files are)
         ffd_obj.datadir = injected_dir
         # Override klipdir to point to klip_fm_files subdirectory in injected directory
         ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
         os.makedirs(ffd_obj.klipdir, exist_ok=True)
-        logger.info("Output will be saved to: %s", ffd_obj.klipdir)
         
         # Override PA in params_file for mask creation
         # Store original values to restore later if needed
@@ -203,6 +197,24 @@ Examples:
         if 'pa_best' in ffd_obj.params_file:
             ffd_obj.params_file['pa_best'] = injected_pa
     
+    if save_to_dir:
+        save_dir = os.path.join(ffd_obj.datadir, "ff_logs")
+        log_path = configure_logging(args.log_to_file,
+                                    "ff_setup",
+                                    save_dir)
+    else:
+        log_path = configure_logging(args.log_to_file,
+                                    "ff_setup",
+                                    None)
+    if injected_dir is not None:
+        logger.info("Using injected data directory: %s", injected_dir)
+        logger.info(
+            "Using injected disk PA: %s deg (overriding config PA: %s deg)",
+            injected_pa,
+            ffd_obj.params_file.get("pa_init", "N/A"),
+        )
+        logger.info("Output will be saved to: %s", ffd_obj.klipdir)
+
     klipdir = ffd_obj.klipdir
     file_prefix = ffd_obj.file_prefix
     
@@ -306,10 +318,11 @@ Examples:
     else:
         logger.info("[4/4] Skipping initial forward model computation")
     
-    logger.info("Setup complete.")
+    logger.info("Done!")
+    logger.info("Check: %s", klipdir)
     logger.info("Next steps:")
-    logger.info("  1. Inspect masks and noise map in: %s", klipdir)
-    logger.info("  2. Inspect initial model files in: %s", klipdir)
+    logger.info("  1. Inspect masks and noise map")
+    logger.info("  2. Inspect initial model files")
     logger.info("  3. Adjust mask parameters in YAML if needed and re-run")
     logger.info("  4. Run freeform fitting with: ff_optimize")
 
