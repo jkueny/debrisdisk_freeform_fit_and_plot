@@ -99,6 +99,7 @@ Examples:
 
     if save_to_dir:
         save_dir = os.path.join(ffd_obj.datadir, "ff_logs")
+        print(f"Writing logs to {save_dir}")
         log_path = configure_logging(args.log_to_file,
                                     "ff_klip",
                                     save_dir)
