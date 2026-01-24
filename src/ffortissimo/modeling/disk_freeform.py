@@ -18,8 +18,8 @@ from scipy.ndimage import rotate
 from ffortissimo.utils.regularization import fit_elgauss_window 
 from datetime import datetime
 
-from ffortissimo.utils.io.yaml_handling import read_config
-from ffortissimo.utils.io.fits_handling import save_fits
+from ffortissimo.io.yaml_handling import read_config
+from ffortissimo.io.fits_handling import save_fits
 from ffortissimo.utils.sci_image_utils import parang_sort, diskprep_image_frames_parangs
 from ffortissimo.utils.masks import make_annular_mask
 from ffortissimo.utils.improc_tools import fft_power_spectrum, subtract_median_profile_np
