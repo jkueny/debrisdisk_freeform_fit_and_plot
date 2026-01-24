@@ -732,7 +732,7 @@ Examples:
     if init_model is None and bool(new_ref):
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
         reference_model[reference_model != reference_model] = 0.
-        reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
+        # reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
         print("   ✓ New reference model fitted and saved")
         print("   Note: Inspect the reference model and re-run optimization if needed.")
     elif init_model is None:
