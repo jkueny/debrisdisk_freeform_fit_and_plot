@@ -254,5 +254,6 @@ def optimize_model(
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
 
-    optimized_model = jnp.abs(image_params)
+    # optimized_model = jnp.abs(image_params)
+    optimized_model = image_params
     return optimized_model, loss_history, weights_asym, weights_nominal
