@@ -71,7 +71,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
-    pos_mod_pix_params = jnp.abs(mod_pix_params)
+    # pos_mod_pix_params = jnp.abs(mod_pix_params)
+    pos_mod_pix_params = mod_pix_params
     full_model_image = reconstruct_full_image(pos_mod_pix_params, total_pixels, disk_mask_inds)
     full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
