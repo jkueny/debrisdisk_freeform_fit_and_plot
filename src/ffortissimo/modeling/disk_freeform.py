@@ -361,11 +361,13 @@ class FreeFormDisk:
         print(f"Iteration {self.iteration}: {params}")
         self.iteration += 1
     def fit_reference_model(self, noise_map, reduced_data):
-        reduced_data[reduced_data != reduced_data] = 0.
-        reduced_data *= self.mask2generatedisk
-        self.data = reduced_data
-        noise_map[noise_map != noise_map] = 1.
-        self.noise_map = noise_map
+        reduced_data_local = np.array(reduced_data, copy=True)
+        reduced_data_local[reduced_data_local != reduced_data_local] = 0.
+        reduced_data_local *= self.mask2generatedisk
+        self.data = reduced_data_local
+        noise_map_local = np.array(noise_map, copy=True)
+        noise_map_local[noise_map_local != noise_map_local] = 1.
+        self.noise_map = noise_map_local
         if self.params_file["OPTIMIZE_REFERENCE"]:
             reference_model = self.fit_simple_disk_model()
         else:

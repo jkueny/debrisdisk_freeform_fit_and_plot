@@ -318,12 +318,11 @@ Examples:
     hp_filtersize = component_dict["hp_filtersize"]
     do_radial_profile_sub = component_dict["do_radial_profile_sub"]
     do_clean_final_fm = component_dict["do_clean_final_fm"]
-    optimization_mask_obj = component_dict["optimization_mask_obj"]
     reference_model_psd = component_dict["reference_model_psd"]
     total_pixels = component_dict["total_pixels"]
     disk_mask = component_dict["disk_mask"]
     optimization_mask = component_dict["optimization_mask"]
-    disk_mask_indices = component_dict["disk_mask_indices"]
+    disk_mask_indices = component_dict["disk_mask_indices"]#mask2generatedisk * annulus
     optimization_mask_indices = component_dict["optimization_mask_indices"]
     reduced_flat_interest = component_dict["reduced_flat_interest"]
     init_model_interest = component_dict["init_model_interest"]

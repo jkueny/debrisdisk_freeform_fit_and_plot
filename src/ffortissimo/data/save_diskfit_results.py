@@ -281,7 +281,7 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
 
     print("Calculating residuals between reduced data and optimized forward model...")
     residuals = np.asarray(reduced_data - optimized_fm_rprofsub)
-    residuals_roi = residuals * optimization_mask
+    residuals_roi = residuals.copy() * optimization_mask
     residuals_roi[residuals_roi == 0.] = np.nan
     residuals_roi = residuals_roi / noise_reconstructed
 

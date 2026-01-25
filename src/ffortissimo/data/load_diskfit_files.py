@@ -86,7 +86,7 @@ def load_diskfit_components(ffd_obj, init_model=None, new_ref=False):
             f"Mask file not found: {optimization_mask_path}\n"
             "Please run ff_setup.py first to create the masks."
         )
-    optimization_mask_obj = fits.getdata(optimization_mask_path)
+    optimization_mask = fits.getdata(optimization_mask_path)
 
     ffd_obj.allocate_dataset()
     model_firstguess = ffd_obj.get_initial_model(init_model)
@@ -118,7 +118,7 @@ def load_diskfit_components(ffd_obj, init_model=None, new_ref=False):
     print("\n[5/6] Preparing data arrays and indices...")
     total_pixels = np.prod(reduced_data.shape)
     disk_mask = np.array(mask2generatedisk)
-    optimization_mask = np.array(optimization_mask_obj)
+    optimization_mask = np.array(optimization_mask)
     annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
     disk_mask *= annular_mask
 
@@ -155,11 +155,10 @@ def load_diskfit_components(ffd_obj, init_model=None, new_ref=False):
         "hp_filtersize": hp_filtersize,
         "do_radial_profile_sub": do_radial_profile_sub,
         "do_clean_final_fm": do_clean_final_fm,
-        "optimization_mask_obj": optimization_mask_obj,
         "reference_model_psd": reference_model_psd,
         "window_opt": window_opt,
         "total_pixels": total_pixels,
-        "disk_mask": disk_mask,
+        "disk_mask": disk_mask, #mask2generatedisk * annulus
         "optimization_mask": optimization_mask,
         "disk_mask_indices": disk_mask_indices,
         "optimization_mask_indices": optimization_mask_indices,
