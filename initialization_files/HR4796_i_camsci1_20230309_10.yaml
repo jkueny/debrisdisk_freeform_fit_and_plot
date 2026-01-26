@@ -52,8 +52,8 @@ NORTH_UP_OFFSET: 1.53
 
 # MODEL PARAMETER PRIORS [LOWER, UPPER]
 rc_prior: [70, 80]
-alpha_in_prior: [10, 100]
-alpha_out_prior: [-100, -10]
+alpha_in_prior: [3, 100]
+alpha_out_prior: [-100, -3]
 beta_prior: [10, 30]
 a_r_prior: [0.005, 0.015]
 inc_prior: [75, 80]
