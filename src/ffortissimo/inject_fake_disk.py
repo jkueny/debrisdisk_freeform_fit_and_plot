@@ -24,7 +24,7 @@ import numpy as np
 from astropy.io import fits
 from scipy.signal import fftconvolve
 import matplotlib.pyplot as plt
-from ffortissimo.utils.io.yaml_handling import read_config
+from ffortissimo.io.yaml_handling import read_config
 from ffortissimo.modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
 from ffortissimo.dev.pyklip.klip import rotate
 
@@ -60,6 +60,8 @@ def get_disk_params(params, use_best=True):
         ('g1', 'g1_best', 'g1_init', None),
         ('g2', 'g2_best', 'g2_init', None),
         ('alpha1', 'alpha1_best', 'alpha1_init', None),
+        ('r_inner', 'r_inner', None, None),
+        ('r_outer', 'r_outer', None, None),
     ]
     
     for param_name, best_key, init_key, default in param_map:
@@ -262,6 +264,8 @@ Examples:
     print(f"  R2: {disk_params['r2']} AU")
     print(f"  Inclination: {disk_params['inc']} deg")
     print(f"  PA: {base_pa} deg")
+    print(f"  alpha_in: {disk_params['alpha_in']}")
+    print(f"  alpha_out: {disk_params['alpha_out']}")
     
     
     
@@ -316,8 +320,8 @@ Examples:
         # )
 
         base_disk = fastmodgen_disk_dxdy_2g(
-            R1=disk_params['r1'],
-            R2=disk_params['r2'],
+            R1=disk_params['r_inner'],
+            R2=disk_params['r_outer'],
             # beta=disk_params['beta'],
             beta=1.0,
             inc=disk_params['inc'],
@@ -340,7 +344,7 @@ Examples:
         )
 
         # # Add hi-res feature to the base disk model
-        base_disk = add_hi_res_features(base_disk, rotation_angle, int(75))
+        base_disk = add_hi_res_features(base_disk, rotation_angle, int(85))
         # print(f"Rotation angle: {rotation_angle}")
 
         # # debug view the base disk model

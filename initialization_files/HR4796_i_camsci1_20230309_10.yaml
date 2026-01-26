@@ -89,8 +89,10 @@ r_outer: 110
 
 # BEST MODEL PARAMETERS
 rc_best: 74.31
-alpha_in_best: 50.
-alpha_out_best: -14.08
+# alpha_in_best: 50.
+alpha_in_best: 12.
+# alpha_out_best: -14.08
+alpha_out_best: -12.
 beta_best: 14.8
 a_r_best: 0.01
 inc_best: 76.77
