@@ -303,7 +303,6 @@ Examples:
     component_dict = load_diskfit_components(
         ffd_obj=ffd_obj,
         init_model=init_model,
-        new_ref=new_ref,
     )
     psf = component_dict["psf"]
     jax_psf = component_dict["jax_psf"]
