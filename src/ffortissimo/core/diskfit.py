@@ -147,7 +147,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # mean_huber = jnp.mean(huber_loss(raw_loss, delta=delta))
     mean_huber = jnp.mean(raw_loss)
 
-    loss = mean_huber #+ hsf_penalty
+    loss = mean_huber + hsf_penalty
     aux_data = freeform_fm_full, full_model_image, (weights_asym * weights_nominal), weights_nominal
     return loss, aux_data
 
