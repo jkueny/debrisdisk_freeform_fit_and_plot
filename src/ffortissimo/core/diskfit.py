@@ -71,8 +71,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
-    pos_mod_pix_params = jnp.abs(mod_pix_params)
-    # pos_mod_pix_params = mod_pix_params
+    # pos_mod_pix_params = jnp.abs(mod_pix_params)
+    pos_mod_pix_params = mod_pix_params
     full_model_image = reconstruct_full_image(pos_mod_pix_params, total_pixels, disk_mask_inds)
     full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
@@ -147,7 +147,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # mean_huber = jnp.mean(huber_loss(raw_loss, delta=delta))
     mean_huber = jnp.mean(raw_loss)
 
-    loss = mean_huber + hsf_penalty
+    loss = mean_huber #+ hsf_penalty
     aux_data = freeform_fm_full, full_model_image, (weights_asym * weights_nominal), weights_nominal
     return loss, aux_data
 
@@ -255,6 +255,6 @@ def optimize_model(
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
 
-    optimized_model = jnp.abs(image_params)
-    # optimized_model = image_params
+    # optimized_model = jnp.abs(image_params)
+    optimized_model = image_params
     return optimized_model, loss_history, weights_asym, weights_nominal
