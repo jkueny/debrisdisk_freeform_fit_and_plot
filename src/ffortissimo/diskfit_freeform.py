@@ -28,7 +28,7 @@ viridis_g = cm.viridis.copy()
 viridis_g.set_bad('0.5')
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
-from ffortissimo.utils.io.save_results import save_ffdfit_outputs, get_next_run_dir
+from ffortissimo.io.save_results import save_ffdfit_outputs, get_next_run_dir
 
 from ffortissimo.dev.pyklip.fmlib.funcs_JDFM import (
     update_disk, fm_from_eigen_adi, fm_from_eigen_rdi, derotate_and_average

@@ -61,6 +61,6 @@ def rotate_image(image: jnp.ndarray, angle_deg: float) -> jnp.ndarray:
     i_in = j_centered * sin_theta + i_centered * cos_theta + cy
 
     # Use map_coordinates for bilinear interpolation (order=1), which is differentiable.
-    rotated = map_coordinates(image, [i_in, j_in], order=1, mode='constant', cval=0.0)
+    rotated = map_coordinates(image, [i_in, j_in], order=3, mode='constant', cval=0.0)
 
     return rotated
