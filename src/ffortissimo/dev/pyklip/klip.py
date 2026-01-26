@@ -340,7 +340,8 @@ def nan_map_coordinates_2d(img, yp, xp, mc_kwargs=None):
     medval = np.nanmedian(img)
     img_copy = np.copy(img)
     img_copy[nanpix] = medval
-    transformed_img = ndimage.map_coordinates(img_copy, [yp, xp], **mc_kwargs)
+    transformed_img = ndimage.map_coordinates(img_copy, [yp, xp], order=1,
+                                              **mc_kwargs)
 
     # mask nans
     img_shape = transformed_img.shape
