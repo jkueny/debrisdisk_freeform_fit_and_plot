@@ -198,9 +198,6 @@ Examples:
     parser.add_argument('--dry-run',
                         action='store_true',
                         help='Perform single forward-modeling dry run and exit')
-    parser.add_argument('--new-ref',
-                        action='store_true',
-                        help='Fit new reference model instead of using FirstModel files')
     parser.add_argument('--injected-dir',
                         type=str,
                         required=False,
@@ -233,7 +230,6 @@ Examples:
     delta = args.delta
     learning_rate = args.learning_rate
     num_iterations = args.iterations if args.iterations is not None else 0
-    new_ref = args.new_ref
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
     injected_pa = args.injected_pa if args.injected_pa is not None else None

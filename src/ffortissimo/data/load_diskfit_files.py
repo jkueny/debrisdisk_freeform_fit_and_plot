@@ -9,14 +9,13 @@ from ffortissimo.utils.masks import make_annular_mask
 from ffortissimo.utils.improc_tools import get_radial_inds
 
 
-def load_diskfit_components(ffd_obj, init_model=None, new_ref=False):
+def load_diskfit_components(ffd_obj, init_model=None):
     """
     Load data products and build arrays needed for optimization.
 
     Args:
         ffd_obj: FreeFormDisk object
         init_model (str, optional): Path to starting model FITS file
-        new_ref (bool): Fit new reference model instead of FirstModel
 
     Returns:
         dict: Loaded data and derived arrays for optimization
@@ -91,22 +90,22 @@ def load_diskfit_components(ffd_obj, init_model=None, new_ref=False):
     ffd_obj.allocate_dataset()
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
-    if init_model is None and bool(new_ref):
+    if init_model is None:
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
         reference_model[reference_model != reference_model] = 0.
         # reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
         print("   ✓ New reference model fitted and saved")
         print("   Note: Inspect the reference model and re-run optimization if needed.")
-    elif init_model is None:
-        # Try to load FirstModel, otherwise use initial guess
-        first_model_path = os.path.join(klipdir, f"{file_prefix}_FirstModel.fits")
-        if os.path.exists(first_model_path):
-            reference_model = fits.getdata(first_model_path)
-            reference_model[reference_model != reference_model] = 0.
-            print(f"   ✓ Loaded reference model from {first_model_path}")
-        else:
-            reference_model = model_firstguess
-            print("   ✓ Using initial guess model as reference")
+    # elif init_model is None:
+    #     # Try to load FirstModel, otherwise use initial guess
+    #     first_model_path = os.path.join(klipdir, f"{file_prefix}_FirstModel.fits")
+    #     if os.path.exists(first_model_path):
+    #         reference_model = fits.getdata(first_model_path)
+    #         reference_model[reference_model != reference_model] = 0.
+    #         print(f"   ✓ Loaded reference model from {first_model_path}")
+    #     else:
+    #         reference_model = model_firstguess
+    #         print("   ✓ Using initial guess model as reference")
     else:
         reference_model = model_firstguess
         print("   ✓ Using provided initial model as reference")
