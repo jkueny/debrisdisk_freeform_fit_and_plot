@@ -94,7 +94,8 @@ alpha1_init: 0.3184
 
 # BEST MODEL PARAMETERS
 rc_best: 74.31
-alpha_in_best: 50.
+# alpha_in_best: 50.
+alpha_in_best: 12.
 alpha_out_best: -14.08
 beta_best: 14.8
 a_r_best: 0.01
