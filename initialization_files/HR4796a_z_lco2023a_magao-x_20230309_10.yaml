@@ -95,7 +95,8 @@ alpha1_init: 0.3184
 
 # BEST MODEL PARAMETERS
 rc_best: 74.31
-alpha_in_best: 50.
+# alpha_in_best: 50.
+alpha_in_best: 12.
 alpha_out_best: -14.08
 beta_best: 14.8
 a_r_best: 0.01
@@ -121,7 +122,7 @@ CONV_FACTOR: 2.4693741506195597e-07 # Jy
 
 
 # MASKING PARAMETERS
-MASK_IN_SCALING: 3 #bigger means shrink inner bound
+MASK_IN_SCALING: 4 #bigger means shrink inner bound
 MASK_OUT_SCALING: 5 #bigger means expand outer bound
 MASK_SPECKLES: 10 #central circle mask
 # Make a tight mask for the noisemap calculation

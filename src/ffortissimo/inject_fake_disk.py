@@ -344,7 +344,7 @@ Examples:
         )
 
         # # Add hi-res feature to the base disk model
-        base_disk = add_hi_res_features(base_disk, rotation_angle, int(85))
+        # base_disk = add_hi_res_features(base_disk, rotation_angle, int(85))
         # print(f"Rotation angle: {rotation_angle}")
 
         # # debug view the base disk model
