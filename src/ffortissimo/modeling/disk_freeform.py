@@ -342,7 +342,7 @@ class FreeFormDisk:
 
         result = minimize(self._objective_function, x0,
                           method="L-BFGS-B", bounds=bounds,
-                          options={"maxiter": 1000, "ftol": 1e-10, "gtol": 1e-8,
+                          options={"maxiter": 100, "ftol": 1e-10, "gtol": 1e-8,
                           "disp": True},
                           callback=self._callback_function,
                           )

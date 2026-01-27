@@ -452,7 +452,7 @@ def rotate(img, angle, center, new_center=None, flipx=False, astr_hdr=None):
     xp = (x-center[0])*np.cos(angle_rad) + (y-center[1])*np.sin(angle_rad) + center[0]
     yp = -(x-center[0])*np.sin(angle_rad) + (y-center[1])*np.cos(angle_rad) + center[1]
 
-    params_mc = {'order':1}
+    params_mc = {'order':3}
 
     resampled_img = nan_map_coordinates_2d(img, yp, xp, params_mc)
     # resampled_img = bilinear_interpolate(img, yp, xp)
