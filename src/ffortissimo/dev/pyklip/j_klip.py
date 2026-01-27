@@ -3,28 +3,74 @@ from jax.scipy.ndimage import map_coordinates
 
 from functools import partial
 
-def bilinear_interpolate(image, i_coords, j_coords):
+def cubic_weight(x):
     """
-    Bilinear interpolation on a 2D image.
+    Computes the weights for bicubic interpolation using the Catmull-Rom spline.
     """
-    H, W = image.shape
-    i0 = jnp.floor(i_coords).astype(jnp.int32)
-    j0 = jnp.floor(j_coords).astype(jnp.int32)
-    i1 = i0 + 1
-    j1 = jnp.clip(j0 + 1, 0, W - 1)
-    i0 = jnp.clip(i0, 0, H - 1)
-    i1 = jnp.clip(i1, 0, H - 1)
-    j0 = jnp.clip(j0, 0, W - 1)
-    j1 = jnp.clip(j1, 0, W - 1)
-    Ia = image[i0, j0]
-    Ib = image[i0, j1]
-    Ic = image[i1, j0]
-    Id = image[i1, j1]
-    wa = (i1 - i_coords) * (j1 - j_coords)
-    wb = (i1 - i_coords) * (j_coords - j0)
-    wc = (i_coords - i0) * (j1 - j_coords)
-    wd = (i_coords - i0) * (j_coords - j0)
-    return wa * Ia + wb * Ib + wc * Ic + wd * Id
+    a = -0.5
+    abs_x = jnp.abs(x)
+    
+    # Condition 1: |x| <= 1
+    cond1 = abs_x <= 1.0
+    val1 = (a + 2.0) * abs_x**3 - (a + 3.0) * abs_x**2 + 1.0
+    
+    # Condition 2: 1 < |x| < 2
+    cond2 = (abs_x > 1.0) & (abs_x < 2.0)
+    val2 = a * abs_x**3 - 5.0 * a * abs_x**2 + 8.0 * a * abs_x - 4.0 * a
+    
+    return jnp.where(cond1, val1, jnp.where(cond2, val2, 0.0))
+
+def get_pixel_value(img, x, y):
+    """
+    Safe pixel retrieval with zero padding (cval=0.0).
+    """
+    h, w = img.shape
+    # Check bounds
+    in_bounds = (x >= 0) & (x < w) & (y >= 0) & (y < h)
+    # Clip coordinates to be safe for array indexing (though we mask the result later)
+    x_clamped = jnp.clip(jnp.int32(x), 0, w - 1)
+    y_clamped = jnp.clip(jnp.int32(y), 0, h - 1)
+    
+    val = img[y_clamped, x_clamped]
+    return jnp.where(in_bounds, val, 0.0)
+
+def bicubic_interp_2d(image, coordinates):
+    """
+    Bicubic interpolation (order=3) equivalent to map_coordinates.
+    
+    Args:
+        image: 2D array (H, W)
+        coordinates: List of two arrays [y_coords, x_coords] matching scipy.map_coordinates
+        
+    Returns:
+        Interpolated image of shape matching coordinates
+    """
+    y_coords, x_coords = coordinates
+    
+    # Floor to get the top-left integer coordinate of the 4x4 kernel
+    x_f = jnp.floor(x_coords)
+    y_f = jnp.floor(y_coords)
+    
+    # The convolution kernel iterates from -1 to 2 around the floor
+    # Sum over the 4x4 neighborhood
+    output = jnp.zeros_like(x_coords)
+    
+    for dy in range(-1, 3):
+        for dx in range(-1, 3):
+            # Coordinates of the neighbor pixel
+            ix = x_f + dx
+            iy = y_f + dy
+            
+            # Weight for this neighbor
+            wx = cubic_weight(x_coords - ix)
+            wy = cubic_weight(y_coords - iy)
+            
+            # Pixel value
+            val = get_pixel_value(image, ix, iy)
+            
+            output += val * wx * wy
+            
+    return output
 
 def rotate_image(image: jnp.ndarray, angle_deg: float) -> jnp.ndarray:
     """
@@ -61,6 +107,7 @@ def rotate_image(image: jnp.ndarray, angle_deg: float) -> jnp.ndarray:
     i_in = j_centered * sin_theta + i_centered * cos_theta + cy
 
     # Use map_coordinates for bilinear interpolation (order=1), which is differentiable.
-    rotated = map_coordinates(image, [i_in, j_in], order=1, mode='constant', cval=0.0)
+    # rotated = map_coordinates(image, [i_in, j_in], order=1, mode='constant', cval=0.0)
+    rotated = bicubic_interp_2d(image, [i_in, j_in])
 
     return rotated
