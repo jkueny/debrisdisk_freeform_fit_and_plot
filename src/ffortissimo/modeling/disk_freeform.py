@@ -14,7 +14,7 @@ import glob
 from astropy.io import fits
 import numpy as np
 from scipy.signal import convolve2d
-from scipy.ndimage import rotate
+from scipy.ndimage import gaussian_filter, rotate
 from ffortissimo.utils.regularization import fit_elgauss_window 
 from datetime import datetime
 
@@ -39,6 +39,14 @@ from scipy.optimize import minimize
 def get_basedir():
     basedir = os.environ.get("DISKFIT_BASEDIR",f'{os.environ["HOME"]}/data')
     return basedir
+
+def apodize_mask_gaussian(mask, sigma=2.0):
+    """Apodize a binary mask using Gaussian smoothing."""
+    smoothed = gaussian_filter(mask.astype(float), sigma=sigma)
+    max_val = np.max(smoothed)
+    if max_val > 0:
+        smoothed = smoothed / max_val
+    return smoothed
 
 def generate_powerlaw_noise(shape, power_law_index, seed):
     """
@@ -580,6 +588,8 @@ class FreeFormDisk:
 
         self.mask2generatedisk = mask2generatedisk
         self.mask4noisemap = mask4noisemap
+        disk_mask_apod = apodize_mask_gaussian(mask2generatedisk, sigma=3.0)
+        self.disk_mask_apod = disk_mask_apod
         engineered_optimization_map = self._engineer_disk_mask(mask2generatedisk, angle_sweep_factor=6)
         # optimization_mask = mask2generatedisk
         optimization_mask = engineered_optimization_map
@@ -587,6 +597,8 @@ class FreeFormDisk:
                      optimization_mask, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask2generatedisk.fits",
                      mask2generatedisk, overwrite=True)
+        fits.writeto(f"{save_mask_part}_disk_mask_apod.fits",
+                     disk_mask_apod, overwrite=True)
         fits.writeto(f"{save_mask_part}_mask_out_of_bounds.fits",
                      mask_out_of_bounds, overwrite=True)
         return optimization_mask
