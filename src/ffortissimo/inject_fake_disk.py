@@ -150,7 +150,7 @@ Examples:
                         type=str,
                         required=True,
                         help='Output directory for synthetic dataset')
-    parser.add_argument('--desired-pa',
+    parser.add_argument('--pa',
                         type=float,
                         default=115.0,
                         help='Injected disk position angle in degrees (default: 115.0)')
@@ -217,8 +217,8 @@ Examples:
     
     # Apply PA offset
     # base_pa = disk_params['pa'] + args.pa_offset
-    base_pa = args.pa_offset
-    print(f"Base disk PA: {disk_params['pa']} + offset {args.pa_offset} = {base_pa} deg")
+    base_pa = args.pa
+    print(f"Base disk PA: {disk_params['pa']} + offset {args.pa} = {base_pa} deg")
     
     # Find FITS files
     print(f"\nSearching for FITS files in: {data_dir}")
