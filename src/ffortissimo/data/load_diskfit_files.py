@@ -33,6 +33,7 @@ def load_diskfit_components(ffd_obj, init_model=None):
     fm_dict = load_kl_basis(basis_path)
     mask4noisemap = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits"))
     mask2generatedisk = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits"))
+    disk_mask_apod = fits.getdata(os.path.join(klipdir, f"{file_prefix}_disk_mask_apod.fits"))
     # Set mask on object (needed for get_initial_model later)
     ffd_obj.mask2generatedisk = mask2generatedisk
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
@@ -117,6 +118,7 @@ def load_diskfit_components(ffd_obj, init_model=None):
     print("\n[5/6] Preparing data arrays and indices...")
     total_pixels = np.prod(reduced_data.shape)
     disk_mask = np.array(mask2generatedisk)
+    disk_mask_apod = np.array(disk_mask_apod)
     optimization_mask = np.array(optimization_mask)
     annular_mask = make_annular_mask(disk_mask.shape, 10, ffd_obj.owa)
     disk_mask *= annular_mask
@@ -158,6 +160,7 @@ def load_diskfit_components(ffd_obj, init_model=None):
         "window_opt": window_opt,
         "total_pixels": total_pixels,
         "disk_mask": disk_mask, #mask2generatedisk * annulus
+        "disk_mask_apod": disk_mask_apod,
         "optimization_mask": optimization_mask,
         "disk_mask_indices": disk_mask_indices,
         "optimization_mask_indices": optimization_mask_indices,

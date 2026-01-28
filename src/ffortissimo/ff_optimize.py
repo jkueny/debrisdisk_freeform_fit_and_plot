@@ -316,6 +316,7 @@ Examples:
     reference_model_psd = component_dict["reference_model_psd"]
     total_pixels = component_dict["total_pixels"]
     disk_mask = component_dict["disk_mask"]
+    disk_mask_apod = component_dict["disk_mask_apod"]
     optimization_mask = component_dict["optimization_mask"]
     disk_mask_indices = component_dict["disk_mask_indices"]#mask2generatedisk * annulus
     optimization_mask_indices = component_dict["optimization_mask_indices"]
@@ -349,6 +350,7 @@ Examples:
         ref_psd=reference_model_psd,
         noise_map=noise_interest,
         disk_mask_indices=disk_mask_indices,
+        disk_mask_apod=disk_mask_apod,
         opt_mask_indices=optimization_mask_indices,
         psf=jax_psf,
         basis_data=fm_dict,

@@ -150,10 +150,10 @@ Examples:
                         type=str,
                         required=True,
                         help='Output directory for synthetic dataset')
-    parser.add_argument('--pa-offset',
+    parser.add_argument('--desired-pa',
                         type=float,
-                        default=90.0,
-                        help='Position angle offset in degrees (default: 90.0)')
+                        default=115.0,
+                        help='Injected disk position angle in degrees (default: 115.0)')
     parser.add_argument('--data-dir',
                         type=str,
                         required=False,

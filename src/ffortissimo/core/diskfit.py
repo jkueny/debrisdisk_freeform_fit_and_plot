@@ -63,7 +63,7 @@ def asym_weights(res, tau, alpha):
     return alpha + (1.0 - alpha) * 0.5*(1.0 + s)
 
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
-                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, iowa_sec_inds_arr, 
+                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, disk_mask_apod, iowa_sec_inds_arr, 
                   klmodes_stacked, radial_inds, aligned_center,
                   isRDI, do_radial_profile_sub, do_clean_final_fm,
                   total_pixels, reg_lambda, 
@@ -141,9 +141,10 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     freeform_fm_interest = freeform_fm_flat[opt_mask_inds]
 
     residuals = (freeform_fm_interest - disk_image)
+    residuals_apod = residuals * disk_mask_apod
     weights_nominal = 1 / noise_map
     weights_asym = asym_weights(residuals, tau=noise_map, alpha=1.0)
-    raw_loss = residuals**2 * weights_nominal
+    raw_loss = residuals_apod**2 * weights_nominal
     # mean_huber = jnp.mean(huber_loss(raw_loss, delta=delta))
     mean_huber = jnp.mean(raw_loss)
 
@@ -154,7 +155,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
 
 def optimize_model(
-    target_image, model_init, ref_psd, noise_map, disk_mask_indices, opt_mask_indices,
+    target_image, model_init, ref_psd, noise_map, disk_mask_indices, opt_mask_indices, disk_mask_apod,
     psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
     radial_inds, delta,
     aligned_center, do_radial_profile_sub, do_clean_final_fm,
@@ -162,6 +163,7 @@ def optimize_model(
 ):
     target_image = jnp.array(target_image).astype(jnp.float32)
     noise_map = jnp.array(noise_map).astype(jnp.float32)
+    disk_mask_apod = jnp.array(disk_mask_apod).astype(jnp.float32)
 
     basis_data_unpacked = unpack_basis_data(basis_data)
     aligned_image_sections = jnp.array(basis_data_unpacked["aligned_images"])
@@ -202,6 +204,8 @@ def optimize_model(
         max_num_refs = basis_data_unpacked["fixed_refs"]
         mode = 0
 
+    disk_mask_apod_flat = disk_mask_apod.reshape(total_pixels)
+    disk_mask_apod_interest = disk_mask_apod_flat[opt_mask_indices]
     run_start_ts = time.time()
     total_pixels = int(total_pixels)
 
@@ -209,7 +213,7 @@ def optimize_model(
     def step(image_params, opt_state, reg_lambda_here):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image, psf, noise_map, ref_psd,
-            aligned_image_sections, PAs, disk_mask_indices, opt_mask_indices, iowa_sec_inds,
+            aligned_image_sections, PAs, disk_mask_indices, opt_mask_indices, disk_mask_apod_interest, iowa_sec_inds,
             klmodes_sections,
             radial_inds, aligned_center,
             mode, do_radial_profile_sub, do_clean_final_fm,

@@ -250,6 +250,7 @@ Examples:
     
     masks = {
         'mask2generatedisk': ffd_obj.mask2generatedisk,
+        'disk_mask_apod': ffd_obj.disk_mask_apod,
         'mask4noisemap': ffd_obj.mask4noisemap,
         'engineered_optimization': optimization_mask,
         'mask_out_of_bounds': mask_out_of_bounds,
