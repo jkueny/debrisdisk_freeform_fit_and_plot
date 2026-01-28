@@ -344,7 +344,7 @@ Examples:
         jax.profiler.start_trace(trace_dest)
         print(f"   Tracing to {trace_dest}")
     
-    optimized_params, loss_history, weights_asym, weights_nominal = optimize_model(
+    optimized_params, loss_history, weights_nominal = optimize_model(
         target_image=reduced_flat_interest,
         model_init=init_model_interest,
         ref_psd=reference_model_psd,
@@ -405,7 +405,6 @@ Examples:
         do_clean_final_fm,
         hp_filtersize,
         noise_interest,
-        weights_asym,
         weights_nominal
     )
     
@@ -422,7 +421,6 @@ Examples:
         hsf_regularization=reg_lambda,
         huber_delta=delta,
         pyklip_params=pyklip_params_dict,
-        weights_asym=outputs_dict["weights_asym"],
         weights_nominal=outputs_dict["weights_nominal"]
     )
     

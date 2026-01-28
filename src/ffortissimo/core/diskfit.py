@@ -57,10 +57,6 @@ def fm_scan_func_rdi(_, input_pt):
     
     return _, jnp.array(flat_postklip_psf_i)
 
-def asym_weights(res, tau, alpha):
-    # r = residuals; weight ~alpha for r<0, ~1 for r>0 (smooth)
-    s = jnp.tanh(-res / tau)
-    return alpha + (1.0 - alpha) * 0.5*(1.0 + s)
 
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   aligned_images, PAs, disk_mask_inds, opt_mask_inds, disk_mask_apod, iowa_sec_inds_arr, 
@@ -143,13 +139,12 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     residuals = (freeform_fm_interest - disk_image)
     residuals_apod = residuals * disk_mask_apod
     weights_nominal = 1 / noise_map
-    weights_asym = asym_weights(residuals, tau=noise_map, alpha=1.0)
     raw_loss = residuals_apod**2 * weights_nominal
     # mean_huber = jnp.mean(huber_loss(raw_loss, delta=delta))
     mean_huber = jnp.mean(raw_loss)
 
     loss = mean_huber + hsf_penalty
-    aux_data = freeform_fm_full, full_model_image, (weights_asym * weights_nominal), weights_nominal
+    aux_data = freeform_fm_full, full_model_image, weights_nominal
     return loss, aux_data
 
 loss_and_grad = jax.value_and_grad(loss_function, has_aux=True)
@@ -232,7 +227,7 @@ def optimize_model(
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
             image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state, reg_lambda)
-        freeform_fm_full, full_model_image, weights_asym, weights_nominal = aux_data
+        freeform_fm_full, full_model_image, weights_nominal = aux_data
         loss_history.append(loss.item())
 
         if measure_warmup:
@@ -261,4 +256,4 @@ def optimize_model(
 
     optimized_model = jnp.abs(image_params)
     # optimized_model = image_params
-    return optimized_model, loss_history, weights_asym, weights_nominal
+    return optimized_model, loss_history, weights_nominal

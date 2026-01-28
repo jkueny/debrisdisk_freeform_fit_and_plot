@@ -163,7 +163,6 @@ def save_ffdfit_outputs(run_dir: Path,
                         huber_delta: float,
                         optimizer_name: str = "Optax Adam",
                         pyklip_params: dict = None,
-                        weights_asym: np.ndarray = None,
                         weights_nominal: np.ndarray = None):
     """Saves output from the freeform diskfit optimization code.
 
@@ -195,7 +194,6 @@ def save_ffdfit_outputs(run_dir: Path,
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Res.fits", residuals_image, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Res_ROI.fits", residuals_roi, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_MedProf.fits", median_profile_image, overwrite=True)
-    fits.writeto(run_dir / f"{file_prefix}_Weights_Asym.fits", weights_asym, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_Weights_Nominal.fits", weights_nominal, overwrite=True)
     metadata = {
         "timestamp_utc": str(datetime.now()),
@@ -227,7 +225,7 @@ def save_ffdfit_outputs(run_dir: Path,
 
 def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices, opt_mask_indices,
                             disk_mask, optimization_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
-                            noise_interest, weights_asym, weights_nominal):
+                            noise_interest, weights_nominal):
     outputs_dict = {}
     print("Reconstructing full image...")
     optimized_model = np.asarray(reconstruct_full_image(optimized_params, total_pixels, disk_mask_indices))
@@ -243,10 +241,6 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
                                              total_pixels,
                                              opt_mask_indices,
                                             )
-    asymw_reconstructed = reconstruct_full_image(jnp.array(weights_asym),
-                                                 total_pixels,
-                                                 opt_mask_indices,
-                                                )
     if bool(do_radial_profile_sub):
         opt_model_image, med_prof_image = subtract_radial_profile(opt_image_no_rprofsub,
                                                               aligned_center,
@@ -291,6 +285,5 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
     outputs_dict["residuals_roi"] = np.asarray(residuals_roi)
     outputs_dict["median_profile_image"] = median_profile_image
     outputs_dict["residuals"] = np.asarray(residuals)
-    outputs_dict["weights_asym"] = np.asarray(asymw_reconstructed)
     outputs_dict["weights_nominal"] = np.asarray(w_reconstructed)
     return outputs_dict
