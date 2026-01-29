@@ -19,6 +19,7 @@ import argparse
 import multiprocessing
 import logging
 
+from astropy.io import fits
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
 from ffortissimo.io.log_handling import configure_logging
 logger = logging.getLogger(__name__)
@@ -94,6 +95,7 @@ Examples:
         ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
         os.makedirs(ffd_obj.klipdir, exist_ok=True)
         logger.info("Output will be saved to: %s", ffd_obj.klipdir)
+    main_datadir = ffd_obj.datadir
     # data_dir = os.join(os.environ["HOME"], "data", ffd_obj.params_file["BAND_DIR"])
     save_to_dir = args.log_to_file if args.log_to_file is not None else False
 
@@ -125,12 +127,23 @@ Examples:
     klipdir = ffd_obj.klipdir
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
     
-    # Allocate dataset (load data files)
-    ffd_obj.allocate_dataset()
-    
     # Check if we should run KLIP reduction
     if ffd_obj.params_file["FIRST_TIME"] or force:
+        # Counter-rotated KLIP reduction on original dataset (negated parangs)
+        ffd_obj.datadir = original_datadir
+        ffd_obj.allocate_dataset()
+        ffd_obj.par_angs = -ffd_obj.par_angs
+        dataset, psflib = ffd_obj.prep_dataset()
+        counter_reduced_data = ffd_obj.run_klip_reduction(dataset,
+                                                          psflib=psflib)
+        counter_path = os.path.join(klipdir, f"{file_prefix}-klipped_counter_rotated.fits")
+        fits.writeto(counter_path, counter_reduced_data, overwrite=True)
+        logger.info("Counter-rotated KLIP reduction complete.")
+        logger.info("Diskless reduced data: %s", counter_path)
+
         # Prepare dataset and PSF library (for RDI if needed)
+        ffd_obj.datadir = main_datadir
+        ffd_obj.allocate_dataset()
         dataset, psflib = ffd_obj.prep_dataset()
         
         # Run KLIP reduction and create basis file (without forward modeling)

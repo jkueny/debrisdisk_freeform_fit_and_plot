@@ -776,3 +776,27 @@ class FreeFormDisk:
         
         return noise_map
 
+    def make_ring_stat_maps(self, reduced_data, delta_radii=1):
+        if len(reduced_data.shape) > 2:
+            reduced_data = np.squeeze(reduced_data)
+        h, w = reduced_data.shape
+        reduced_data = np.array(reduced_data, copy=True)
+        reduced_data[reduced_data == 0.] = np.nan
+        image_center = (h / 2 - 0.5, w / 2 - 0.5)
+
+        x = np.arange(h, dtype=np.float64)[None, :] - image_center[0]
+        y = np.arange(w, dtype=np.float64)[:, None] - image_center[1]
+        rho2d = np.sqrt(x**2 + y**2)
+
+        std_map = np.zeros((h, w))
+        mean_map = np.zeros((h, w))
+        median_map = np.zeros((h, w))
+        for i_ring in range(0,
+                            int(self.params_file["OWA"] / delta_radii) - 2):
+            wh_rings = (rho2d >= i_ring * delta_radii) & (rho2d < (i_ring + 1) * delta_radii)
+            std_map[wh_rings] = np.nanstd(reduced_data[wh_rings])
+            mean_map[wh_rings] = np.nanmean(reduced_data[wh_rings])
+            median_map[wh_rings] = np.nanmedian(reduced_data[wh_rings])
+
+        return std_map, mean_map, median_map
+

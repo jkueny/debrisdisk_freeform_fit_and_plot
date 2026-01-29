@@ -223,7 +223,7 @@ def save_ffdfit_outputs(run_dir: Path,
     return run_dir
 
 
-def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices, opt_mask_indices,
+def harness_optimized_model(optimized_params, opt_offset, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices, opt_mask_indices,
                             disk_mask, optimization_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
                             noise_interest, weights_nominal):
     outputs_dict = {}
@@ -272,6 +272,8 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
                                                           )
     else:
         optimized_fm_rprofsub = optimized_fm
+
+    optimized_fm_rprofsub += opt_offset
 
     print("Calculating residuals between reduced data and optimized forward model...")
     residuals = np.asarray(reduced_data - optimized_fm_rprofsub)

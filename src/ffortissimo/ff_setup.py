@@ -310,6 +310,31 @@ Examples:
     save_fits(masked_noise_path, tosave_reduced_noise_masked)
     
     logger.info("Noise map created and saved to %s", noise_map_path)
+
+    # Step 4b: Counter-rotated stats maps (no masking)
+    counter_reduced_path = os.path.join(klipdir, f"{file_prefix}-klipped_counter_rotated.fits")
+    if os.path.exists(counter_reduced_path):
+        logger.info("Computing counter-rotated ring statistics...")
+        counter_reduced_data = fits.getdata(counter_reduced_path)
+        counter_reduced_data = np.squeeze(counter_reduced_data)
+        counter_reduced_data[counter_reduced_data != counter_reduced_data] = 0.
+
+        counter_noise_map, counter_mean_map, counter_median_map = ffd_obj.make_ring_stat_maps(
+            counter_reduced_data,
+            delta_radii=delta_radii,
+        )
+
+        noise_counter_path = os.path.join(klipdir, f"{file_prefix}_noise_counter_rotated.fits")
+        mean_counter_path = os.path.join(klipdir, f"{file_prefix}_mean_counter_rotated.fits")
+        median_counter_path = os.path.join(klipdir, f"{file_prefix}_median_counter_rotated.fits")
+        fits.writeto(noise_counter_path, counter_noise_map, overwrite=True)
+        fits.writeto(mean_counter_path, counter_mean_map, overwrite=True)
+        fits.writeto(median_counter_path, counter_median_map, overwrite=True)
+        logger.info("Counter-rotated stats saved: %s", noise_counter_path)
+        logger.info("Counter-rotated stats saved: %s", mean_counter_path)
+        logger.info("Counter-rotated stats saved: %s", median_counter_path)
+    else:
+        logger.warning("Counter-rotated reduced data not found: %s", counter_reduced_path)
     
     # Step 5: Perform optimization dry run (unless skipped)
     if do_fm:
