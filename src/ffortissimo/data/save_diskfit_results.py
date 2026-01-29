@@ -274,14 +274,17 @@ def harness_optimized_model(optimized_params, opt_offset, ffd_obj, reduced_data,
                                                           )
     else:
         optimized_fm_rprofsub = optimized_fm
-    opt_offset = np.asarray(opt_offset)
+    # dc_offset = np.asarray(opt_offset)
     optimized_fm_rprofsub += opt_offset
 
     print("Calculating residuals between reduced data and optimized forward model...")
-    residuals = np.asarray(reduced_data - optimized_fm_rprofsub)
+    reduced_data_np = np.asarray(reduced_data)
+    optimized_fm_rprofsub_np = np.asarray(optimized_fm_rprofsub)
+    noise_reconstructed_np = np.asarray(noise_reconstructed)
+    residuals = reduced_data_np - optimized_fm_rprofsub_np
     residuals_roi = residuals.copy() * optimization_mask
     residuals_roi[residuals_roi == 0.] = np.nan
-    residuals_roi = residuals_roi / noise_reconstructed
+    residuals_roi = residuals_roi / noise_reconstructed_np
 
     outputs_dict["optimized_model"] = np.asarray(optimized_model)
     outputs_dict["optimized_fm"] = np.asarray(optimized_fm_rprofsub)
