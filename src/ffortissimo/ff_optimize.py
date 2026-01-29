@@ -421,6 +421,7 @@ Examples:
         loss_history=loss_history,
         hsf_regularization=reg_lambda,
         huber_delta=delta,
+        opt_offset=opt_offset,
         pyklip_params=pyklip_params_dict,
         weights_nominal=outputs_dict["weights_nominal"]
     )

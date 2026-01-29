@@ -161,6 +161,7 @@ def save_ffdfit_outputs(run_dir: Path,
                         loss_history: list,
                         hsf_regularization: float,
                         huber_delta: float,
+                        opt_offset: float,
                         optimizer_name: str = "Optax Adam",
                         pyklip_params: dict = None,
                         weights_nominal: np.ndarray = None):
@@ -200,6 +201,7 @@ def save_ffdfit_outputs(run_dir: Path,
         "loss": float(loss_history[-1]),
         "lambda_reg": float(hsf_regularization),
         "huber_delta": float(huber_delta),
+        "opt_offset": float(opt_offset),
         "optimizer": optimizer_name,
         "pyklip_params": pyklip_params or "unknown",
         # "param_file": "bestfit_params.json",
@@ -272,7 +274,7 @@ def harness_optimized_model(optimized_params, opt_offset, ffd_obj, reduced_data,
                                                           )
     else:
         optimized_fm_rprofsub = optimized_fm
-
+    opt_offset = np.asarray(opt_offset)
     optimized_fm_rprofsub += opt_offset
 
     print("Calculating residuals between reduced data and optimized forward model...")
