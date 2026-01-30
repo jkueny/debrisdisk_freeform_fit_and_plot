@@ -81,6 +81,7 @@ Examples:
 
     # Initialize the freeform disk object
     ffd_obj = FreeFormDisk(config)
+    original_datadir = ffd_obj.datadir
     injected_dir = args.injected_dir if args.injected_dir is not None else None
 
     # Override data and output directories if injected directory is provided
