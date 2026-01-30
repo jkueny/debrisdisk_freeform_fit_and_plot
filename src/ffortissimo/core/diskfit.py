@@ -244,7 +244,7 @@ def optimize_model(
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
 
         if prev_loss is not None:
-            rel_change = abs(prev_loss - loss_value) / max(abs(prev_loss), 1e-12)
+            rel_change = abs(prev_loss - loss_value)
             rel_change_history.append(rel_change)
             if len(rel_change_history) >= 100:
                 rolling_avg = float(np.mean(rel_change_history[-100:]))
@@ -254,6 +254,7 @@ def optimize_model(
                         f"(rolling avg rel loss change {rolling_avg:.6f} <= {loss_tolerance})"
                     )
                     break
+                rel_change_history = []
         prev_loss = loss_value
         if not bool(basis_data_unpacked["klparams"]["isRDI"]):
             if step_idx % 10 == 0:

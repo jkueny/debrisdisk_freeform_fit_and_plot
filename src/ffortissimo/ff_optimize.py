@@ -176,8 +176,7 @@ Examples:
                         help='Path to YAML parameter file')
     parser.add_argument('-i', '--iterations',
                         type=int,
-                        required=False,
-                        default=1000,
+                        required=True,
                         help='Maximum optimization iterations (safety cap, default: 1000)')
     parser.add_argument('--loss-tolerance',
                         type=float,
