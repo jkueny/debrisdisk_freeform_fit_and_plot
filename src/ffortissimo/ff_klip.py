@@ -73,12 +73,15 @@ Examples:
     parser.add_argument('--log-to-file',
                         action='store_true',
                         help='Write a timestamped log file instead of stdout')
+    parser.add_argument('--make-diskless-image',
+                        action='store_true',
+                        help='Make a diskless image of the original data')
     
     args = parser.parse_args()
 
     config = args.param_file
     force = args.force
-
+    make_diskless_image = args.make_diskless_image
     # Initialize the freeform disk object
     ffd_obj = FreeFormDisk(config)
     original_datadir = ffd_obj.datadir
@@ -130,17 +133,18 @@ Examples:
     
     # Check if we should run KLIP reduction
     if ffd_obj.params_file["FIRST_TIME"] or force:
-        # Counter-rotated KLIP reduction on original dataset (negated parangs)
-        ffd_obj.datadir = original_datadir
-        ffd_obj.allocate_dataset()
-        ffd_obj.par_angs = -ffd_obj.par_angs
-        dataset, psflib = ffd_obj.prep_dataset()
-        counter_reduced_data = ffd_obj.run_klip_reduction(dataset,
-                                                          psflib=psflib)
-        counter_path = os.path.join(klipdir, f"{file_prefix}-klipped_counter_rotated.fits")
-        fits.writeto(counter_path, counter_reduced_data, overwrite=True)
-        logger.info("Counter-rotated KLIP reduction complete.")
-        logger.info("Diskless reduced data: %s", counter_path)
+        if make_diskless_image:
+            # Counter-rotated KLIP reduction on original dataset (negated parangs)
+            ffd_obj.datadir = original_datadir
+            ffd_obj.allocate_dataset()
+            ffd_obj.par_angs = -ffd_obj.par_angs
+            dataset, psflib = ffd_obj.prep_dataset()
+            counter_reduced_data = ffd_obj.run_klip_reduction(dataset,
+                                                            psflib=psflib)
+            counter_path = os.path.join(klipdir, f"{file_prefix}-klipped_counter_rotated.fits")
+            fits.writeto(counter_path, counter_reduced_data, overwrite=True)
+            logger.info("Counter-rotated KLIP reduction complete.")
+            logger.info("Diskless reduced data: %s", counter_path)
 
         # Prepare dataset and PSF library (for RDI if needed)
         ffd_obj.datadir = main_datadir
