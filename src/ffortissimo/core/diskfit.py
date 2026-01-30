@@ -153,6 +153,7 @@ def optimize_model(
     target_image, model_init, ref_psd, noise_map, disk_mask_indices, opt_mask_indices, disk_mask_apod,
     psf, basis_data, total_pixels, num_steps, reg_lambda, run_dir, reduced_data, learning_rate,
     radial_inds, delta,
+    loss_tolerance,
     aligned_center, do_radial_profile_sub, do_clean_final_fm,
     hp_filtersize=None,
 ):
@@ -224,11 +225,14 @@ def optimize_model(
     first_step = time.time()
     measure_warmup = True
     plot_idx = 0
+    prev_loss = None
+    rel_change_history = []
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
             image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state, reg_lambda)
         freeform_fm_full, full_model_image, weights_nominal = aux_data
-        loss_history.append(loss.item())
+        loss_value = loss.item()
+        loss_history.append(loss_value)
 
         if measure_warmup:
             first_step = time.time() - first_step
@@ -238,6 +242,19 @@ def optimize_model(
         else:
             dt = time.time() - run_start_ts - first_step
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+
+        if prev_loss is not None:
+            rel_change = abs(prev_loss - loss_value) / max(abs(prev_loss), 1e-12)
+            rel_change_history.append(rel_change)
+            if len(rel_change_history) >= 100:
+                rolling_avg = float(np.mean(rel_change_history[-100:]))
+                if rolling_avg <= loss_tolerance:
+                    print(
+                        f"Early stopping at step {step_idx} "
+                        f"(rolling avg rel loss change {rolling_avg:.6f} <= {loss_tolerance})"
+                    )
+                    break
+        prev_loss = loss_value
         if not bool(basis_data_unpacked["klparams"]["isRDI"]):
             if step_idx % 10 == 0:
                 out_filename = f"{run_dir}/training_{plot_idx:05}.png"

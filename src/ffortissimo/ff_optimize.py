@@ -8,7 +8,7 @@ This script handles the optimization phase of the 𝒇𝒇 pipeline:
 4. Saves optimization results to disk
 
 Usage:
-    python ff_optimize.py -p initialization_files/config.yaml -i 1000
+    python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001
     python ff_optimize.py -p initialization_files/config.yaml --dry-run
     python ff_optimize.py -p initialization_files/config.yaml -i 1000 --initial-model path/to/model.fits
 
@@ -154,20 +154,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic usage (requires iterations)
-  python ff_optimize.py -p initialization_files/config.yaml -i 1000
+  # Basic usage (loss tolerance with max-steps cap)
+  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000
   
   # Forward-modeling dry run only
   python ff_optimize.py -p initialization_files/config.yaml --dry-run
   
   # With custom initial model
-  python ff_optimize.py -p initialization_files/config.yaml -i 1000 --initial-model path/to/model.fits
+  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000 --initial-model path/to/model.fits
   
   # Custom optimization parameters
-  python ff_optimize.py -p initialization_files/config.yaml -i 1000 --reg 0.5 --delta 2.0 --learning-rate 0.01
+  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000 --reg 0.5 --delta 2.0 --learning-rate 0.01
   
   # Process injected synthetic dataset (PA must be specified)
-  python ff_optimize.py -p initialization_files/config.yaml -i 1000 --injected-dir /path/to/injected_data --injected-pa 90.0
+  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000 --injected-dir /path/to/injected_data --injected-pa 90.0
         """
     )
     
@@ -177,7 +177,12 @@ Examples:
     parser.add_argument('-i', '--iterations',
                         type=int,
                         required=False,
-                        help='Number of optimization iterations (required unless --dry-run)')
+                        default=1000,
+                        help='Maximum optimization iterations (safety cap, default: 1000)')
+    parser.add_argument('--loss-tolerance',
+                        type=float,
+                        default=0.001,
+                        help='Relative loss change tolerance for early stopping (default: 0.001)')
     parser.add_argument('--initial-model',
                         type=str,
                         required=False,
@@ -219,17 +224,13 @@ Examples:
         print(f"Error: Configuration file not found: {args.param_file}")
         sys.exit(1)
     
-    # Check that iterations is provided unless dry-run
-    if not args.dry_run and args.iterations is None:
-        print("Error: --iterations is required unless --dry-run is specified")
-        sys.exit(1)
-    
     config = args.param_file
     init_model = args.initial_model if args.initial_model is not None else None
     reg_lambda = args.reg if args.reg is not None else 1.0
     delta = args.delta
     learning_rate = args.learning_rate
-    num_iterations = args.iterations if args.iterations is not None else 0
+    num_iterations = args.iterations
+    loss_tolerance = args.loss_tolerance
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
     injected_pa = args.injected_pa if args.injected_pa is not None else None
@@ -335,7 +336,7 @@ Examples:
     run_dir = get_next_run_dir(resultsdir)
     
     # Run optimization
-    print(f"\n[6/6] Running optimization ({num_iterations} iterations)...")
+    print(f"\n[6/6] Running optimization (max {num_iterations} iterations, loss tolerance {loss_tolerance})...")
     print(f"   Output directory: {run_dir}")
     
     import jax.profiler
@@ -363,6 +364,7 @@ Examples:
         learning_rate=learning_rate,
         hp_filtersize=hp_filtersize,
         delta=delta,
+        loss_tolerance=loss_tolerance,
         aligned_center=aligned_center,
         do_radial_profile_sub=do_radial_profile_sub,
         do_clean_final_fm=do_clean_final_fm,
