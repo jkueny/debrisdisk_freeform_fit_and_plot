@@ -67,9 +67,6 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
-    # Extract the constant offset param from the end of the array
-    c_offset = mod_pix_params[-1]
-    mod_pix_params = mod_pix_params[:-1]
     pos_mod_pix_params = jnp.abs(mod_pix_params)
     # pos_mod_pix_params = mod_pix_params
     full_model_image = reconstruct_full_image(pos_mod_pix_params, total_pixels, disk_mask_inds)
@@ -134,7 +131,6 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     else:
         freeform_fm_full_rprofsub = freeform_fm_full
 
-    freeform_fm_full_rprofsub += c_offset
     freeform_fm_flat = jnp.reshape(freeform_fm_full_rprofsub, psf.shape[0] * psf.shape[1])
 
     # Grab just the disk ROI pixels
@@ -173,9 +169,6 @@ def optimize_model(
 
     # Initialize the initial image
     image_params = model_init.astype(jnp.float32)
-    # Insert the constant offset param at the end
-    image_params = jnp.concatenate([image_params, jnp.array([0.0])])
-    image_params = image_params.astype(jnp.float32)
 
     # Set up optimizer, use adaptive stochastic grad descent (Adam)
     optimizer = optax.adam(learning_rate)
@@ -253,7 +246,7 @@ def optimize_model(
                     reduced_data,
                     freeform_fm_full,
                     full_model_image,
-                    reconstruct_full_image(updates[:-1], total_pixels, disk_mask_indices),
+                    reconstruct_full_image(updates, total_pixels, disk_mask_indices),
                     opt_mask_indices
                 )
                 plot_idx += 1
@@ -261,7 +254,5 @@ def optimize_model(
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
 
-    optimized_model = jnp.abs(image_params[:-1])
-    opt_offset = image_params[-1]
-    # optimized_model = image_params
-    return optimized_model, opt_offset, loss_history, weights_nominal
+    optimized_model = jnp.abs(image_params)
+    return optimized_model, loss_history, weights_nominal

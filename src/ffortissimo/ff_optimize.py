@@ -344,7 +344,7 @@ Examples:
         jax.profiler.start_trace(trace_dest)
         print(f"   Tracing to {trace_dest}")
     
-    optimized_params, opt_offset, loss_history, weights_nominal = optimize_model(
+    optimized_params, loss_history, weights_nominal = optimize_model(
         target_image=reduced_flat_interest,
         model_init=init_model_interest,
         ref_psd=reference_model_psd,
@@ -391,7 +391,6 @@ Examples:
     
     outputs_dict = harness_optimized_model(
         optimized_params,
-        opt_offset,
         ffd_obj,
         reduced_data,
         psf,
@@ -421,7 +420,6 @@ Examples:
         loss_history=loss_history,
         hsf_regularization=reg_lambda,
         huber_delta=delta,
-        opt_offset=opt_offset,
         pyklip_params=pyklip_params_dict,
         weights_nominal=outputs_dict["weights_nominal"]
     )
