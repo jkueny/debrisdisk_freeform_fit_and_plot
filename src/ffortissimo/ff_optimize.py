@@ -180,8 +180,8 @@ Examples:
                         help='Maximum optimization iterations (safety cap, default: 1000)')
     parser.add_argument('--loss-tolerance',
                         type=float,
-                        default=1e-4,
-                        help='Absolute loss change tolerance for early stopping (default: 1e-4)')
+                        default=5e-3,
+                        help='Absolute loss change tolerance for early stopping (default: 5e-3)')
     parser.add_argument('--initial-model',
                         type=str,
                         required=False,
@@ -408,6 +408,10 @@ Examples:
         noise_interest,
         weights_nominal
     )
+
+    injected_model_path = None
+    if injected_dir is not None:
+        injected_model_path = os.path.join(klipdir, "disk_model_to_inject.fits")
     
     save_ffdfit_outputs(
         run_dir=run_dir,
@@ -422,7 +426,8 @@ Examples:
         hsf_regularization=reg_lambda,
         huber_delta=delta,
         pyklip_params=pyklip_params_dict,
-        weights_nominal=outputs_dict["weights_nominal"]
+        weights_nominal=outputs_dict["weights_nominal"],
+        injected_model_path=injected_model_path
     )
     
     print("\n✓ Optimization and saving complete!")

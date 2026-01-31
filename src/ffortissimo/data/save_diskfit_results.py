@@ -163,7 +163,8 @@ def save_ffdfit_outputs(run_dir: Path,
                         huber_delta: float,
                         optimizer_name: str = "Optax Adam",
                         pyklip_params: dict = None,
-                        weights_nominal: np.ndarray = None):
+                        weights_nominal: np.ndarray = None,
+                        injected_model_path: str = None):
     """Saves output from the freeform diskfit optimization code.
 
     Args:
@@ -195,6 +196,17 @@ def save_ffdfit_outputs(run_dir: Path,
     fits.writeto(run_dir / f"{file_prefix}_BestModel_Res_ROI.fits", residuals_roi, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_MedProf.fits", median_profile_image, overwrite=True)
     fits.writeto(run_dir / f"{file_prefix}_Weights_Nominal.fits", weights_nominal, overwrite=True)
+    if injected_model_path is not None:
+        if Path(injected_model_path).exists():
+            injected_model = fits.getdata(injected_model_path)
+            injected_residuals = model_opt - injected_model
+            fits.writeto(
+                run_dir / f"{file_prefix}_BestModel_Injected_Res.fits",
+                injected_residuals,
+                overwrite=True
+            )
+        else:
+            print(f"Warning: Injected model not found at {injected_model_path}. Skipping injected residuals.")
     metadata = {
         "timestamp_utc": str(datetime.now()),
         "loss": float(loss_history[-1]),
