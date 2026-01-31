@@ -207,9 +207,14 @@ def save_ffdfit_outputs(run_dir: Path,
             )
         else:
             print(f"Warning: Injected model not found at {injected_model_path}. Skipping injected residuals.")
+    abs_losses = np.abs(np.asarray(loss_history, dtype=float))
+    last_100_abs_losses = abs_losses[-100:] if abs_losses.size else abs_losses
+    avg_last_100_abs_loss = float(np.mean(last_100_abs_losses)) if last_100_abs_losses.size else float("nan")
+
     metadata = {
         "timestamp_utc": str(datetime.now()),
         "loss": float(loss_history[-1]),
+        "avg_last_100_abs_loss": avg_last_100_abs_loss,
         "lambda_reg": float(hsf_regularization),
         "huber_delta": float(huber_delta),
         "optimizer": optimizer_name,
