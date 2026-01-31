@@ -226,7 +226,7 @@ def optimize_model(
     measure_warmup = True
     plot_idx = 0
     prev_loss = None
-    rel_change_history = []
+    abs_change_history = []
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
             image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state, reg_lambda)
@@ -244,17 +244,17 @@ def optimize_model(
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
 
         if prev_loss is not None:
-            rel_change = abs(prev_loss - loss_value)
-            rel_change_history.append(rel_change)
-            if len(rel_change_history) >= 100:
-                rolling_avg = float(np.mean(rel_change_history[-100:]))
+            abs_change = abs(prev_loss - loss_value)
+            abs_change_history.append(abs_change)
+            if len(abs_change_history) >= 100:
+                rolling_avg = float(np.mean(abs_change_history)) # check last 100 steps
                 if rolling_avg <= loss_tolerance:
                     print(
                         f"Early stopping at step {step_idx} "
-                        f"(rolling avg rel loss change {rolling_avg:.6f} <= {loss_tolerance})"
+                        f"(rolling avg abs loss change {rolling_avg:.6f} <= {loss_tolerance})"
                     )
                     break
-                rel_change_history = []
+                abs_change_history = []
         prev_loss = loss_value
         if not bool(basis_data_unpacked["klparams"]["isRDI"]):
             if step_idx % 10 == 0:
