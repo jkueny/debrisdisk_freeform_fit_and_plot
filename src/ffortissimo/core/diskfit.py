@@ -242,7 +242,7 @@ def optimize_model(
             dt = time.time() - run_start_ts - first_step
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
 
-        if step_idx % 100 == 0:
+        if step_idx % 100 == 0 and step_idx > 0:
             abs_loss_history.append(abs(loss_history[-2] - loss_value))
             if len(abs_loss_history) >= 10:
                 rolling_avg = float(np.mean(abs_loss_history[-10:]))
