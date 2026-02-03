@@ -113,7 +113,7 @@ MASK_OUT_SCALING: 6 #bigger means expand the outer bound
 MASK_SPECKLES: 6 #central circle mask
 MASK_MINOR: 55 #OWA to isolate minor axis
 MASK_DX: 0
-MASK_DY: -1
+MASK_DY: -3
 MASK_NOISE_IN: 1
 MASK_NOISE_OUT: 1
 
