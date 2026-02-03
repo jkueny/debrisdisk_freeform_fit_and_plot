@@ -180,7 +180,7 @@ Examples:
                         help='Maximum optimization iterations (safety cap, default: 1000)')
     parser.add_argument('--loss-tolerance',
                         type=float,
-                        default=5e-4,
+                        default=1e-6,
                         help='Absolute loss change tolerance for early stopping (default: 5e-3)')
     parser.add_argument('--initial-model',
                         type=str,

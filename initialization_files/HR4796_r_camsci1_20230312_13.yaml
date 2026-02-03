@@ -105,8 +105,8 @@ CONV_FACTOR: 1.112939359925286e-08 # Jy / Ang.
 
 # MASKING PARAMETERS
 # MASKING PARAMETERS
-MASK_IN_SCALING: 3 #bigger means shrink the inner bound
-MASK_OUT_SCALING: 6 #bigger means expand the outer bound
+MASK_IN_SCALING: 5 #bigger means shrink the inner bound
+MASK_OUT_SCALING: 5 #bigger means expand the outer bound
 MASK_SPECKLES: 6 #central circle mask
 MASK_MINOR: 55 #OWA to isolate minor axis
 MASK_DX: 0
