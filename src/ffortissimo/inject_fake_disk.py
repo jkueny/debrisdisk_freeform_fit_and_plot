@@ -98,7 +98,7 @@ def generate_hi_res_features(
     """
     # Make the empty array that will hold the features
     blank_feature = np.zeros_like(base_disk)
-    pixel_value = np.max(base_disk) * 10
+    pixel_value = np.max(base_disk) * 3
     feature_PA += 90. #manual offset for the rotation function
 
     # Place the delta functions at the specified radius
