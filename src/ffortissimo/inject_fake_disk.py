@@ -23,10 +23,11 @@ import argparse
 import numpy as np
 from astropy.io import fits
 from scipy.signal import fftconvolve
+from scipy.ndimage import shift
 import matplotlib.pyplot as plt
 from ffortissimo.io.yaml_handling import read_config
 from ffortissimo.modeling.numba_models.hg_disk import fastmodgen_disk_dxdy_2g
-from ffortissimo.dev.pyklip.klip import rotate
+from ffortissimo.dev.pyklip.klip import rotate_image
 
 
 
@@ -76,12 +77,17 @@ def get_disk_params(params, use_best=True):
     
     return disk_params
 
-def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:int) -> np.ndarray:
+def generate_hi_res_features(
+    base_disk:np.ndarray, instr_psf: np.ndarray,
+    feature_PA:float, feature_radius:int) -> np.ndarray:
     """
     Add a small high-res feature to the base disk model.
     Add it at the specified position angle and radius from the center of the image.
 
-    TODO new strategy: add a single bright pixel by the ansae.
+    TODO new strategy: add 2 bright pixels by the ansae.
+    - Place the delta functions at the specified radius
+    - Convolve them with the PSF
+    - Then do the rotation and add it to the base disk image
 
     Args:
         base_disk: The base disk model
@@ -90,36 +96,28 @@ def add_hi_res_features(base_disk:np.ndarray, feature_PA:float, feature_radius:i
     Returns:
         The base disk model with the feature added
     """
-
-    def get_feature_coordinates(feature_PA, feature_radius):
-        PA_rad = np.radians(feature_PA + 90)
-        Y,X = np.indices(base_disk.shape)
-        im_center = [int(base_disk.shape[0]/2), int(base_disk.shape[1]/2)]
-        distance_from_center = np.sqrt((X - im_center[0])**2 + (Y - im_center[1])**2)
-        feature_x1 = round(im_center[0] + feature_radius * np.sin(PA_rad))
-        feature_y1 = round(im_center[1] + feature_radius * np.cos(PA_rad))
-        feature_x2 = round(im_center[0] - feature_radius * np.sin(PA_rad))
-        feature_y2 = round(im_center[1] - feature_radius * np.cos(PA_rad))
-        return feature_x1, feature_y1, feature_x2, feature_y2
-    PA_rad = np.radians(feature_PA + 90)
-    Y,X = np.indices(base_disk.shape)
-    print(f"Base disk shape: {base_disk.shape}")
-    im_center = [int(base_disk.shape[0]/2), int(base_disk.shape[1]/2)]
-    distance_from_center = np.sqrt((X - im_center[0])**2 + (Y - im_center[1])**2)
+    # Make the empty array that will hold the features
     blank_feature = np.zeros_like(base_disk)
-    pixel_value = np.max(base_disk)
-    # # Given the feature_PA and feature_radius, calculate the coordinates of the feature
-    distance_offsets = [0, 2] #let's try 2 pixels side-by-side
-    for d in distance_offsets:
-        coords = get_feature_coordinates(feature_PA, feature_radius + d)
-        feature_x1 = coords[0]
-        feature_y1 = coords[1]
-        feature_x2 = coords[2]
-        feature_y2 = coords[3]
-        blank_feature[feature_x1, feature_y1] = pixel_value
-        blank_feature[feature_x2, feature_y2] = pixel_value
-    base_disk += blank_feature
-    return base_disk
+    pixel_value = np.max(base_disk) * 2
+    feature_PA += 90. #manual offset for the rotation function
+
+    # Place the delta functions at the specified radius
+    Y,X = np.indices(base_disk.shape)
+    im_center = [int(base_disk.shape[0]/2), int(base_disk.shape[1]/2)]
+    blank_feature[im_center[0], im_center[1] - 1] = pixel_value
+    blank_feature[im_center[0], im_center[1] + 1] = pixel_value
+    feature_convolved = fftconvolve(blank_feature, instr_psf, mode="same")
+    feature1_conv_shift = shift(feature_convolved, (0,feature_radius))
+    feature2_conv_shift = shift(feature_convolved, (0,-feature_radius))
+    feature_conv_shift = feature1_conv_shift + feature2_conv_shift
+    feature_conv_shift_rot = rotate_image(
+        img=feature_conv_shift, angle=feature_PA, center=im_center)
+
+    # plt.imshow(feature_conv_shift_rot, origin="lower")
+    # plt.show()
+    # exit()
+
+    return feature_conv_shift_rot
     
 
 def main():
@@ -132,13 +130,13 @@ def main():
         epilog="""
 Examples:
   # Basic usage
-  python build_synthetic_dataset.py -p initialization_files/config.yaml -o synthetic_data
+  python inject_fake_disk.py -p initialization_files/config.yaml -o synthetic_data
   
   # With PA offset
-  python build_synthetic_dataset.py -p initialization_files/config.yaml -o synthetic_data --pa-offset 5.0
+  python inject_fake_disk.py -p initialization_files/config.yaml -o synthetic_data --pa 115.0
   
   # Override data directory
-  python build_synthetic_dataset.py -p initialization_files/config.yaml -o synthetic_data --data-dir /path/to/data
+  python inject_fake_disk.py -p initialization_files/config.yaml -o synthetic_data --data-dir /path/to/data
         """
     )
     
@@ -344,14 +342,10 @@ Examples:
         )
 
         # # Add hi-res feature to the base disk model
-        # base_disk = add_hi_res_features(base_disk, rotation_angle, int(85))
+        hi_res_features = generate_hi_res_features(
+            base_disk, psf, rotation_angle, int(85))
         # print(f"Rotation angle: {rotation_angle}")
 
-        # # debug view the base disk model
-        # plt.imshow(base_disk, origin='lower')
-        # plt.colorbar()
-        # plt.show()
-        # sys.exit()
         
         # Zero out any NaNs in the base disk model
         nan_count = np.sum(np.isnan(base_disk))
@@ -373,9 +367,20 @@ Examples:
         
         # Convolve base disk model with instrument PSF
         base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
+        base_disk_image_add_feats = base_disk_convolved + hi_res_features
+        # # debug view the base disk model
+        # if ea < 2:
+        #     plt.imshow(base_disk_image_add_feats, origin='lower')
+        #     plt.colorbar()
+        #     plt.show()
+        # if ea > len(fits_files) - 2:
+        #     plt.imshow(base_disk_image_add_feats, origin='lower')
+        #     plt.colorbar()
+        #     plt.show()
+        # # sys.exit()
         
         # check for NaNs after convolution
-        nan_count_conv = np.sum(np.isnan(base_disk_convolved))
+        nan_count_conv = np.sum(np.isnan(base_disk_image_add_feats))
         if nan_count_conv > 0:
             raise ValueError(f"Found {nan_count_conv} NaNs after convolution, aborting...")
         
@@ -386,7 +391,7 @@ Examples:
             fits.writeto(base_disk_path, base_disk, overwrite=True)
             # Save the disk model to be injected
             disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
-            fits.writeto(disk_model_path, base_disk_convolved, overwrite=True)
+            fits.writeto(disk_model_path, base_disk_image_add_feats, overwrite=True)
             print(f"  Saved disk model to: {disk_model_path}")
         # #debug print and display the rotated disk
         # print(f"Rotated angle: {rotation_angle}")
