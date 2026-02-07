@@ -411,7 +411,7 @@ Examples:
 
         
         # Add conv disk model to image
-        image_data = image_data + base_disk_convolved
+        image_data = image_data + base_disk_image_add_feats
         
         # Final check: ensure no NaNs in the final result
         nan_count_final = np.sum(np.isnan(image_data))
