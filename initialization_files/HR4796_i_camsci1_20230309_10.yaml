@@ -127,7 +127,7 @@ MASK_NOISE_OUT: 3
 MASK_MINOR: 81 #OWA to isolate minor axis
 MASK_DX: 0
 # MASK_DY: -3.6
-MASK_DY: -3
+MASK_DY: -1
 
 USE_NOISE: true
 NOISE_DELTA_RADII: 1 #width of noisemap rings
