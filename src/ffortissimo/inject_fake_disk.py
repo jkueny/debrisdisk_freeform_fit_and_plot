@@ -151,11 +151,18 @@ Examples:
     parser.add_argument('--pa',
                         type=float,
                         default=115.0,
-                        help='Injected disk position angle in degrees (default: 115.0)')
+                        help='Injected disk position angle \
+                             in degrees (default: 115.0)')
+    parser.add_argument('--rad',
+                        type=float,
+                        default=75,
+                        help='Radial dist. of injected hi-res \
+                             features in pixels (default: 75)')
     parser.add_argument('--data-dir',
                         type=str,
                         required=False,
-                        help='Override data directory from YAML (uses BAND_DIR if not provided)')
+                        help='Override data directory from YAML \
+                             (uses BAND_DIR if not provided)')
     
     args = parser.parse_args()
     
@@ -266,7 +273,7 @@ Examples:
     print(f"  alpha_out: {disk_params['alpha_out']}")
     
     
-    
+    dist_features = int(args.rad)
     
     
     # Create output directory
@@ -343,7 +350,7 @@ Examples:
 
         # # Add hi-res feature to the base disk model
         hi_res_features = generate_hi_res_features(
-            base_disk, psf, rotation_angle, int(85))
+            base_disk, psf, rotation_angle, dist_features)
         # print(f"Rotation angle: {rotation_angle}")
 
         
