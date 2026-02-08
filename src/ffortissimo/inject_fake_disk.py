@@ -143,6 +143,7 @@ def generate_hi_res_ellipses(
         Image with three nested ellipses
     """
     ellipse_image = np.zeros(image_shape, dtype=float)
+    base_ellpse = np.zeros(image_shape, dtype=float)
     y_idx, x_idx = np.indices(image_shape)
     y = y_idx - center[0]
     x = x_idx - center[1]
@@ -152,7 +153,7 @@ def generate_hi_res_ellipses(
     y_rot = -x * np.sin(theta) + y * np.cos(theta)
 
     cosi = np.cos(np.deg2rad(inc_deg))
-    for semi_major in (semi_major_px - 6., semi_major_px, semi_major_px + 6.):
+    for ea, semi_major in enumerate((semi_major_px - 6., semi_major_px, semi_major_px + 6.)):
     # for semi_major in [semi_major_px]:
         if semi_major <= 0:
             continue
@@ -161,9 +162,11 @@ def generate_hi_res_ellipses(
         r_scaled = np.sqrt((x_rot / semi_major) ** 2 + (y_rot / semi_minor) ** 2)
         ring_mask = np.abs(r_scaled - 1.) <= (2. / semi_major)
         empty_image[ring_mask] = value
+        if ea == 1:
+            base_ellpse = empty_image
         ellipse_image += empty_image
 
-    return ellipse_image
+    return ellipse_image, base_ellpse
 
 
 def main():
@@ -379,7 +382,7 @@ Examples:
         # )
 
         if args.hires:
-            base_disk = generate_hi_res_ellipses(
+            base_disk, base_ellipse = generate_hi_res_ellipses(
                 image_shape=image_shape,
                 center=(aligned_center[0], aligned_center[1]),
                 semi_major_px=dist_features,
@@ -467,6 +470,10 @@ Examples:
             disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
             fits.writeto(disk_model_path, base_disk_image_add_feats, overwrite=True)
             print(f"  Saved disk model to: {disk_model_path}")
+            # Save the base ellipse to a FITS file
+            base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
+            fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
+            print(f"  Saved base ellipse to: {base_ellipse_path}")
         # #debug print and display the rotated disk
         # print(f"Rotated angle: {rotation_angle}")
         # print(f"base_pa: {base_pa}")
