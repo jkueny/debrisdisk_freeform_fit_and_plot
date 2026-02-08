@@ -120,6 +120,52 @@ def generate_hi_res_features(
     return feature_conv_shift_rot
     
 
+def generate_hi_res_ellipses(
+    image_shape: tuple,
+    center: tuple,
+    semi_major_px: float,
+    inc_deg: float,
+    pa_deg: float,
+    value: float
+) -> np.ndarray:
+    """
+    Generate three nested 1-pixel-width ellipses with 1-pixel spacing.
+
+    Args:
+        image_shape: Shape of the output image (ny, nx)
+        center: Center of the ellipses in (y, x) pixel coordinates
+        semi_major_px: Semi-major axis of the middle ellipse in pixels
+        inc_deg: Inclination in degrees (sets axis ratio via cos(i))
+        pa_deg: Position angle in degrees (rotation of ellipse major axis)
+        value: Constant pixel value for the ellipse ring
+
+    Returns:
+        Image with three nested ellipses
+    """
+    ellipse_image = np.zeros(image_shape, dtype=float)
+    y_idx, x_idx = np.indices(image_shape)
+    y = y_idx - center[0]
+    x = x_idx - center[1]
+
+    theta = np.deg2rad(pa_deg + 90.)
+    x_rot = x * np.cos(theta) + y * np.sin(theta)
+    y_rot = -x * np.sin(theta) + y * np.cos(theta)
+
+    cosi = np.cos(np.deg2rad(inc_deg))
+    for semi_major in (semi_major_px - 6., semi_major_px, semi_major_px + 6.):
+    # for semi_major in [semi_major_px]:
+        if semi_major <= 0:
+            continue
+        empty_image = np.zeros(image_shape, dtype=float)
+        semi_minor = max(1.0, semi_major * cosi)
+        r_scaled = np.sqrt((x_rot / semi_major) ** 2 + (y_rot / semi_minor) ** 2)
+        ring_mask = np.abs(r_scaled - 1.) <= (2. / semi_major)
+        empty_image[ring_mask] = value
+        ellipse_image += empty_image
+
+    return ellipse_image
+
+
 def main():
     """
     Main function to inject synthetic disk into FITS images.
@@ -157,7 +203,13 @@ Examples:
                         type=float,
                         default=75,
                         help='Radial dist. of injected hi-res \
-                             features in pixels (default: 75)')
+                             features in pixels (default: 75). In \
+                             --hires-ellipses mode this is the \
+                             semi-major axis of the middle ellipse.')
+    parser.add_argument('--hires',
+                        action='store_true',
+                        help='Use three nested 1-pixel ellipses for the \
+                             high-res feature test (opt-in)')
     parser.add_argument('--data-dir',
                         type=str,
                         required=False,
@@ -282,6 +334,8 @@ Examples:
     print(f"\nOutput dir: {output_dir}")
     klipdir = os.path.join(output_dir, "klip_fm_files")
     os.makedirs(klipdir, exist_ok=True)
+    if args.hires:
+        print("Hi-res ellipse mode enabled (no disk model injection)")
     
     # Process each image
     # We need to generate the disk model + disk image per image to avoid interpolation artifacts
@@ -324,34 +378,44 @@ Examples:
         #     flipx=False
         # )
 
-        base_disk = fastmodgen_disk_dxdy_2g(
-            R1=disk_params['r_inner'],
-            R2=disk_params['r_outer'],
-            # beta=disk_params['beta'],
-            beta=1.0,
-            inc=disk_params['inc'],
-            # pa=base_pa,
-            pa=rotation_angle,
-            dx=disk_params['dx'],
-            dy=disk_params['dy'],
-            Norm=disk_params['Norm'],
-            g1=disk_params['g1'],
-            g2=disk_params['g2'],
-            alpha1=disk_params['alpha1'],
-            a_r=disk_params['a_r'],
-            Rc=disk_params['rc'],
-            m=disk_params['alpha_in'],
-            n=disk_params['alpha_out'],
-            y_arr=y_arr,
-            z_arr=z_arr,
-            npts=n_pts,
-            mask=mask
-        )
+        if args.hires:
+            base_disk = generate_hi_res_ellipses(
+                image_shape=image_shape,
+                center=(aligned_center[0], aligned_center[1]),
+                semi_major_px=dist_features,
+                inc_deg=disk_params['inc'],
+                pa_deg=rotation_angle,
+                value=disk_params['Norm']
+            )
+        else:
+            base_disk = fastmodgen_disk_dxdy_2g(
+                R1=disk_params['r_inner'],
+                R2=disk_params['r_outer'],
+                # beta=disk_params['beta'],
+                beta=1.0,
+                inc=disk_params['inc'],
+                # pa=base_pa,
+                pa=rotation_angle,
+                dx=disk_params['dx'],
+                dy=disk_params['dy'],
+                Norm=disk_params['Norm'],
+                g1=disk_params['g1'],
+                g2=disk_params['g2'],
+                alpha1=disk_params['alpha1'],
+                a_r=disk_params['a_r'],
+                Rc=disk_params['rc'],
+                m=disk_params['alpha_in'],
+                n=disk_params['alpha_out'],
+                y_arr=y_arr,
+                z_arr=z_arr,
+                npts=n_pts,
+                mask=mask
+            )
 
-        # # Add hi-res feature to the base disk model
-        hi_res_features = generate_hi_res_features(
-            base_disk, psf, rotation_angle, dist_features)
-        # print(f"Rotation angle: {rotation_angle}")
+            # # Add hi-res feature to the base disk model
+            hi_res_features = generate_hi_res_features(
+                base_disk, psf, rotation_angle, dist_features)
+            # print(f"Rotation angle: {rotation_angle}")
 
         
         # Zero out any NaNs in the base disk model
@@ -372,9 +436,12 @@ Examples:
             base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
         
         
-        # Convolve base disk model with instrument PSF
+        # Convolve base model with instrument PSF
         base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
-        base_disk_image_add_feats = base_disk_convolved + hi_res_features
+        if args.hires:
+            base_disk_image_add_feats = base_disk_convolved
+        else:
+            base_disk_image_add_feats = base_disk_convolved + hi_res_features
         # # debug view the base disk model
         # if ea < 2:
         #     plt.imshow(base_disk_image_add_feats, origin='lower')
