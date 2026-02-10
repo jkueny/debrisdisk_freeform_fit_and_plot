@@ -22,13 +22,12 @@ import numpy as np
 import astropy.io.fits as fits
 from scipy.signal import fftconvolve
 
-import jax.numpy as jnp
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
 from ffortissimo.data.save_diskfit_results import save_ffdfit_outputs, \
     get_next_run_dir, harness_optimized_model
 from ffortissimo.data.load_diskfit_files import load_diskfit_components
-from ffortissimo.io.fits_handling import save_fits
+from ffortissimo.io.fits_handling import save_fits, load_pyklip_reduced_data
 from ffortissimo.core.diskfit import optimize_model
 
 from ffortissimo.utils.diskfit_tools import record_pyklip_params
@@ -213,11 +212,6 @@ Examples:
     
     args = parser.parse_args()
     
-    # Validate that --injected-pa is provided when --injected-dir is provided
-    if args.injected_dir is not None and args.injected_pa is None:
-        print("Error: --injected-pa is required when --injected-dir is provided.")
-        print("The injected disk has a different PA than the config file, so the PA prior must be specified.")
-        sys.exit(1)
     
     if not os.path.exists(args.param_file):
         print(f"Error: Configuration file not found: {args.param_file}")
@@ -243,49 +237,25 @@ Examples:
         if not os.path.exists(injected_dir):
             print(f"Error: Injected directory not found: {injected_dir}")
             sys.exit(1)
-        print(f"Using injected data directory: {injected_dir}")
-        print(f"Using injected disk PA: {injected_pa}° (overriding config PA: {ffd_obj.params_file.get('pa_init', 'N/A')}°)")
-        # Override datadir to point to injected directory (where FITS files are)
-        ffd_obj.datadir = injected_dir
-        # Override klipdir to point to klip_fm_files subdirectory in injected directory
-        ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
-        os.makedirs(ffd_obj.klipdir, exist_ok=True)
-        # Override resultsdir to point to results_freeform subdirectory in injected directory
-        ffd_obj.resultsdir = os.path.join(injected_dir, "results_freeform")
-        os.makedirs(ffd_obj.resultsdir, exist_ok=True)
-        print(f"Output will be saved to: {ffd_obj.klipdir}")
-        print(f"Results will be saved to: {ffd_obj.resultsdir}")
         
-        # Override PA in params_file for reference model fitting
-        # Store original values to restore later if needed
-        ffd_obj._original_pa_init = ffd_obj.params_file.get('pa_init')
-        ffd_obj._original_pa_best = ffd_obj.params_file.get('pa_best')
-        ffd_obj._original_pa_prior = ffd_obj.params_file.get('pa_prior', [None, None])
-        
-        # Override PA init and best values
-        ffd_obj.params_file['pa_init'] = injected_pa
-        if 'pa_best' in ffd_obj.params_file:
-            ffd_obj.params_file['pa_best'] = injected_pa
-        
-        # Override PA prior bounds to center around injected PA
-        # Calculate a reasonable range around the injected PA (e.g., ±30 degrees)
-        pa_prior_range = 30.0  # degrees
-        pa_prior_lower = injected_pa - pa_prior_range
-        pa_prior_upper = injected_pa + pa_prior_range
-        
-        # Ensure bounds are in [0, 360) range
-        pa_prior_lower = pa_prior_lower % 360
-        pa_prior_upper = pa_prior_upper % 360
-        
-        # If the range wraps around, we might need special handling, but for now
-        # just use the modulo values
-        ffd_obj.params_file['pa_prior'] = [pa_prior_lower, pa_prior_upper]
-        
-        # Also update params_init and param_priors in the object (used by fit_simple_disk_model)
-        ffd_obj.params_init['pa'] = injected_pa
-        ffd_obj.param_priors['pa'] = [pa_prior_lower, pa_prior_upper]
-        
-        print(f"  PA prior bounds updated to: [{pa_prior_lower:.1f}°, {pa_prior_upper:.1f}°]")
+        ffd_obj.inject_recover_mode(injected_dir)
+        # assert that the init params have been overridden with the injected test params
+        assert ffd_obj.params_init['pa'] == ffd_obj.params_file['pa_test']
+        assert ffd_obj.params_init['inc'] == ffd_obj.params_file['inc_test']
+        assert ffd_obj.params_init['r1'] == ffd_obj.params_file['r1_test']
+        assert ffd_obj.params_init['r2'] == ffd_obj.params_file['r2_test']
+        assert ffd_obj.params_init['rc'] == ffd_obj.params_file['rc_test']
+        assert ffd_obj.params_init['alpha_in'] == ffd_obj.params_file['alpha_in_test']
+        assert ffd_obj.params_init['alpha_out'] == ffd_obj.params_file['alpha_out_test']
+        assert ffd_obj.params_init['beta'] == ffd_obj.params_file['beta_test']
+        assert ffd_obj.params_init['a_r'] == ffd_obj.params_file['a_r_test']
+        assert ffd_obj.params_init['dx'] == ffd_obj.params_file['dx_test']
+        assert ffd_obj.params_init['dy'] == ffd_obj.params_file['dy_test']
+        assert ffd_obj.params_init['N'] == ffd_obj.params_file['N_test']
+        assert ffd_obj.params_init['g1'] == ffd_obj.params_file['g1_test']
+        assert ffd_obj.params_init['g2'] == ffd_obj.params_file['g2_test']
+        assert ffd_obj.params_init['alpha1'] == ffd_obj.params_file['alpha1_test']
+        print(f"Injected directory: {injected_dir}")
     
     klipdir = ffd_obj.klipdir
     resultsdir = ffd_obj.resultsdir

@@ -7,6 +7,7 @@ import jax.numpy as jnp
 from ffortissimo.utils.klip_basis import load_kl_basis
 from ffortissimo.utils.masks import make_annular_mask
 from ffortissimo.utils.improc_tools import get_radial_inds
+from ffortissimo.io.fits_handling import load_pyklip_reduced_data
 
 
 def load_diskfit_components(ffd_obj, init_model=None):
@@ -36,9 +37,7 @@ def load_diskfit_components(ffd_obj, init_model=None):
     disk_mask_apod = fits.getdata(os.path.join(klipdir, f"{file_prefix}_disk_mask_apod.fits"))
     # Set mask on object (needed for get_initial_model later)
     ffd_obj.mask2generatedisk = mask2generatedisk
-    reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
-    reduced_data = np.squeeze(reduced_data)
-    reduced_data[reduced_data != reduced_data] = 0.  # Zero out NaNs
+    reduced_data = load_pyklip_reduced_data(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
     print("   ✓ Basis, masks, and reduced data loaded")
 
     # Load noise map
@@ -88,7 +87,9 @@ def load_diskfit_components(ffd_obj, init_model=None):
         )
     optimization_mask = fits.getdata(optimization_mask_path)
 
+    # Find images, define data shape, arrays, and parangs 
     ffd_obj.allocate_dataset()
+    
     model_firstguess = ffd_obj.get_initial_model(init_model)
 
     if init_model is None:

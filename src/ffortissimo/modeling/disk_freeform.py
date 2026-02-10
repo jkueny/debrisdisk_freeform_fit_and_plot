@@ -368,6 +368,7 @@ class FreeFormDisk:
         '''
         print(f"Iteration {self.iteration}: {params}")
         self.iteration += 1
+
     def fit_reference_model(self, noise_map, reduced_data):
         reduced_data_local = np.array(reduced_data, copy=True)
         reduced_data_local[reduced_data_local != reduced_data_local] = 0.
@@ -800,3 +801,61 @@ class FreeFormDisk:
 
         return std_map, mean_map, median_map
 
+    def inject_recover_mode(self, injected_dir):
+        """
+        Prepare for recovery of the injected disk.
+        """
+        print(f"Using injected data directory: {injected_dir}")
+        # Override datadir to point to injected directory (where FITS files are)
+        self.datadir = injected_dir
+        # Override klipdir to point to klip_fm_files subdirectory in injected directory
+        self.klipdir = os.path.join(injected_dir, "klip_fm_files")
+        os.makedirs(self.klipdir, exist_ok=True)
+        # Override resultsdir to point to results_freeform subdirectory in injected directory
+        self.resultsdir = os.path.join(injected_dir, "results_freeform")
+        os.makedirs(self.resultsdir, exist_ok=True)
+        print(f"Output will be saved to: {self.klipdir}")
+        print(f"Results will be saved to: {self.resultsdir}")
+        
+        
+        # Override current disk params with injected test params
+        self.params_init['pa'] = self.params_file.get('pa_test')
+        self.params_init['inc'] = self.params_file.get('inc_test')
+        self.params_init['r1'] = self.params_file.get('r1_test')
+        self.params_init['r2'] = self.params_file.get('r2_test')
+        self.params_init['rc'] = self.params_file.get('rc_test')
+        self.params_init['alpha_in'] = self.params_file.get('alpha_in_test')
+        self.params_init['alpha_out'] = self.params_file.get('alpha_out_test')
+        self.params_init['beta'] = self.params_file.get('beta_test')
+        self.params_init['a_r'] = self.params_file.get('a_r_test')
+        self.params_init['dx'] = self.params_file.get('dx_test')
+        self.params_init['dy'] = self.params_file.get('dy_test')
+        self.params_init['N'] = self.params_file.get('N_test')
+        self.params_init['g1'] = self.params_file.get('g1_test')
+        self.params_init['g2'] = self.params_file.get('g2_test')
+        self.params_init['alpha1'] = self.params_file.get('alpha1_test')
+        
+        # Overrride prior params with injected test params
+        self.param_priors['rc'] = self.params_file.get('rc_test_prior')
+        self.param_priors['alpha_in'] = self.params_file.get('alpha_in_test_prior')
+        self.param_priors['alpha_out'] = self.params_file.get('alpha_out_test_prior')
+        self.param_priors['beta'] = self.params_file.get('beta_test_prior')
+        self.param_priors['a_r'] = self.params_file.get('a_r_test_prior')
+        self.param_priors['inc'] = self.params_file.get('inc_test_prior')
+        self.param_priors['pa'] = self.params_file.get('pa_test_prior')
+        self.param_priors['dx'] = self.params_file.get('dx_test_prior')
+        self.param_priors['dy'] = self.params_file.get('dy_test_prior')
+        self.param_priors['N'] = self.params_file.get('N_test_prior')
+        self.param_priors['g1'] = self.params_file.get('g1_test_prior')
+        self.param_priors['g2'] = self.params_file.get('g2_test_prior')
+        self.param_priors['alpha1'] = self.params_file.get('alpha1_test_prior')
+
+        
+        print(f"Using overriden test model params: {self.params_init}")
+        print(f"Using overriden param priors: {self.param_priors}")
+        
+        
+        # Ensure bounds are in [0, 360) range
+        self.params_file['pa_prior'][0] = self.params_file['pa_prior'][0] % 360
+        self.params_file['pa_prior'][1] = self.params_file['pa_prior'][1] % 360
+        
