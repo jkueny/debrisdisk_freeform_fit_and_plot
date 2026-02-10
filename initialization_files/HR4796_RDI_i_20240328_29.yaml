@@ -98,6 +98,23 @@ g1_best: 0.8993
 g2_best: -0.1744
 alpha1_best: 0.3184
 
+# INJECTED MODEL PARAMETERS
+r1_test: 76.0
+r2_test: 88.00
+rc_test: 77.7
+alpha_in_test: 45.86
+alpha_out_test: -15.00
+beta_test: 12.6
+a_r_test: 0.015
+inc_test: 76.75
+pa_test: 25.4
+dx_test: -1.90
+dy_test: 1.75
+N_test: 1000.00
+g1_test: 0.9045
+g2_test: -0.1452
+alpha1_test: 0.3651
+
 
 
 # APERTURE PHOTOMETRY

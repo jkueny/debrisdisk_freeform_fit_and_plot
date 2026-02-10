@@ -46,34 +46,30 @@ def get_disk_params(params, use_best=True):
     
     # Parameter mapping: (best_key, init_key, default)
     param_map = [
-        ('pa', 'pa_best', 'pa_init', None),
-        ('r1', 'r1_best', 'r1_init', None),
-        ('r2', 'r2_best', 'r2_init', None),
-        ('rc', 'rc_best', 'rc_init', None),
-        ('alpha_in', 'alpha_in_best', 'alpha_in_init', None),
-        ('alpha_out', 'alpha_out_best', 'alpha_out_init', None),
-        ('beta', 'beta_best', 'beta_init', None),
-        ('a_r', 'a_r_best', 'a_r_init', None),
-        ('inc', 'inc_best', 'inc_init', None),
-        ('dx', 'dx_best', 'dx_init', None),
-        ('dy', 'dy_best', 'dy_init', None),
-        ('Norm', 'N_best', 'N_init', None),
-        ('g1', 'g1_best', 'g1_init', None),
-        ('g2', 'g2_best', 'g2_init', None),
-        ('alpha1', 'alpha1_best', 'alpha1_init', None),
-        ('r_inner', 'r_inner', None, None),
-        ('r_outer', 'r_outer', None, None),
+        ('pa', 'pa_test'),
+        ('r1', 'r1_test'),
+        ('r2', 'r2_test'),
+        ('rc', 'rc_test'),
+        ('alpha_in', 'alpha_in_test'),
+        ('alpha_out', 'alpha_out_test'),
+        ('beta', 'beta_test'),
+        ('a_r', 'a_r_test'),
+        ('inc', 'inc_test'),
+        ('dx', 'dx_test'),
+        ('dy', 'dy_test'),
+        ('Norm', 'N_test'),
+        ('g1', 'g1_test'),
+        ('g2', 'g2_test'),
+        ('alpha1', 'alpha1_test'),
+        ('r_inner', 'r_inner'),
+        ('r_outer', 'r_outer'),
     ]
     
-    for param_name, best_key, init_key, default in param_map:
-        if use_best and best_key in params:
-            disk_params[param_name] = params[best_key]
-        elif init_key in params:
-            disk_params[param_name] = params[init_key]
-        elif default is not None:
-            disk_params[param_name] = default
+    for param_name, test_key in param_map:
+        if use_best and test_key in params:
+            disk_params[param_name] = params[test_key]
         else:
-            raise ValueError(f"Missing required parameter: {best_key} or {init_key}")
+            raise ValueError(f"Missing required parameter: {test_key}")
     
     return disk_params
 
