@@ -1,6 +1,7 @@
 from astropy.io import fits
 import jax.numpy as jnp
 import numpy as np
+import os
 
 def save_fits(save_to, image_arr):
     if not isinstance(image_arr, np.ndarray):
@@ -19,3 +20,9 @@ def save_fits(save_to, image_arr):
         fits.writeto(f"{save_to}.fits", image_arr_saveable, overwrite=True)
         
     return True    
+
+def load_pyklip_reduced_data(reduced_data_path):
+    reduced_data = fits.getdata(reduced_data_path)
+    reduced_data = np.squeeze(reduced_data)
+    reduced_data[reduced_data != reduced_data] = 0.  # Zero out NaNs
+    return reduced_data

@@ -21,7 +21,7 @@ import astropy.io.fits as fits
 from scipy.signal import convolve2d
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
-from ffortissimo.io.fits_handling import save_fits
+from ffortissimo.io.fits_handling import save_fits, load_pyklip_reduced_data
 from ffortissimo.io.log_handling import configure_logging
 logger = logging.getLogger(__name__)
 
@@ -152,11 +152,11 @@ Examples:
     args = parser.parse_args()
     
 
-    # Validate that --injected-pa is provided when --injected-dir is provided
-    if args.injected_dir is not None and args.injected_pa is None:
-        logger.error("--injected-pa is required when --injected-dir is provided.")
-        logger.error("The injected disk has a different PA than the config file, so masks must be created with the correct PA.")
-        sys.exit(1)
+    # # Validate that --injected-pa is provided when --injected-dir is provided
+    # if args.injected_dir is not None and args.injected_pa is None:
+    #     logger.error("--injected-pa is required when --injected-dir is provided.")
+    #     logger.error("The injected disk has a different PA than the config file, so masks must be created with the correct PA.")
+    #     sys.exit(1)
 
     if not os.path.exists(args.param_file):
         logger.error("Configuration file not found: %s", args.param_file)
@@ -166,7 +166,6 @@ Examples:
     do_fm = args.do_fm
     init_model = args.initial_model if args.initial_model is not None else None
     injected_dir = args.injected_dir if args.injected_dir is not None else None
-    injected_pa = args.injected_pa if args.injected_pa is not None else None
     
     # Initialize the freeform disk object
     print(f"Initializing FreeFormDisk object with config: {config}")
@@ -183,6 +182,15 @@ Examples:
             print(f"Injected directory not found: {injected_dir}")
             sys.exit(1)
 
+        injected_pa = args.injected_pa if args.injected_pa is not None else None
+        injected_inc = ffd_obj.params_file.get('inc_test')
+        if injected_pa is None:
+            injected_pa = ffd_obj.params_file.get('pa_test')
+            print(f"Using injected disk PA: {injected_pa} deg \
+                 (overriding config PA: \
+                    {ffd_obj.params_file.get('pa_test', 'N/A')} deg)")
+        else:
+            print(f"Using injected disk PA: {injected_pa} deg")
         # Override datadir to point to injected directory (where FITS files are)
         ffd_obj.datadir = injected_dir
         # Override klipdir to point to klip_fm_files subdirectory in injected directory
@@ -194,6 +202,13 @@ Examples:
         ffd_obj._original_pa_init = ffd_obj.params_file.get('pa_init')
         ffd_obj._original_pa_best = ffd_obj.params_file.get('pa_best')
         ffd_obj.params_file['pa_init'] = injected_pa
+        ffd_obj.params_file['inc_init'] = injected_inc
+        ffd_obj.params_file['MASK_IN_SCALING'] = ffd_obj.params_file['TEST_MASK_IN_SCALING']
+        ffd_obj.params_file['MASK_OUT_SCALING'] = ffd_obj.params_file['TEST_MASK_OUT_SCALING']
+        ffd_obj.params_file['MASK_NOISE_IN'] = ffd_obj.params_file['TEST_MASK_NOISE_IN']
+        ffd_obj.params_file['MASK_NOISE_OUT'] = ffd_obj.params_file['TEST_MASK_NOISE_OUT']
+        ffd_obj.params_file['MASK_DX'] = ffd_obj.params_file['TEST_MASK_DX']
+        ffd_obj.params_file['MASK_DY'] = ffd_obj.params_file['TEST_MASK_DY']
         if 'pa_best' in ffd_obj.params_file:
             ffd_obj.params_file['pa_best'] = injected_pa
     
@@ -211,7 +226,7 @@ Examples:
         logger.info(
             "Using injected disk PA: %s deg (overriding config PA: %s deg)",
             injected_pa,
-            ffd_obj.params_file.get("pa_init", "N/A"),
+            ffd_obj.params_file.get("pa_test", "N/A"),
         )
         logger.info("Output will be saved to: %s", ffd_obj.klipdir)
 
@@ -233,11 +248,18 @@ Examples:
     # Step 3: Generate masks (always regenerate)
     logger.info("[2/4] Creating binary masks...")
     logger.info("Disk generation mask parameters:")
-    logger.info("  Inner scaling: %s", ffd_obj.params_file["MASK_IN_SCALING"])
-    logger.info("  Outer scaling: %s", ffd_obj.params_file["MASK_OUT_SCALING"])
-    logger.info("  Noise inner scaling: %s", ffd_obj.params_file["MASK_NOISE_IN"])
-    logger.info("  Noise outer scaling: %s", ffd_obj.params_file["MASK_NOISE_OUT"])
-    logger.info("  Mask center offset: (%s, %s)", ffd_obj.params_file["MASK_DX"], ffd_obj.params_file["MASK_DY"])
+    if args.injected_dir is not None:
+        logger.info("  Inner scaling: %s", ffd_obj.params_file["TEST_MASK_IN_SCALING"])
+        logger.info("  Outer scaling: %s", ffd_obj.params_file["TEST_MASK_OUT_SCALING"])
+        logger.info("  Noise inner scaling: %s", ffd_obj.params_file["TEST_MASK_NOISE_IN"])
+        logger.info("  Noise outer scaling: %s", ffd_obj.params_file["TEST_MASK_NOISE_OUT"])
+        logger.info("  Mask center offset: (%s, %s)", ffd_obj.params_file["TEST_MASK_DX"], ffd_obj.params_file["TEST_MASK_DY"])
+    else:
+        logger.info("  Inner scaling: %s", ffd_obj.params_file["MASK_IN_SCALING"])
+        logger.info("  Outer scaling: %s", ffd_obj.params_file["MASK_OUT_SCALING"])
+        logger.info("  Noise inner scaling: %s", ffd_obj.params_file["MASK_NOISE_IN"])
+        logger.info("  Noise outer scaling: %s", ffd_obj.params_file["MASK_NOISE_OUT"])
+        logger.info("  Mask center offset: (%s, %s)", ffd_obj.params_file["MASK_DX"], ffd_obj.params_file["MASK_DY"])
     
     # Always regenerate masks
     optimization_mask = ffd_obj.prep_binary_masks()
@@ -266,10 +288,8 @@ Examples:
     noise_map_path = os.path.join(klipdir, f"{file_prefix}_noisemap.fits")
     reduced_data_path = os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits")
     
-    # Load reduced data
-    reduced_data = fits.getdata(reduced_data_path)
-    reduced_data = np.squeeze(reduced_data)
-    reduced_data[reduced_data != reduced_data] = 0.  # Zero out NaNs
+    # Load reduced data, no NaNs
+    reduced_data = load_pyklip_reduced_data(reduced_data_path)
     
     # Create engineered noise mask for ADI mode
     if ffd_obj.mode == "ADI":

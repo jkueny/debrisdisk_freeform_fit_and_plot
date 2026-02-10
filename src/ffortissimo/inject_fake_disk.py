@@ -31,13 +31,12 @@ from ffortissimo.dev.pyklip.klip import rotate_image
 
 
 
-def get_disk_params(params, use_best=True):
+def get_disk_params(params):
     """
-    Extract disk parameters from YAML config, preferring _best over _init.
+    Extract disk parameters from YAML config.
     
     Args:
         params: Dictionary from YAML config
-        use_best: If True, prefer _best parameters, otherwise use _init
     
     Returns:
         dict: Dictionary of disk parameters
@@ -66,7 +65,7 @@ def get_disk_params(params, use_best=True):
     ]
     
     for param_name, test_key in param_map:
-        if use_best and test_key in params:
+        if test_key in params:
             disk_params[param_name] = params[test_key]
         else:
             raise ValueError(f"Missing required parameter: {test_key}")
@@ -117,9 +116,11 @@ def generate_hi_res_features(
     
 
 def generate_hi_res_ellipses(
+    pixscale: float,
+    distance: float,
     image_shape: tuple,
     center: tuple,
-    semi_major_px: float,
+    semi_major_au: float,
     inc_deg: float,
     pa_deg: float,
     value: float
@@ -130,7 +131,7 @@ def generate_hi_res_ellipses(
     Args:
         image_shape: Shape of the output image (ny, nx)
         center: Center of the ellipses in (y, x) pixel coordinates
-        semi_major_px: Semi-major axis of the middle ellipse in pixels
+        semi_major_au: Semi-major axis of the middle ellipse in au
         inc_deg: Inclination in degrees (sets axis ratio via cos(i))
         pa_deg: Position angle in degrees (rotation of ellipse major axis)
         value: Constant pixel value for the ellipse ring
@@ -138,6 +139,7 @@ def generate_hi_res_ellipses(
     Returns:
         Image with three nested ellipses
     """
+    semi_major_px = semi_major_au / pixscale / distance
     ellipse_image = np.zeros(image_shape, dtype=float)
     base_ellpse = np.zeros(image_shape, dtype=float)
     y_idx, x_idx = np.indices(image_shape)
@@ -149,14 +151,16 @@ def generate_hi_res_ellipses(
     y_rot = -x * np.sin(theta) + y * np.cos(theta)
 
     cosi = np.cos(np.deg2rad(inc_deg))
-    for ea, semi_major in enumerate((semi_major_px - 6., semi_major_px, semi_major_px + 6.)):
+    # for ea, semi_major in enumerate((semi_major_px - 6., semi_major_px, semi_major_px + 6.)):
+    for ea, semi_major in enumerate((semi_major_px - 2.5, semi_major_px, semi_major_px + 2.5)):
     # for semi_major in [semi_major_px]:
         if semi_major <= 0:
             continue
         empty_image = np.zeros(image_shape, dtype=float)
         semi_minor = max(1.0, semi_major * cosi)
         r_scaled = np.sqrt((x_rot / semi_major) ** 2 + (y_rot / semi_minor) ** 2)
-        ring_mask = np.abs(r_scaled - 1.) <= (2. / semi_major)
+        # ring_mask = np.abs(r_scaled - 1.) <= (2. / semi_major)
+        ring_mask = np.abs(r_scaled - 1.) <= (0.5 / semi_major)
         empty_image[ring_mask] = value
         if ea == 1:
             base_ellpse = empty_image
@@ -269,11 +273,14 @@ Examples:
     
     # Get disk parameters
     print("Extracting disk parameters from YAML...")
-    disk_params = get_disk_params(params, use_best=True)
+    disk_params = get_disk_params(params)
     
     # Apply PA offset
     # base_pa = disk_params['pa'] + args.pa_offset
-    base_pa = args.pa
+    if args.pa is None:
+        base_pa = disk_params['pa']
+    else:
+        base_pa = args.pa
     print(f"Base disk PA: {disk_params['pa']} + offset {args.pa} = {base_pa} deg")
     
     # Find FITS files
@@ -323,9 +330,7 @@ Examples:
     print(f"  alpha_in: {disk_params['alpha_in']}")
     print(f"  alpha_out: {disk_params['alpha_out']}")
     
-    
-    dist_features = int(args.rad)
-    
+    print(f"  Semi-major axis in pixels: {disk_params['rc']/distance/pixscale}")
     
     # Create output directory
     output_dir = args.output_dir
@@ -366,7 +371,7 @@ Examples:
         
         # Calculate rotation angle: base_pa - PARANG (conjugate PARANG) - 90.0 for N up E left
         rotation_angle = base_pa + parang #- 90.0
-        print(f"base_pa: {base_pa}, parang: {parang}, rotation_angle: {rotation_angle}")
+        # print(f"base_pa: {base_pa}, parang: {parang}, rotation_angle: {rotation_angle}")
         
         # # Rotate disk model
         # rotated_disk = rotate(
@@ -381,7 +386,9 @@ Examples:
             base_disk, base_ellipse = generate_hi_res_ellipses(
                 image_shape=image_shape,
                 center=(aligned_center[0], aligned_center[1]),
-                semi_major_px=dist_features,
+                semi_major_au=disk_params["rc"],
+                pixscale=pixscale,
+                distance=distance,
                 inc_deg=disk_params['inc'],
                 pa_deg=rotation_angle,
                 value=disk_params['Norm'] / 5
