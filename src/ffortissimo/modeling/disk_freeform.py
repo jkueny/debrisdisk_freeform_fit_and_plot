@@ -759,22 +759,46 @@ class FreeFormDisk:
         if len(reduced_data_no_disk.shape) > 2:
             reduced_data_no_disk = np.squeeze(reduced_data_no_disk)
         h, w = reduced_data_no_disk.shape
+        reduced_data_no_disk = np.array(reduced_data_no_disk, copy=True)
         reduced_data_no_disk[reduced_data_no_disk == 0.] = np.nan
         image_center = (h / 2 - 0.5, w / 2 - 0.5)
-        # print('Generating noise cube...')
-        # nodisk_data[nodisk_data != nodisk_data] = 0
         # create rho2D for the rings
         x = np.arange(h, dtype=np.float64)[None, :] - image_center[0]
         y = np.arange(w, dtype=np.float64)[:, None] - image_center[1]
         rho2d = np.sqrt(x**2 + y**2)
 
+        n_rings = int(self.params_file["OWA"] / delta_radii) - 2
+        ring_radii = np.array([(i_ring + 0.5) * delta_radii for i_ring in range(n_rings)])
+        ring_values = np.full(n_rings, np.nan)
+
         noise_map = np.zeros((h, w))
-        for i_ring in range(0,
-                            # int(np.floor(image_center[0] / delta_radii)) - 2):
-                            int(self.params_file["OWA"] / delta_radii) - 2):
+        for i_ring in range(n_rings):
             wh_rings = (rho2d >= i_ring * delta_radii) & (rho2d < (i_ring + 1) * delta_radii)
-            noise_map[wh_rings] = np.nanstd(reduced_data_no_disk[wh_rings])
-        
+            val = np.nanstd(reduced_data_no_disk[wh_rings])
+            noise_map[wh_rings] = val
+            ring_values[i_ring] = val
+
+        check_nans_mask = (rho2d + 1) > self.iwa  # region of interest (outside IWA)
+
+        if np.sum(np.isnan(noise_map[check_nans_mask])) > 0:
+            print(f"Warning: NaNs found in noise map at radii > IWA, inpainting affected annuli")
+            valid = np.isfinite(ring_values)
+            if np.sum(valid) >= 2:
+                # Interpolate NaN ring values from valid neighboring annuli
+                ring_values_inpainted = np.interp(
+                    ring_radii,
+                    ring_radii[valid],
+                    ring_values[valid]
+                )
+                nan_rings = ~valid
+                ring_values[nan_rings] = ring_values_inpainted[nan_rings]
+                for i_ring in np.where(nan_rings)[0]:
+                    wh_rings = (rho2d >= i_ring * delta_radii) & (rho2d < (i_ring + 1) * delta_radii)
+                    noise_map[wh_rings] = ring_values[i_ring]
+            else:
+                fill_val = np.nanmedian(ring_values[valid]) if np.any(valid) else 1.0
+                noise_map[np.isnan(noise_map) & check_nans_mask] = fill_val
+
         return noise_map
 
     def make_ring_stat_maps(self, reduced_data, delta_radii=1):
@@ -850,7 +874,7 @@ class FreeFormDisk:
         self.param_priors['g2'] = self.params_file.get('g2_test_prior')
         self.param_priors['alpha1'] = self.params_file.get('alpha1_test_prior')
 
-        
+
         print(f"Using overriden test model params: {self.params_init}")
         print(f"Using overriden param priors: {self.param_priors}")
         
