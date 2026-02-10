@@ -433,10 +433,7 @@ Examples:
         
         # Convolve base model with instrument PSF
         base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
-        if args.hires:
-            base_disk_image_add_feats = base_disk_convolved
-        else:
-            base_disk_image_add_feats = base_disk_convolved + hi_res_features
+        base_disk_image_add_feats = base_disk_convolved
         # # debug view the base disk model
         # if ea < 2:
         #     plt.imshow(base_disk_image_add_feats, origin='lower')
