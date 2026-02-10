@@ -470,10 +470,11 @@ Examples:
             disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
             fits.writeto(disk_model_path, base_disk_image_add_feats, overwrite=True)
             print(f"  Saved disk model to: {disk_model_path}")
-            # Save the base ellipse to a FITS file
-            base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
-            fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
-            print(f"  Saved base ellipse to: {base_ellipse_path}")
+            if args.hires:
+                # Save the base ellipse to a FITS file
+                base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
+                fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
+                print(f"  Saved base ellipse to: {base_ellipse_path}")
         # #debug print and display the rotated disk
         # print(f"Rotated angle: {rotation_angle}")
         # print(f"base_pa: {base_pa}")
