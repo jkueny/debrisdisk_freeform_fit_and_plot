@@ -411,10 +411,6 @@ Examples:
                 mask=mask
             )
 
-            # # Add hi-res feature to the base disk model
-            hi_res_features = generate_hi_res_features(
-                base_disk, psf, rotation_angle, dist_features)
-            # print(f"Rotation angle: {rotation_angle}")
 
         
         # Zero out any NaNs in the base disk model
