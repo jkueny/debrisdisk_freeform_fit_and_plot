@@ -203,6 +203,8 @@ Examples:
         ffd_obj._original_pa_best = ffd_obj.params_file.get('pa_best')
         ffd_obj.params_file['pa_init'] = injected_pa
         ffd_obj.params_file['inc_init'] = injected_inc
+        ffd_obj.params_file['r1_init'] = ffd_obj.params_file['r1_test']
+        ffd_obj.params_file['r2_init'] = ffd_obj.params_file['r2_test']
         ffd_obj.params_file['MASK_IN_SCALING'] = ffd_obj.params_file['TEST_MASK_IN_SCALING']
         ffd_obj.params_file['MASK_OUT_SCALING'] = ffd_obj.params_file['TEST_MASK_OUT_SCALING']
         ffd_obj.params_file['MASK_NOISE_IN'] = ffd_obj.params_file['TEST_MASK_NOISE_IN']
