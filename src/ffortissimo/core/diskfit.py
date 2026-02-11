@@ -245,8 +245,10 @@ def optimize_model(
             dt = time.time() - run_start_ts - first_step
             if bool(basis_data_unpacked["klparams"]["isRDI"]) and step_idx % 100 == 0:
                 print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
-            else:
+            elif not bool(basis_data_unpacked["klparams"]["isRDI"]):
                 print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+            else:
+                pass
             
 
         if step_idx % 100 == 0 and step_idx > 0:
