@@ -6,10 +6,11 @@ DISK_MODEL: original # original or modified Max MB model code
 MODE: RDI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 
 # KLIP RDI parameters
-DO_RDI_CORRELATION: false # Measure the correlation matrix of the RDI PSF lib. Very long.
+DO_RDI_CORRELATION: true # Measure the correlation matrix of the RDI PSF lib. Very long.
 CLEAN_FINAL_FM: true # do a final post-KLIP median radial profile subtraction
 OPTIMIZE_REFERENCE: true
 RPROFSUB: false
+
 
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
 # KLMODE_NUMBER: 64 # number of KL modes used in the reduction < nb images in the basis
@@ -37,6 +38,7 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
 BAND_DIR: HR4796_lco20240328_29/raws_2x2binning_iz_smlyot/camsci2/lite_psflib  # name of folder where are the data (from basedir)
+INJECTED_DIR: HR4796_lco20240328_29/raws_2x2binning_iz_smlyot/camsci2/injected_psflib  # name of folder where are the data (from basedir)
 RDI_DIR: .       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
@@ -136,8 +138,48 @@ g1_test: 0.9045
 g2_test: -0.1452
 alpha1_test: 0.3651
 
+# INJECTED MODEL PARAMETERS
+r1_test: 76.0
+r2_test: 84.00
+rc_test: 77.7
+alpha_in_test: 45.86
+alpha_out_test: -15.00
+beta_test: 12.6
+a_r_test: 0.01
+inc_test: 45.0
+pa_test: 115.0
+dx_test: 0.1
+dy_test: -0.1
+N_test: 1000.00
+g1_test: 0.9045
+g2_test: -0.1452
+alpha1_test: 0.3651
 
-RPROFSUB: false
+# INJECTED PARAMETER PRIORS [LOWER, UPPER]
+rc_test_prior: [40, 60]
+alpha_in_test_prior: [10, 100]
+alpha_out_test_prior: [-100, -10]
+beta_test_prior: [10, 30]
+a_r_test_prior: [0.005, 0.015]
+inc_test_prior: [40, 60]
+pa_test_prior: [100, 130]
+dx_test_prior: [-5, 5]
+dy_test_prior: [-5, 5]
+N_test_prior: [0, None]
+g1_test_prior: [0.0001, 0.9999]
+g2_test_prior: [-0.9999, -0.0001]
+alpha1_test_prior: [0.0001, 0.9999]
+
+# TEST MASKING PARAMETERS
+# MASKING PARAMETERS
+TEST_MASK_IN_SCALING: 4 #bigger means shrink the inner bound
+TEST_MASK_OUT_SCALING: 1 #bigger means expand the outer bound
+TEST_MASK_NOISE_IN: 4
+TEST_MASK_NOISE_OUT: 1
+TEST_MASK_DX: 0
+TEST_MASK_DY: 0
+
+
 # APERTURE PHOTOMETRY
 AP_RING_RAD: 90 #circle defining where to plop down apertures, deprojected disk
 AP_RING_DX: -5

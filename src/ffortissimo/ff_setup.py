@@ -199,6 +199,7 @@ Examples:
         
         # Override PA in params_file for mask creation
         # Store original values to restore later if needed
+        # TODO override all other parameters in inject/recovery mode
         ffd_obj._original_pa_init = ffd_obj.params_file.get('pa_init')
         ffd_obj._original_pa_best = ffd_obj.params_file.get('pa_best')
         ffd_obj.params_file['pa_init'] = injected_pa

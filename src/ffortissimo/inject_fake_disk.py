@@ -193,7 +193,7 @@ Examples:
                         type=str,
                         required=True,
                         help='Path to YAML parameter file')
-    parser.add_argument('-o', '--output-dir',
+    parser.add_argument('-o', '--injected-dir',
                         type=str,
                         required=True,
                         help='Output directory for synthetic dataset')
@@ -333,7 +333,7 @@ Examples:
     print(f"  Semi-major axis in pixels: {disk_params['rc']/distance/pixscale}")
     
     # Create output directory
-    output_dir = args.output_dir
+    output_dir = args.injected_dir
     os.makedirs(output_dir, exist_ok=True)
     print(f"\nOutput dir: {output_dir}")
     klipdir = os.path.join(output_dir, "klip_fm_files")
