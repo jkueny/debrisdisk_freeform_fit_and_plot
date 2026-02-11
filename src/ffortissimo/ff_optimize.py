@@ -24,9 +24,9 @@ from scipy.signal import fftconvolve
 
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
-from ffortissimo.data.save_diskfit_results import save_ffdfit_outputs, \
+from ffortissimo.io.save_diskfit_results import save_ffdfit_outputs, \
     get_next_run_dir, harness_optimized_model
-from ffortissimo.data.load_diskfit_files import load_diskfit_components
+from ffortissimo.io.load_diskfit_files import load_diskfit_components
 from ffortissimo.io.fits_handling import save_fits, load_pyklip_reduced_data
 from ffortissimo.core.diskfit import optimize_model
 
