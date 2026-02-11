@@ -59,7 +59,7 @@ alpha1_prior: [0.0001, 0.9999]
 # Disk model parameters
   # INITIAL MODEL PARAMETERS
 r1_init: 76.0 #include just for initializing the mask function
-r2_init: 88.00 #include just for initializing the mask function
+r2_init: 84.00 #include just for initializing the mask function
 # r2_init: 100.00 #include just for initializing the mask function
 rc_init: 77.7 #35.5 #trying 39. for the masks
 alpha_in_init: 48.00
@@ -94,7 +94,7 @@ alpha1_best: 0.296
 
 # INJECTED MODEL PARAMETERS
 r1_test: 76.0
-r2_test: 80.00
+r2_test: 84.00
 rc_test: 77.7
 alpha_in_test: 45.86
 alpha_out_test: -15.00
