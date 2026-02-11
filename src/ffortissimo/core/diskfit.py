@@ -157,6 +157,7 @@ def optimize_model(
     aligned_center, do_radial_profile_sub, do_clean_final_fm,
     hp_filtersize=None,
 ):
+    # JAXify the KLIP image, noise, and apodized fitting region
     target_image = jnp.array(target_image).astype(jnp.float32)
     noise_map = jnp.array(noise_map).astype(jnp.float32)
     disk_mask_apod = jnp.array(disk_mask_apod).astype(jnp.float32)
@@ -209,7 +210,9 @@ def optimize_model(
     def step(image_params, opt_state, reg_lambda_here):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image, psf, noise_map, ref_psd,
-            aligned_image_sections, PAs, disk_mask_indices, opt_mask_indices, disk_mask_apod_interest, iowa_sec_inds,
+            aligned_image_sections, PAs,
+            disk_mask_indices, opt_mask_indices,
+            disk_mask_apod_interest, iowa_sec_inds,
             klmodes_sections,
             radial_inds, aligned_center,
             mode, do_radial_profile_sub, do_clean_final_fm,
@@ -240,7 +243,11 @@ def optimize_model(
             print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - ? sec / step")
         else:
             dt = time.time() - run_start_ts - first_step
-            print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+            if bool(basis_data_unpacked["klparams"]["isRDI"]) and step_idx % 100 == 0:
+                print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+            else:
+                print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
+            
 
         if step_idx % 100 == 0 and step_idx > 0:
             abs_loss_history.append(abs(loss_history[-2] - loss_value))
