@@ -94,7 +94,7 @@ alpha1_best: 0.296
 
 # INJECTED MODEL PARAMETERS
 r1_test: 76.0
-r2_test: 88.00
+r2_test: 84.00
 rc_test: 77.7
 alpha_in_test: 45.86
 alpha_out_test: -15.00
