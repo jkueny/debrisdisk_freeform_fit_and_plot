@@ -23,6 +23,7 @@ from scipy.signal import convolve2d
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
 from ffortissimo.io.fits_handling import save_fits, load_pyklip_reduced_data
 from ffortissimo.io.log_handling import configure_logging
+from ffortissimo.utils.regularization import estimate_median_background
 logger = logging.getLogger(__name__)
 
 
@@ -311,6 +312,15 @@ Examples:
         logger.info("RDI mode: Using standard noise mask")
         reduced_noise_masked = reduced_data * (1 - masks['mask4noisemap'])
         tosave_reduced_noise_masked = reduced_data * masks['mask4noisemap']
+        # Estimate the median bkg of the fitting region
+        logger.info("Estimating median background of the fitting region...")
+        median_background = estimate_median_background(
+            reduced_data,
+            masks['mask2generatedisk']
+        )
+        median_background_path = os.path.join(klipdir, f"{file_prefix}_med_bkg.fits")
+        save_fits(median_background_path, median_background)
+        logger.info("Median background saved to %s", median_background_path)
     
     # Get noise delta radii parameter
     delta_radii = ffd_obj.params_file.get("NOISE_DELTA_RADII", 1)

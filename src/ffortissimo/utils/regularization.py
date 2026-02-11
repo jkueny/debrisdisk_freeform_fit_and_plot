@@ -2,6 +2,7 @@ import numpy as np
 from jax.scipy.signal import fftconvolve
 import jax.numpy as jnp
 from scipy.optimize import minimize
+from scipy.ndimage import binary_dilation
 
 
 def preprocess(img: np.ndarray) -> np.ndarray:
@@ -116,3 +117,36 @@ def fit_elgauss_window(ref_psd, generosity=1., verbose=True):
     params = dict(width_x=wx, width_y=wy, angle_deg=theta_deg, scale=scale)
     # params = dict(width_x=wx, width_y=wy, angle_deg=theta_deg)
     return params, window_opt
+
+def estimate_median_background(
+    klipped_data: np.ndarray,
+    fitting_region_mask:np.ndarray,
+    dilation_size: int = 10) -> np.ndarray:
+    """
+    Estimate the median background of the klipped data using the dilated
+    fitting region mask (mask2generatedisk).
+
+    Args:
+        klipped_data: The klipped data.
+        fitting_region_mask: The fitting region mask.
+        dilation_size: The size of the dilation in pixels.
+
+    Returns:
+        The fitting region mask inpainted with the estimated
+        median background.
+    """
+    # Ensure the fitting region mask is a boolean array
+    median_background = fitting_region_mask.copy().astype(float)
+    fitting_region_mask = fitting_region_mask.copy().astype(bool)
+    if len(klipped_data.shape) > 2:
+        klipped_data = np.squeeze(klipped_data)
+    dilated_mask = binary_dilation(fitting_region_mask, structure=np.ones((dilation_size, dilation_size)))
+    use_for_median = (dilated_mask - median_background) * klipped_data
+    median_for_inpaint = np.median(use_for_median[use_for_median > 0])
+    median_background[fitting_region_mask] = median_for_inpaint
+    # # debug look at the dilated mask
+    # import matplotlib.pyplot as plt
+    # plt.imshow(klipped_data)
+    # plt.show()
+    # exit()
+    return median_background

@@ -296,6 +296,14 @@ Examples:
     aligned_center = component_dict["aligned_center"]
     radial_inds = component_dict["radial_inds"]
 
+    # TEST: if RDI mode, load and subtract the median background from the reduced data
+    if ffd_obj.mode == "RDI":
+        median_background = fits.getdata(os.path.join(klipdir, f"{file_prefix}_med_bkg.fits"))
+        reduced_data_no_bkg = np.asarray(reduced_data) - median_background
+        reduced_data_no_bkg_flat = reduced_data_no_bkg.flatten()
+        reduced_flat_interest_no_bkg = reduced_data_no_bkg_flat[optimization_mask_indices]
+
+
     # If dry-run, perform forward modeling and exit
     if dry_run:
         perform_forward_modeling_dry_run(ffd_obj, init_model_path=init_model)
@@ -315,7 +323,7 @@ Examples:
         print(f"   Tracing to {trace_dest}")
     
     optimized_params, loss_history, weights_nominal = optimize_model(
-        target_image=reduced_flat_interest,
+        target_image=reduced_flat_interest_no_bkg if ffd_obj.mode == "RDI" else reduced_flat_interest,
         model_init=init_model_interest,
         ref_psd=reference_model_psd,
         noise_map=noise_interest,
