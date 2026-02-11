@@ -713,8 +713,9 @@ class FreeFormDisk:
         fits.writeto(noise_saveto, noise_map, overwrite=True)
 
         saveto_masked_data = os.path.join(self.klipdir, f"{self.file_prefix}_masked_data.fits")
-        saveto_masked_noise = os.path.join(self.klipdir, f"{self.file_prefix}_use4noisemap.fits")
+        saveto_masked_noise = os.path.join(self.klipdir, f"{self.file_prefix}_mask4noisemap.fits")
         if self.mode == "ADI":
+            saveto_bespoke_noise = os.path.join(self.klipdir, f"{self.file_prefix}_bespoke_noise_mask.fits")
             saveto_bespoke_noise = os.path.join(self.klipdir, f"{self.file_prefix}_mask4noisemap.fits")
             save_fits(saveto_bespoke_noise, bespoke_noise_mask)
             self.noise_map = bespoke_noise_mask
