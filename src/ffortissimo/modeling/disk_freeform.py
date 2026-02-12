@@ -352,7 +352,7 @@ class FreeFormDisk:
                           method="L-BFGS-B", bounds=bounds,
                           options={"maxiter": 100, "ftol": 1e-10, "gtol": 1e-8,
                           "disp": True},
-                          callback=self._callback_function,
+                        #   callback=self._callback_function,
                           )
         self.params_opt = result.x
         best_model = self._render_disk_model(self.params_opt)
