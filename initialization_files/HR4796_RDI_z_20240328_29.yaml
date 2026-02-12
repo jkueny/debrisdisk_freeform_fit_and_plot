@@ -133,35 +133,19 @@ inc_test: 76.75
 pa_test: 25.4
 dx_test: -1.90
 dy_test: 1.75
-N_test: 1000.00
+N_test: 1385.77
 g1_test: 0.9045
 g2_test: -0.1452
 alpha1_test: 0.3651
 
-# INJECTED MODEL PARAMETERS
-r1_test: 76.0
-r2_test: 84.00
-rc_test: 77.7
-alpha_in_test: 45.86
-alpha_out_test: -15.00
-beta_test: 12.6
-a_r_test: 0.01
-inc_test: 45.0
-pa_test: 115.0
-dx_test: 0.1
-dy_test: -0.1
-N_test: 1000.00
-g1_test: 0.9045
-g2_test: -0.1452
-alpha1_test: 0.3651
 
 # INJECTED PARAMETER PRIORS [LOWER, UPPER]
-rc_test_prior: [40, 60]
+rc_test_prior: [70, 90]
 alpha_in_test_prior: [10, 100]
 alpha_out_test_prior: [-100, -10]
 beta_test_prior: [10, 30]
 a_r_test_prior: [0.005, 0.015]
-inc_test_prior: [40, 60]
+inc_test_prior: [75, 80]
 pa_test_prior: [100, 130]
 dx_test_prior: [-5, 5]
 dy_test_prior: [-5, 5]
@@ -173,11 +157,11 @@ alpha1_test_prior: [0.0001, 0.9999]
 # TEST MASKING PARAMETERS
 # MASKING PARAMETERS
 TEST_MASK_IN_SCALING: 4 #bigger means shrink the inner bound
-TEST_MASK_OUT_SCALING: 1 #bigger means expand the outer bound
+TEST_MASK_OUT_SCALING: 6 #bigger means expand the outer bound
 TEST_MASK_NOISE_IN: 4
 TEST_MASK_NOISE_OUT: 1
 TEST_MASK_DX: 0
-TEST_MASK_DY: 0
+TEST_MASK_DY: -3
 
 
 # APERTURE PHOTOMETRY
