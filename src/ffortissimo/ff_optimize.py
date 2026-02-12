@@ -295,14 +295,14 @@ Examples:
     noise_interest = component_dict["noise_interest"]
     aligned_center = component_dict["aligned_center"]
     radial_inds = component_dict["radial_inds"]
+    counter_rotated_image = component_dict["counter_rotated_image"]
 
     # TEST: if RDI mode, load and subtract the median background from the reduced data
-    if ffd_obj.mode == "RDI":
-        median_background = fits.getdata(os.path.join(klipdir, f"{file_prefix}_med_bkg.fits"))
-        reduced_data_no_bkg = np.asarray(reduced_data) - median_background
-        reduced_data_no_bkg_flat = reduced_data_no_bkg.flatten()
-        reduced_flat_interest_no_bkg = reduced_data_no_bkg_flat[optimization_mask_indices]
-
+    if counter_rotated_image is not None:
+        reduced_data_no_bkg = reduced_data - counter_rotated_image
+        reduced_flat_interest_no_bkg = reduced_data_no_bkg.flatten()[optimization_mask_indices]
+    else:
+        reduced_flat_interest_no_bkg = reduced_flat_interest
 
     # If dry-run, perform forward modeling and exit
     if dry_run:

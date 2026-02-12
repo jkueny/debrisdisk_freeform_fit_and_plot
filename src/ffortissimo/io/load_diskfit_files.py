@@ -39,6 +39,14 @@ def load_diskfit_components(ffd_obj, init_model=None):
     ffd_obj.mask2generatedisk = mask2generatedisk
     reduced_data = load_pyklip_reduced_data(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
     print("   ✓ Basis, masks, and reduced data loaded")
+    print("Checking for a counter-rotated image...")
+    counter_rotated_image_path = os.path.join(klipdir, f"{file_prefix}-klipped_counter_rotated.fits")
+    if os.path.exists(counter_rotated_image_path):
+        counter_rotated_image = load_pyklip_reduced_data(counter_rotated_image_path)
+        print("   ✓ Counter-rotated image loaded")
+    else:
+        print("   ✗ Counter-rotated image not found")
+        counter_rotated_image = None
 
     # Load noise map
     print("\n[2/6] Loading noise map...")
@@ -170,4 +178,5 @@ def load_diskfit_components(ffd_obj, init_model=None):
         "noise_interest": noise_interest,
         "aligned_center": aligned_center,
         "radial_inds": radial_inds,
+        "counter_rotated_image": counter_rotated_image,
     }
