@@ -121,7 +121,7 @@ def fit_elgauss_window(ref_psd, generosity=1., verbose=True):
 def estimate_median_background(
     klipped_data: np.ndarray,
     fitting_region_mask:np.ndarray,
-    dilation_size: int = 10) -> np.ndarray:
+    dilation_size: int = 5) -> np.ndarray:
     """
     Estimate the median background of the klipped data using the dilated
     fitting region mask (mask2generatedisk).
@@ -142,11 +142,14 @@ def estimate_median_background(
         klipped_data = np.squeeze(klipped_data)
     dilated_mask = binary_dilation(fitting_region_mask, structure=np.ones((dilation_size, dilation_size)))
     use_for_median = (dilated_mask - median_background) * klipped_data
-    median_for_inpaint = np.median(use_for_median[use_for_median > 0])
+    median_for_inpaint = np.median(use_for_median[use_for_median > 0]) * 3
+    # median_for_inpaint = np.mean(use_for_median[use_for_median > 0])
     median_background[fitting_region_mask] = median_for_inpaint
     # # debug look at the dilated mask
     # import matplotlib.pyplot as plt
-    # plt.imshow(klipped_data)
+    # plt.imshow(use_for_median, origin='lower')
+    # plt.title(f"Median for inpaint: {median_for_inpaint:.4f}")
+    # plt.colorbar()
     # plt.show()
     # exit()
     return median_background
