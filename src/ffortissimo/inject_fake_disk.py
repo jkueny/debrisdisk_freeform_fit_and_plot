@@ -338,8 +338,54 @@ Examples:
     print(f"\nOutput dir: {output_dir}")
     klipdir = os.path.join(output_dir, "klip_fm_files")
     os.makedirs(klipdir, exist_ok=True)
+    print("Hi-res ellipse mode enabled (no disk model injection)")
     if args.hires:
-        print("Hi-res ellipse mode enabled (no disk model injection)")
+        initial_disk, initial_base = generate_hi_res_ellipses(
+            image_shape=image_shape,
+            center=(aligned_center[0], aligned_center[1]),
+            semi_major_au=disk_params["rc"],
+            pixscale=pixscale,
+            distance=distance,
+            inc_deg=disk_params['inc'],
+            pa_deg=rotation_angle,
+            value=disk_params['Norm'] / 5
+        )
+    else:
+        base_ellipse = None
+        initial_disk = fastmodgen_disk_dxdy_2g(
+            R1=disk_params['r_inner'],
+            R2=disk_params['r_outer'],
+            # beta=disk_params['beta'],
+            beta=1.0,
+            inc=disk_params['inc'],
+            # pa=base_pa,
+            pa=base_pa,
+            dx=disk_params['dx'],
+            dy=disk_params['dy'],
+            Norm=disk_params['Norm'],
+            g1=disk_params['g1'],
+            g2=disk_params['g2'],
+            alpha1=disk_params['alpha1'],
+            a_r=disk_params['a_r'],
+            Rc=disk_params['rc'],
+            m=disk_params['alpha_in'],
+            n=disk_params['alpha_out'],
+            y_arr=y_arr,
+            z_arr=z_arr,
+            npts=n_pts,
+            mask=mask
+        )
+    # Save the base disk model to a FITS file
+    initial_disk_path = os.path.join(klipdir, "disk_model_to_inject.fits")
+    fits.writeto(initial_disk_path, initial_disk, overwrite=True)
+    print(f"  Saved initial disk model to: {initial_disk_path}")
+    if args.hires:
+        # Save the base ellipse to a FITS file
+        if base_ellipse is not None:
+            base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
+            fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
+            print(f"  Saved base ellipse to: {base_ellipse_path}")
+
     
     # Process each image
     # We need to generate the disk model + disk image per image to avoid interpolation artifacts
@@ -457,20 +503,6 @@ Examples:
         if nan_count_conv > 0:
             raise ValueError(f"Found {nan_count_conv} NaNs after convolution, aborting...")
         
-        if ea == 0:
-            print(f"Base disk model created: {base_disk.shape}")
-            # Save the base disk model to a FITS file
-            base_disk_path = os.path.join(klipdir, "disk_model_to_inject.fits")
-            fits.writeto(base_disk_path, base_disk, overwrite=True)
-            # Save the disk model to be injected
-            disk_model_path = os.path.join(klipdir, "injected_disk_image.fits")
-            fits.writeto(disk_model_path, base_disk_image_add_feats, overwrite=True)
-            print(f"  Saved disk model to: {disk_model_path}")
-            if args.hires:
-                # Save the base ellipse to a FITS file
-                base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
-                fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
-                print(f"  Saved base ellipse to: {base_ellipse_path}")
         # #debug print and display the rotated disk
         # print(f"Rotated angle: {rotation_angle}")
         # print(f"base_pa: {base_pa}")
