@@ -300,6 +300,12 @@ Examples:
     # TEST: if RDI mode, load and subtract the median background from the reduced data
     if counter_rotated_image is not None:
         reduced_data_no_bkg = reduced_data - counter_rotated_image
+        # #debug look at the reduced data no bkg
+        # import matplotlib.pyplot as plt
+        # plt.imshow(reduced_data_no_bkg, origin='lower')
+        # plt.colorbar()
+        # plt.show()
+        # exit()
         reduced_flat_interest_no_bkg = reduced_data_no_bkg.flatten()[optimization_mask_indices]
     else:
         reduced_flat_interest_no_bkg = reduced_flat_interest
