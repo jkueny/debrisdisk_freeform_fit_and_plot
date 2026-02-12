@@ -7,7 +7,8 @@ MODE: RDI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow t
 
 # KLIP RDI parameters
 DO_RDI_CORRELATION: true # Measure the correlation matrix of the RDI PSF lib. Very long.
-CLEAN_FINAL_FM: true # do a final post-KLIP median radial profile subtraction
+# CLEAN_FINAL_FM: true # do a final post-KLIP median radial profile subtraction
+CLEAN_FINAL_FM: false # do a final post-KLIP median radial profile subtraction
 OPTIMIZE_REFERENCE: true
 RPROFSUB: false
 
