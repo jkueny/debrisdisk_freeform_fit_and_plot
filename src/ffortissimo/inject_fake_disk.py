@@ -386,7 +386,7 @@ Examples:
         # Save the base ellipse to a FITS file
         if initial_base is not None:
             base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
-            fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
+            fits.writeto(base_ellipse_path, initial_base, overwrite=True)
             print(f"  Saved base ellipse to: {base_ellipse_path}")
 
     
