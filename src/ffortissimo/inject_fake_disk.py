@@ -440,7 +440,7 @@ Examples:
                 distance=distance,
                 inc_deg=disk_params['inc'],
                 pa_deg=rotation_angle,
-                value=disk_params['Norm'] / 5
+                value=disk_params['Norm'] / 2
             )
         else:
             base_disk = fastmodgen_disk_dxdy_2g(
