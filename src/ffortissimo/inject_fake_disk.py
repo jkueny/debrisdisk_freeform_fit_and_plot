@@ -348,7 +348,7 @@ Examples:
             distance=distance,
             inc_deg=disk_params['inc'],
             pa_deg=base_pa,
-            value=disk_params['Norm'] / 4
+            value=disk_params['Norm'] / 2
         )
     else:
         base_ellipse = None
