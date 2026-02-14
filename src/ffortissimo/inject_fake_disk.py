@@ -348,7 +348,7 @@ Examples:
             distance=distance,
             inc_deg=disk_params['inc'],
             pa_deg=base_pa,
-            value=disk_params['Norm'] / 2
+            value=disk_params['Norm'] / 4
         )
     else:
         base_ellipse = None
@@ -440,7 +440,7 @@ Examples:
                 distance=distance,
                 inc_deg=disk_params['inc'],
                 pa_deg=rotation_angle,
-                value=disk_params['Norm'] / 2
+                value=disk_params['Norm'] / 4
             )
         else:
             base_disk = fastmodgen_disk_dxdy_2g(
