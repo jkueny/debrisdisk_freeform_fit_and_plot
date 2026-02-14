@@ -6,3 +6,6 @@
 *.npy
 *.pyc
 __pycache__
+paper/
+old_results/
+archive/

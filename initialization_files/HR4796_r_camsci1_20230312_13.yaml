@@ -2,87 +2,137 @@
 FIRST_TIME: False
 FIRST_TIME_GS: True #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
-disk_model: original # original or modified Max MB model code
-pyklip:
-  mode: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
-  do_rdi_correlation: False # Measure the correlation matrix of the RDI PSF lib. Very long.
-  # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-  klmode_number: 11 # number of KL modes used in the reduction < nb images in the basis
-  annuli: 1 # number of annuli in the KLIP reduction
+DISK_MODEL: original # original or modified Max MB model code
+MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
+# KLIP RDI parameters
+DO_RDI_CORRELATION: false # Measure the correlation matrix of the RDI PSF lib. Very long.
+CLEAN_FINAL_FM: false # do a final post-KLIP median radial profile subtraction 
+RPROFSUB: false
+
+OPTIMIZE_REFERENCE: true
+# KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
+KLMODE_NUMBER: 16 # number of KL modes used in the reduction < nb images in the basis
+ANNULI: 1 # number of annuli in the KLIP reduction
   # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-  IWA: 6 # pixels
-  # OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
+IWA: 10 # pixels
+OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
   # OWA: 36 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-  OWA: 100 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-  move_here: 7  #minrot in PyKLIP ADI
-  hp_filter: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
-  aligned_center: [111.5,111.5] #image center in your model, also use to center the image before KLIP
+MOVE_HERE: 9  #minrot in PyKLIP ADI
+HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
+ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
 
 
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-band_dir: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci1/lite_psflib  # name of folder where are the data (from basedir)
-rdi_dir: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
+BAND_DIR: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
-file_prefix: camsci1_r_20230312_13 #prefix for all saved files (carefull not to erase your results)
+FILE_PREFIX: camsci1_r_20230312_13 #prefix for all saved files (carefull not to erase your results)
 
 
-metadata:
-  # STAR OBSERVATION PARAMETERS
-  distance_star: 72.248   #distance of the disk in pc
-  pixscale_ins: 0.012  #picscale of your data
-  filter_name: $r'$
-  instrument: MagAO-X  # SPHERE or GPI
-  wl: 0.615 #wavelength in microns
-  band_name: 2023 Mar 13, $r'$ band #for plot titles uniquely
-  prim_mirror_sz: 6.5 #meters
+# metadata
+# STAR OBSERVATION PARAMETERS
+DISTANCE_STAR: 72.248   #distance of the disk in pc
+PIXSCALE_INS: 0.012  #picscale of your data
+FILTER_NAME: $r'$
+INSTRUMENT: MagAO-X  # SPHERE or GPI
+WL: 0.615 #wavelength in microns
+BAND_NAME: 2023 Mar 13, $r'$ band #for plot titles uniquely
+PRIM_MIRROR_SZ: 6.5 #meters
+NORTH_UP_OFFSET: 1.50
 
+# MODEL PARAMETER PRIORS [LOWER, UPPER]
+rc_prior: [70, 80]
+alpha_in_prior: [10, 100]
+alpha_out_prior: [-100, -10]
+beta_prior: [10, 30]
+a_r_prior: [0.005, 0.015]
+inc_prior: [75, 80]
+pa_prior: [20, 30]
+dx_prior: [-5, 5]
+dy_prior: [-5, 5]
+N_prior: [0, None]
+g1_prior: [0.0001, 0.9999]
+g2_prior: [-0.9999, -0.0001]
+alpha1_prior: [0.0001, 0.9999]
 
-disk_model:
+# Disk model parameters
   # INITIAL MODEL PARAMETERS
-  r1_init: 76.0 #include just for initializing the mask function
-  r2_init: 88.00 #include just for initializing the mask function
-  # r2_init: 100.00 #include just for initializing the mask function
-  rc_init: 77.7 #35.5 #trying 39. for the masks
-  alpha_in_init: 48.00
-  alpha_out_init: -12.70
-  beta_init: 12.6
-  a_r_init: 0.015
-  inc_init: 76.75 #trying 45. init for the mask2minimize
-  pa_init: 25.4
-  dx_init: -2.14
-  dy_init: 1.31
-  N_init: 958.62
-  r_inner: 65.0
-  r_outer: 110.0
-  g1_init: 0.82
-  g2_init: -0.20
-  alpha1_init: 0.30
+r1_init: 76.0 #include just for initializing the mask function
+r2_init: 88.00 #include just for initializing the mask function
+# r2_init: 100.00 #include just for initializing the mask function
+rc_init: 77.7 #35.5 #trying 39. for the masks
+alpha_in_init: 48.00
+alpha_out_init: -12.70
+beta_init: 12.6
+a_r_init: 0.015
+inc_init: 76.75 #trying 45. init for the mask2minimize
+pa_init: 25.0
+dx_init: -2.14
+dy_init: 1.31
+N_init: 958.62
+r_inner: 65.0
+r_outer: 110.0
+g1_init: 0.82
+g2_init: -0.20
+alpha1_init: 0.30
 
-# MODEL PARAMETER STATES [0,1] --> [fixed, free]
-r1_state: 1
-r2_state: 0
-rc_state: 0
-alpha_in_state: 0
-alpha_out_state: 0
-beta_state: 1
-a_r_state: 1
-inc_state: 0
-pa_state: 0
-dx_state: 1
-dy_state: 1
-N_state: 1
-rscale_state: 0
-# amin: 0
-# amax: 0
-aexp: 2.5
-g1_state: 1
-g2_state: 1
-alpha1_state: 1
-g3_state: 0
-alpha2_state: 0
+# BEST MODEL PARAMETERS
+rc_best: 77.7
+alpha_in_best: 48.00
+alpha_out_best: -12.70
+beta_best: 12.6
+a_r_best: 0.015
+inc_best: 76.75
+pa_best: 25.4
+dx_best: -2.14
+dy_best: 1.31
+N_best: 958.62
+g1_best: 0.817
+g2_best: -0.2015
+alpha1_best: 0.296
 
-RPROFSUB: True
+# INJECTED MODEL PARAMETERS
+r1_test: 76.0
+r2_test: 84.00
+rc_test: 77.7
+alpha_in_test: 45.86
+alpha_out_test: -15.00
+beta_test: 12.6
+a_r_test: 0.01
+inc_test: 45.0
+pa_test: 115.0
+dx_test: 0.1
+dy_test: -0.1
+N_test: 1000.00
+g1_test: 0.9045
+g2_test: -0.1452
+alpha1_test: 0.3651
+
+# INJECTED PARAMETER PRIORS [LOWER, UPPER]
+rc_test_prior: [40, 60]
+alpha_in_test_prior: [10, 100]
+alpha_out_test_prior: [-100, -10]
+beta_test_prior: [10, 30]
+a_r_test_prior: [0.005, 0.015]
+inc_test_prior: [40, 60]
+pa_test_prior: [100, 130]
+dx_test_prior: [-5, 5]
+dy_test_prior: [-5, 5]
+N_test_prior: [0, None]
+g1_test_prior: [0.0001, 0.9999]
+g2_test_prior: [-0.9999, -0.0001]
+alpha1_test_prior: [0.0001, 0.9999]
+
+# TEST MASKING PARAMETERS
+# MASKING PARAMETERS
+TEST_MASK_IN_SCALING: 4 #bigger means shrink the inner bound
+TEST_MASK_OUT_SCALING: 1 #bigger means expand the outer bound
+TEST_MASK_NOISE_IN: 4
+TEST_MASK_NOISE_OUT: 1
+TEST_MASK_DX: 0
+TEST_MASK_DY: 0
+
 
 # APERTURE PHOTOMETRY
 AP_RING_RAD: 90 #circle defining where to plop down apertures, deprojected disk
@@ -93,20 +143,19 @@ STAR_FLUX_DENSITY: 15.997851784224686
 CONV_FACTOR: 1.112939359925286e-08 # Jy / Ang.
 
 
-mask:
-  # MASKING PARAMETERS
-  in_scaling: 3 #bigger means shrink the inner bound
-  out_scaling: 6 #bigger means expand the outer bound
-  speckles: 6 #central circle mask
-  minor: 55 #OWA to isolate minor axis
-  dx: 0
-  dy: -3
-  noise_in: 3
-  noise_out: 3
 
-noise:
-  use: true
-  delta_radii: 1 #width of noisemap rings
+# MASKING PARAMETERS
+MASK_IN_SCALING: 4 #bigger means shrink the inner bound
+MASK_OUT_SCALING: 4 #bigger means expand the outer bound
+MASK_SPECKLES: 6 #central circle mask
+MASK_MINOR: 55 #OWA to isolate minor axis
+MASK_DX: 0
+MASK_DY: 0
+MASK_NOISE_IN: 1
+MASK_NOISE_OUT: 1
+
+USE_NOISE: true
+NOISE_DELTA_RADII: 1 #width of noisemap rings
 
 
 DISK_MIN_SC_ANG: 13 #degrees, the geometry of the disk scattering
