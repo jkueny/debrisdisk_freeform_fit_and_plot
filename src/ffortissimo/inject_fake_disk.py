@@ -384,7 +384,7 @@ Examples:
     print(f"  Saved initial disk model to: {initial_disk_path}")
     if args.hires:
         # Save the base ellipse to a FITS file
-        if base_ellipse is not None:
+        if initial_base is not None:
             base_ellipse_path = os.path.join(klipdir, "base_ellipse_for_reference.fits")
             fits.writeto(base_ellipse_path, base_ellipse, overwrite=True)
             print(f"  Saved base ellipse to: {base_ellipse_path}")
