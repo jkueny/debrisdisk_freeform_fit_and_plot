@@ -375,7 +375,10 @@ Examples:
             npts=n_pts,
             mask=mask
         )
-    # Save the base disk model to a FITS file
+    initial_disk_convolved = fftconvolve(initial_disk, psf, mode="same")
+    # Save the base disk model and image to a FITS file
+    initial_disk_convolved_path = os.path.join(klipdir, "injected_disk_image.fits")
+    fits.writeto(initial_disk_convolved_path, initial_disk_convolved, overwrite=True)
     initial_disk_path = os.path.join(klipdir, "disk_model_to_inject.fits")
     fits.writeto(initial_disk_path, initial_disk, overwrite=True)
     print(f"  Saved initial disk model to: {initial_disk_path}")
