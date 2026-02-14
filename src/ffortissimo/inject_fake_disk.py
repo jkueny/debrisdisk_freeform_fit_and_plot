@@ -152,7 +152,7 @@ def generate_hi_res_ellipses(
 
     cosi = np.cos(np.deg2rad(inc_deg))
     # for ea, semi_major in enumerate((semi_major_px - 6., semi_major_px, semi_major_px + 6.)):
-    for ea, semi_major in enumerate((semi_major_px - 2.5, semi_major_px, semi_major_px + 2.5)):
+    for ea, semi_major in enumerate((semi_major_px - 3., semi_major_px, semi_major_px + 3.)):
     # for semi_major in [semi_major_px]:
         if semi_major <= 0:
             continue
@@ -160,7 +160,7 @@ def generate_hi_res_ellipses(
         semi_minor = max(1.0, semi_major * cosi)
         r_scaled = np.sqrt((x_rot / semi_major) ** 2 + (y_rot / semi_minor) ** 2)
         # ring_mask = np.abs(r_scaled - 1.) <= (2. / semi_major)
-        ring_mask = np.abs(r_scaled - 1.) <= (0.5 / semi_major)
+        ring_mask = np.abs(r_scaled - 1.) <= (0.75 / semi_major)
         empty_image[ring_mask] = value
         if ea == 1:
             base_ellpse = empty_image
