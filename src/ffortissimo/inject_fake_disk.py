@@ -347,8 +347,8 @@ Examples:
             pixscale=pixscale,
             distance=distance,
             inc_deg=disk_params['inc'],
-            pa_deg=rotation_angle,
-            value=disk_params['Norm'] / 5
+            pa_deg=base_pa,
+            value=disk_params['Norm'] / 4
         )
     else:
         base_ellipse = None
