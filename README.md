@@ -18,8 +18,8 @@ ffortissimo provides a flexible framework for forward modeling extended astronom
 
 ### Requirements
 
-- Python >= 3.8
-- numpy == 1.26.4
+- Python >= 3.11
+- numpy >= 2.1
 - jax >= 0.4.0
 - jaxlib >= 0.4.0
 - astropy >= 5.0.0
@@ -29,12 +29,23 @@ ffortissimo provides a flexible framework for forward modeling extended astronom
 - emcee >= 3.1.0
 - numba >= 0.56.0
 - optax >= 0.1.0
+- pandas >= 2.3.3
+- opencv-python >= 4.11.0
+- h5py >= 3.14.0
+- bottleneck >= 1.5.0
 
-### Installation from Source
+### Installation
+
+**From GitHub (recommended for public use):**
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+pip install git+https://github.com/<username>/debrisdisk_freeform_fit_and_plot.git
+```
+
+**From clone (development):**
+
+```bash
+git clone https://github.com/<username>/debrisdisk_freeform_fit_and_plot.git
 cd debrisdisk_freeform_fit_and_plot
 
 # Install in development mode
@@ -44,40 +55,57 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+After installation, the CLI commands `ff_klip`, `ff_setup`, and `ff_optimize` are available.
+
 ## Quick Start
+
+The pipeline has three discrete steps. Run them in order:
+
+```mermaid
+flowchart LR
+    Data[Input Data] --> ff_klip
+    ff_klip[ff_klip] --> ff_setup
+    ff_setup[ff_setup] --> ff_optimize
+    ff_optimize[ff_optimize] --> Results[Results]
+```
 
 ### 1. Prepare Configuration File
 
-Create or use an existing YAML configuration file in `initialization_files/`. See existing examples for reference (e.g., `HR4796_g_camsci1_20250408_09.yaml`).
+Create or use an existing YAML configuration file in `initialization_files/`. See existing examples (e.g., `HR4796_RDI_i_20240328_29.yaml`, `HR4796_g_camsci1_20250408_09.yaml`).
 
-### 2. Run KLIP Reduction
+### 2. Step 1: Run KLIP Reduction (`ff_klip`)
 
 ```bash
-python src/ffortissimo/ff_klip.py -p initialization_files/your_config.yaml
+ff_klip -p initialization_files/your_config.yaml
 ```
+
+Or, for development without install: `python -m ffortissimo.ff_klip -p initialization_files/your_config.yaml`
 
 This step:
 - Loads and prepares the dataset
-- Creates binary masks for disk generation and noise mapping
 - Runs KLIP reduction with forward modeling
 - Generates KLIP basis file (`*_klbasis.h5`)
-- Creates noise maps and other necessary files
+- Saves the KLIP-reduced image to FITS
 
-### 3. Create Masks and Estimate Noise
-
-```bash
-python src/ffortissimo/ff_mask.py -p initialization_files/your_config.yaml
-```
-
-This step creates optimization masks and noise maps used during fitting.
-
-### 4. Fit Freeform Model
+### 3. Step 2: Create Masks and Noise Map (`ff_setup`)
 
 ```bash
-python src/ffortissimo/diskfit_freeform.py -p initialization_files/your_config.yaml --num-iterations 50000
+ff_setup -p initialization_files/your_config.yaml
 ```
 
-This performs the freeform model optimization to fit the KLIP-reduced data.
+This step:
+- Verifies that `ff_klip` was run successfully
+- Creates binary masks for disk generation and noise mapping
+- Estimates spatial noise map from masked reduced data
+- Optionally performs a forward-modeling dry run with `--do-fm`
+
+### 4. Step 3: Fit Freeform Model (`ff_optimize`)
+
+```bash
+ff_optimize -p initialization_files/your_config.yaml -i 50000
+```
+
+This performs the JAX-based freeform model optimization. The `-i`/`--iterations` argument is required (maximum iterations; early stopping may occur based on `--loss-tolerance`).
 
 ### 5. (Optional) Fit Physical Model
 
@@ -87,20 +115,41 @@ python scripts/modelfit_physical_to_freeform.py -p initialization_files/your_con
 
 Fit a physics-informed parametric disk model to the freeform results using MCMC.
 
+### Fake Disk Injection (Test Utility)
+
+`inject_fake_disk` is an auxiliary tool for validation and testing. It injects a synthetic disk with known parameters into real FITS images to create a controlled test dataset. You can then run the full pipeline to recover the known disk and validate the method.
+
+**Workflow:**
+1. Run `inject_fake_disk` to create synthetic data:
+   ```bash
+   inject_fake_disk -p initialization_files/your_config.yaml -o synthetic_output_dir
+   ```
+2. Run the pipeline with `--injected-dir` and `--injected-pa`:
+   ```bash
+   ff_klip -p initialization_files/your_config.yaml --injected-dir synthetic_output_dir
+   ff_setup -p initialization_files/your_config.yaml --injected-dir synthetic_output_dir --injected-pa 115.0
+   ff_optimize -p initialization_files/your_config.yaml -i 10000 --injected-dir synthetic_output_dir --injected-pa 115.0
+   ```
+
+**Options:** `--pa`, `--rad`, `--hires`, `--data-dir` — see the [`inject_fake_disk.py`](src/ffortissimo/inject_fake_disk.py) module for details.
+
 ## Project Structure
 
 ```
 debrisdisk_freeform_fit_and_plot/
 ├── src/
 │   └── ffortissimo/          # Main package
-│       ├── diskfit_freeform.py      # Main freeform fitting script
-│       ├── ff_klip.py               # KLIP reduction pipeline
-│       ├── ff_mask.py               # Mask and noise map generation
+│       ├── ff_klip.py               # Step 1: KLIP reduction
+│       ├── ff_setup.py              # Step 2: Masks and noise map
+│       ├── ff_optimize.py           # Step 3: Freeform optimization
+│       ├── inject_fake_disk.py      # Auxiliary: synthetic disk injection
+│       ├── diskfit_freeform.py      # Legacy / internal use
 │       ├── modeling/                # Disk model classes
+│       ├── io/                      # I/O and file handling
 │       ├── utils/                   # Utility functions
 │       └── dev/pyklip/              # Modified pyklip package
-├── scripts/                   # Analysis scripts
-├── initialization_files/      # YAML configuration files
+├── scripts/                   # Analysis scripts (e.g., modelfit_physical_to_freeform)
+├── initialization_files/      # YAML configs (e.g., HR4796_RDI_i_20240328_29.yaml)
 ├── starting_models/           # Initial model FITS files
 └── tests/                     # Test scripts
 ```
@@ -115,30 +164,24 @@ The pipeline is configured via YAML files in `initialization_files/`. Key config
 - **Optimization parameters**: Learning rate, regularization strength, iteration count
 - **Instrument settings**: PSF information, pixel scales, centers
 
-See `initialization_files/HR4796_g_camsci1_20250408_09.yaml` for a detailed example.
+See `initialization_files/HR4796_RDI_i_20240328_29.yaml` or `initialization_files/HR4796_g_camsci1_20250408_09.yaml` for detailed examples.
 
 ## Usage Examples
 
-### Basic Freeform Fitting
+### Basic Pipeline (CLI)
 
-```python
-from ffortissimo.diskfit_freeform import main
-
-config_file = "initialization_files/your_config.yaml"
-main(config=config_file,
-     num_iterations=50000,
-     init_model="starting_models/model.fits",
-     reg_lambda=1.0,
-     learning_rate=0.01)
+```bash
+ff_klip -p initialization_files/your_config.yaml
+ff_setup -p initialization_files/your_config.yaml
+ff_optimize -p initialization_files/your_config.yaml -i 50000
 ```
 
 ### Custom Optimization Settings
 
 ```bash
-python src/ffortissimo/diskfit_freeform.py \
-    -p initialization_files/config.yaml \
-    --num-iterations 100000 \
-    --reg-lambda 0.5 \
+ff_optimize -p initialization_files/your_config.yaml \
+    -i 100000 \
+    --reg 0.5 \
     --learning-rate 0.005 \
     --delta 0.1
 ```
@@ -156,7 +199,11 @@ Outputs are saved in the directory specified by `resultsdir` in the configuratio
 
 ## Citation
 
-If you use FFortissiMo in your research, please cite:
+A paper describing FFortissiMo is currently in review. Once published, we ask that you cite:
+
+*[Placeholder: paper citation will be added upon publication]*
+
+For now, you may cite the software:
 
 ```bibtex
 @software{ffortissimo2024,
