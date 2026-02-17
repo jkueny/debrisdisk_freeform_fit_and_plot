@@ -1,4 +1,5 @@
 import os
+import logging
 
 import numpy as np
 import astropy.io.fits as fits
@@ -8,6 +9,8 @@ from ffortissimo.utils.klip_basis import load_kl_basis
 from ffortissimo.utils.masks import make_annular_mask
 from ffortissimo.utils.improc_tools import get_radial_inds
 from ffortissimo.io.fits_handling import load_pyklip_reduced_data
+
+logger = logging.getLogger(__name__)
 
 
 def load_diskfit_components(ffd_obj, init_model=None):
@@ -30,7 +33,7 @@ def load_diskfit_components(ffd_obj, init_model=None):
     jax_psf = jnp.array(psf)
 
     # Load all required data
-    print("\n[1/6] Loading required data...")
+    logger.info("[1/6] Loading required data...")
     fm_dict = load_kl_basis(basis_path)
     mask4noisemap = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits"))
     mask2generatedisk = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits"))
@@ -38,18 +41,18 @@ def load_diskfit_components(ffd_obj, init_model=None):
     # Set mask on object (needed for get_initial_model later)
     ffd_obj.mask2generatedisk = mask2generatedisk
     reduced_data = load_pyklip_reduced_data(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
-    print("   ✓ Basis, masks, and reduced data loaded")
-    print("Checking for a counter-rotated image...")
+    logger.info("   ♪ Basis, masks, and reduced data loaded")
+    logger.info("Checking for a counter-rotated image...")
     counter_rotated_image_path = os.path.join(klipdir, f"{file_prefix}-klipped_counter_rotated.fits")
     if os.path.exists(counter_rotated_image_path):
         counter_rotated_image = load_pyklip_reduced_data(counter_rotated_image_path)
-        print("   ✓ Counter-rotated image loaded")
+        logger.info("   ♪ Counter-rotated image loaded")
     else:
-        print("   ✗ Counter-rotated image not found")
+        logger.info("   ✗ Counter-rotated image not found")
         counter_rotated_image = None
 
     # Load noise map
-    print("\n[2/6] Loading noise map...")
+    logger.info("[2/6] Loading noise map...")
     if ffd_obj.params_file["USE_NOISE"]:
         noise_map = fits.getdata(os.path.join(klipdir, f"{file_prefix}_noisemap.fits"))
         noise_map += 1.  # Get rid of any zeros
@@ -59,10 +62,10 @@ def load_diskfit_components(ffd_obj, init_model=None):
         noise_map = np.ones_like(reduced_data)
         noise_map_flat = noise_map.flatten()
         noise_map_flat[noise_map_flat != noise_map_flat] = 1.
-    print("   ✓ Noise map loaded")
+    logger.info("   ♪ Noise map loaded")
 
     # Set processing flags
-    print("\n[3/6] Setting processing flags...")
+    logger.info("[3/6] Setting processing flags...")
     hp = ffd_obj.hp
     rprofsub = bool(ffd_obj.params_file["RPROFSUB"])
     clean_final_fm = bool(ffd_obj.clean_final_fm)
@@ -79,12 +82,12 @@ def load_diskfit_components(ffd_obj, init_model=None):
         do_clean_final_fm = 1
     else:
         do_clean_final_fm = 0
-    print(f"   ✓ High-pass filter: {hp_filtersize}")
-    print(f"   ✓ Radial profile subtraction: {do_radial_profile_sub}")
-    print(f"   ✓ Clean final FM: {do_clean_final_fm}")
+    logger.info("   ♪ High-pass filter: %s", hp_filtersize)
+    logger.info("   ♪ Radial profile subtraction: %s", do_radial_profile_sub)
+    logger.info("   ♪ Clean final FM: %s", do_clean_final_fm)
 
     # Get reference model
-    print("\n[4/6] Preparing reference model...")
+    logger.info("[4/6] Preparing reference model...")
 
     # Load optimization mask from disk (created by ff_setup.py)
     optimization_mask_path = os.path.join(klipdir, f"{file_prefix}_optimization_mask.fits")
@@ -104,8 +107,8 @@ def load_diskfit_components(ffd_obj, init_model=None):
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
         reference_model[reference_model != reference_model] = 0.
         # reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
-        print("   ✓ New reference model fitted and saved")
-        print("   Note: Inspect the reference model and re-run optimization if needed.")
+        logger.info("   ♪ New reference model fitted and saved")
+        logger.info("   Note: Inspect the reference model and re-run optimization if needed.")
     # elif init_model is None:
     #     # Try to load FirstModel, otherwise use initial guess
     #     first_model_path = os.path.join(klipdir, f"{file_prefix}_FirstModel.fits")
@@ -118,13 +121,13 @@ def load_diskfit_components(ffd_obj, init_model=None):
     #         print("   ✓ Using initial guess model as reference")
     else:
         reference_model = model_firstguess
-        print("   ✓ Using provided initial model as reference")
+        logger.info("   ♪ Using provided initial model as reference")
 
     reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
-    print("   ✓ Reference model PSD computed")
+    logger.info("   ♪ Reference model PSD computed")
 
     # Prepare data arrays and indices
-    print("\n[5/6] Preparing data arrays and indices...")
+    logger.info("[5/6] Preparing data arrays and indices...")
     total_pixels = np.prod(reduced_data.shape)
     disk_mask = np.array(mask2generatedisk)
     disk_mask_apod = np.array(disk_mask_apod)
@@ -151,7 +154,7 @@ def load_diskfit_components(ffd_obj, init_model=None):
     )
     image_shape = (jnp.round(aligned_center[0]) * 2, jnp.round(aligned_center[1]) * 2)
     radial_inds = get_radial_inds(image_shape, aligned_center)
-    print("   ✓ Data arrays and indices prepared")
+    logger.info("   ♪ Data arrays and indices prepared")
 
     return {
         "psf": psf,

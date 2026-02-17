@@ -2,14 +2,15 @@
 Create masks and estimate noise map for freeform disk fitting.
 
 This script handles the setup phase after KLIP reduction:
-1. Verifies that ff_klip.py was run successfully
+1. Verifies that ff_klip was run successfully
 2. Creates binary masks for disk generation and noise mapping
 3. Estimates spatial noise map from masked reduced data
 
 Usage:
-    python ff_setup.py -p initialization_files/params.yaml
-    python ff_setup.py -p initialization_files/params.yaml --do-fm
-    python ff_setup.py -p initialization_files/params.yaml --injected-dir /path/to/injected_dataset --injected-pa 90.0 --do-fm
+    ff_setup -p initialization_files/params.yaml
+    ff_setup -p initialization_files/params.yaml --do-fm
+    ff_setup -p initialization_files/params.yaml --injected-dir /path/to/injected_dataset
+    ff_setup -p initialization_files/params.yaml --initial-model path/to/model.fits --log-to-file
 '''
 
 import os
@@ -115,16 +116,19 @@ def main():
         epilog="""
 Examples:
   # Basic usage
-  python ff_setup.py -p initialization_files/params.yaml
-  
+  ff_setup -p initialization_files/params.yaml
+
   # With custom initial model
-  python ff_setup.py -p initialization_files/params.yaml --initial-model path/to/model.fits
-  
+  ff_setup -p initialization_files/params.yaml --initial-model path/to/model.fits
+
   # Perform initial forward model computation (may be time-consuming)
-  python ff_setup.py -p initialization_files/params.yaml --do-fm
-  
-  # Process injected synthetic dataset (PA must be specified)
-  python ff_setup.py -p initialization_files/params.yaml --injected-dir /path/to/injected_data --injected-pa 90.0
+  ff_setup -p initialization_files/params.yaml --do-fm
+
+  # Process injected synthetic dataset (PA from pa_test in config)
+  ff_setup -p initialization_files/params.yaml --injected-dir /path/to/injected_data
+
+  # Write log to file
+  ff_setup -p initialization_files/params.yaml --log-to-file
         """
     )
     
@@ -142,10 +146,6 @@ Examples:
                         type=str,
                         required=False,
                         help='Path to directory containing injected synthetic disk data (overrides data directory from config)')
-    parser.add_argument('--injected-pa',
-                        type=float,
-                        required=False,
-                        help='Position angle (degrees) of injected disk (required when --injected-dir is provided)')
     parser.add_argument('--log-to-file',
                         action='store_true',
                         help='Write a timestamped log file instead of stdout')
@@ -183,15 +183,9 @@ Examples:
             print(f"Injected directory not found: {injected_dir}")
             sys.exit(1)
 
-        injected_pa = args.injected_pa if args.injected_pa is not None else None
+        injected_pa = ffd_obj.params_file.get('pa_test')
         injected_inc = ffd_obj.params_file.get('inc_test')
-        if injected_pa is None:
-            injected_pa = ffd_obj.params_file.get('pa_test')
-            print(f"Using injected disk PA: {injected_pa} deg \
-                 (overriding config PA: \
-                    {ffd_obj.params_file.get('pa_test', 'N/A')} deg)")
-        else:
-            print(f"Using injected disk PA: {injected_pa} deg")
+        print(f"Using injected disk PA: {injected_pa} deg (from pa_test in config)")
         # Override datadir to point to injected directory (where FITS files are)
         ffd_obj.datadir = injected_dir
         # Override klipdir to point to klip_fm_files subdirectory in injected directory

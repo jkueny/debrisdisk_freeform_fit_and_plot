@@ -8,9 +8,10 @@ This script handles the first step of the freeform disk fitting pipeline:
 4. Saves the KLIP-reduced image to a FITS file.
 
 Usage:
-    python ff_klip.py -p initialization_files/params.yaml
-    python ff_klip.py -p initialization_files/params.yaml --injected-dir /path/to/injected_dataset
-
+    ff_klip -p initialization_files/params.yaml
+    ff_klip -p initialization_files/params.yaml --injected-dir /path/to/injected_dataset
+    ff_klip -p initialization_files/params.yaml --force --log-to-file
+    ff_klip -p initialization_files/params.yaml --make-diskless-image
 '''
 
 import os
@@ -50,13 +51,16 @@ def main():
         epilog="""
 Examples:
   # Basic usage
-  python ff_klip.py -p initialization_files/params.yaml
-  
-  # Force regeneration of existing basis using CLI flag
-  python ff_klip.py -p initialization_files/params.yaml --force
-  
+  ff_klip -p initialization_files/params.yaml
+
+  # Force regeneration of existing basis
+  ff_klip -p initialization_files/params.yaml --force
+
   # Process injected synthetic dataset
-  python ff_klip.py -p initialization_files/params.yaml --injected-dir /path/to/injected_data
+  ff_klip -p initialization_files/params.yaml --injected-dir /path/to/injected_data
+
+  # Write log to file
+  ff_klip -p initialization_files/params.yaml --log-to-file
         """
     )
     

@@ -2,26 +2,25 @@
 Run JAX-based optimization for freeform disk fitting.
 
 This script handles the optimization phase of the 𝒇𝒇 pipeline:
-1. Verifies that ff_klip.py and ff_setup.py were run successfully
-2. Optionally performs a single forward-modeling dry run for inspection
+1. Verifies that ff_klip and ff_setup were run successfully
+2. Optionally performs a single forward-modeling dry run for inspection (--dry-run, no -i needed)
 3. Executes JAX-based model optimization
 4. Saves optimization results to disk
 
 Usage:
-    python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001
-    python ff_optimize.py -p initialization_files/config.yaml --dry-run
-    python ff_optimize.py -p initialization_files/config.yaml -i 1000 --initial-model path/to/model.fits
-
-TODO offload mask loading to another function in core.diskfit.py
+    ff_optimize -p initialization_files/config.yaml -i 50000
+    ff_optimize -p initialization_files/config.yaml --dry-run
+    ff_optimize -p initialization_files/config.yaml -i 1000 --loss-tolerance 0.001 --log-to-file
 '''
 
-import os, sys
+import os
+import sys
 import argparse
+import logging
 import multiprocessing
 import numpy as np
 import astropy.io.fits as fits
 from scipy.signal import fftconvolve
-
 
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
 from ffortissimo.io.save_diskfit_results import save_ffdfit_outputs, \
@@ -31,6 +30,9 @@ from ffortissimo.io.fits_handling import save_fits, load_pyklip_reduced_data
 from ffortissimo.core.diskfit import optimize_model
 
 from ffortissimo.utils.diskfit_tools import record_pyklip_params
+from ffortissimo.io.log_handling import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def verify_prerequisites(ffd_obj):
@@ -86,11 +88,11 @@ def verify_prerequisites(ffd_obj):
         error_msg += "\nPlease run ff_klip.py first, then ff_setup.py before running optimization."
         raise FileNotFoundError(error_msg)
     
-    print(" Verified prerequisites:")
-    print(f"  - KLIP-reduced image: {reduced_data_path}")
-    print(f"  - KL basis file: {basis_path}")
-    print(f"  - Masks: all present")
-    print(f"  - Noise map: {noise_map_path}")
+    logger.info(" Verified prerequisites:")
+    logger.info("  - KLIP-reduced image: %s", reduced_data_path)
+    logger.info("  - KL basis file: %s", basis_path)
+    logger.info("  - Masks: all present")
+    logger.info("  - Noise map: %s", noise_map_path)
 
 
 def perform_forward_modeling_dry_run(ffd_obj, init_model_path=None):
@@ -104,8 +106,8 @@ def perform_forward_modeling_dry_run(ffd_obj, init_model_path=None):
     klipdir = ffd_obj.klipdir
     file_prefix = ffd_obj.file_prefix
     
-    print("\n[Forward Modeling Dry Run]")
-    print("Performing single forward-modeling computation for inspection...")
+    logger.info("[Forward Modeling Dry Run]")
+    logger.info("Performing single forward-modeling computation for inspection...")
     
     # Load mask from disk (created by ff_setup.py)
     mask2generatedisk_path = os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits")
@@ -120,24 +122,24 @@ def perform_forward_modeling_dry_run(ffd_obj, init_model_path=None):
     ffd_obj.allocate_dataset()
     
     # Get initial model
-    print("   Creating/loading initial model...")
+    logger.info("   Creating/loading initial model...")
     model_init = ffd_obj.get_initial_model(init_model_path)
     
     # Convolve initial model with PSF
-    print("   Convolving initial model with PSF...")
+    logger.info("   Convolving initial model with PSF...")
     model_convolved = fftconvolve(model_init, ffd_obj.psf, mode="same")
     
     # Run forward modeling
-    print("   Running forward modeling (this may take a while)...")
+    logger.info("   Running forward modeling (this may take a while)...")
     model_fm_init = ffd_obj.single_fm(np.asarray(model_convolved))
     
     # Save forward model
     model_fm_saveto = os.path.join(klipdir, f"{file_prefix}_DryRun_FM.fits")
     save_fits(model_fm_saveto, model_fm_init)
-    print(f"   ✓ Saved forward model: {model_fm_saveto}")
-    
-    print("\n✓ Forward modeling dry run complete!")
-    print("You can now inspect the forward model before running the full optimization.")
+    logger.info("   ♪ Saved forward model: %s", model_fm_saveto)
+
+    logger.info("♪ Forward modeling dry run complete!")
+    logger.info("You can now inspect the forward model before running the full optimization.")
 
 
 
@@ -153,20 +155,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic usage (loss tolerance with max-steps cap)
-  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000
-  
-  # Forward-modeling dry run only
-  python ff_optimize.py -p initialization_files/config.yaml --dry-run
-  
+  # Basic usage
+  ff_optimize -p initialization_files/config.yaml -i 50000
+
+  # Forward-modeling dry run only (no -i needed)
+  ff_optimize -p initialization_files/config.yaml --dry-run
+
   # With custom initial model
-  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000 --initial-model path/to/model.fits
-  
+  ff_optimize -p initialization_files/config.yaml -i 1000 --initial-model path/to/model.fits
+
   # Custom optimization parameters
-  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000 --reg 0.5 --delta 2.0 --learning-rate 0.01
-  
-  # Process injected synthetic dataset (PA must be specified)
-  python ff_optimize.py -p initialization_files/config.yaml --loss-tolerance 0.001 -i 1000 --injected-dir /path/to/injected_data --injected-pa 90.0
+  ff_optimize -p initialization_files/config.yaml -i 1000 --loss-tolerance 0.001 --reg 0.5 --learning-rate 0.005
+
+  # Process injected synthetic dataset (PA from pa_test in config)
+  ff_optimize -p initialization_files/config.yaml -i 1000 --injected-dir /path/to/injected_data
+
+  # Write log to file
+  ff_optimize -p initialization_files/config.yaml -i 50000 --log-to-file
         """
     )
     
@@ -175,8 +180,8 @@ Examples:
                         help='Path to YAML parameter file')
     parser.add_argument('-i', '--iterations',
                         type=int,
-                        required=True,
-                        help='Maximum optimization iterations (safety cap, default: 1000)')
+                        default=0,
+                        help='Maximum optimization iterations (required unless --dry-run)')
     parser.add_argument('--loss-tolerance',
                         type=float,
                         default=1e-6,
@@ -193,11 +198,6 @@ Examples:
                         type=float,
                         required=False,
                         help='Regularization factor (default: 1.0)')
-    parser.add_argument('--delta',
-                        type=float,
-                        required=False,
-                        default=1.0,
-                        help='Delta for Huber loss (default: 1.0)')
     parser.add_argument('--dry-run',
                         action='store_true',
                         help='Perform single forward-modeling dry run and exit')
@@ -205,37 +205,48 @@ Examples:
                         type=str,
                         required=False,
                         help='Path to directory containing injected synthetic disk data (overrides data directory from config)')
-    parser.add_argument('--injected-pa',
-                        type=float,
-                        required=False,
-                        help='Position angle (degrees) of injected disk (required when --injected-dir is provided)')
-    
+    parser.add_argument('--log-to-file',
+                        action='store_true',
+                        help='Write a timestamped log file instead of stdout')
+
     args = parser.parse_args()
     
     
     if not os.path.exists(args.param_file):
         print(f"Error: Configuration file not found: {args.param_file}")
         sys.exit(1)
-    
+
+    if not args.dry_run and args.iterations <= 0:
+        print("Error: -i/--iterations is required for optimization (or use --dry-run)")
+        sys.exit(1)
+
     config = args.param_file
     init_model = args.initial_model if args.initial_model is not None else None
     reg_lambda = args.reg if args.reg is not None else 1.0
-    delta = args.delta
+    delta = 1.0  # Huber loss delta (fixed)
     learning_rate = args.learning_rate
     num_iterations = args.iterations
     loss_tolerance = args.loss_tolerance
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
-    injected_pa = args.injected_pa if args.injected_pa is not None else None
     
     # Initialize the freeform disk object
-    print(f"Initializing FreeFormDisk object with config: {config}")
     ffd_obj = FreeFormDisk(config)
-    
+
+    # Configure logging (must be before any logger calls)
+    save_dir = os.path.join(ffd_obj.datadir, "ff_logs")
+    if args.log_to_file:
+        os.makedirs(save_dir, exist_ok=True)
+    log_path = configure_logging(args.log_to_file, "ff_optimize", save_dir if args.log_to_file else None)
+    if log_path:
+        print(f"Writing log to {log_path}")
+
+    logger.info("Initializing FreeFormDisk object with config: %s", config)
+
     # Override data and output directories if injected directory is provided
     if injected_dir is not None:
         if not os.path.exists(injected_dir):
-            print(f"Error: Injected directory not found: {injected_dir}")
+            logger.error("Injected directory not found: %s", injected_dir)
             sys.exit(1)
         
         ffd_obj.inject_recover_mode(injected_dir)
@@ -255,16 +266,16 @@ Examples:
         assert ffd_obj.params_init['g1'] == ffd_obj.params_file['g1_test']
         assert ffd_obj.params_init['g2'] == ffd_obj.params_file['g2_test']
         assert ffd_obj.params_init['alpha1'] == ffd_obj.params_file['alpha1_test']
-        print(f"Injected directory: {injected_dir}")
-    
+        logger.info("Injected directory: %s", injected_dir)
+
     klipdir = ffd_obj.klipdir
     resultsdir = ffd_obj.resultsdir
     file_prefix = ffd_obj.file_prefix
     aligned_center = ffd_obj.aligned_center
-    print(f"\nRunning optimization for {file_prefix}")
-    print(f"Output directory: {klipdir}")
-    print(f"Results directory: {resultsdir}")
-    print(f"Mode: {ffd_obj.mode}")
+    logger.info("Running optimization for %s", file_prefix)
+    logger.info("Output directory: %s", klipdir)
+    logger.info("Results directory: %s", resultsdir)
+    logger.info("Mode: %s", ffd_obj.mode)
     
     # Verify prerequisites
     verify_prerequisites(ffd_obj)
@@ -313,20 +324,20 @@ Examples:
     # If dry-run, perform forward modeling and exit
     if dry_run:
         perform_forward_modeling_dry_run(ffd_obj, init_model_path=init_model)
-        print("\n✓ Dry run complete. Exiting.")
+        logger.info("♪ Dry run complete. Exiting.")
         return
     
     run_dir = get_next_run_dir(resultsdir)
     
     # Run optimization
-    print(f"\n[6/6] Running optimization (max {num_iterations} iterations, loss tolerance {loss_tolerance})...")
-    print(f"   Output directory: {run_dir}")
+    logger.info("[6/6] Running optimization (max %s iterations, loss tolerance %s)...", num_iterations, loss_tolerance)
+    logger.info("   Output directory: %s", run_dir)
     
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)
     if trace_dest:
         jax.profiler.start_trace(trace_dest)
-        print(f"   Tracing to {trace_dest}")
+        logger.info("   Tracing to %s", trace_dest)
     
     optimized_params, loss_history, weights_nominal = optimize_model(
         target_image=reduced_flat_interest_no_bkg if ffd_obj.mode == "RDI" else reduced_flat_interest,
@@ -356,16 +367,16 @@ Examples:
     try:
         optimized_params.block_until_ready()
     except Exception as e:
-        print(e)
-    
+        logger.exception("%s", e)
+
     if trace_dest:
         jax.profiler.stop_trace()
-        print("   Ended profiler trace")
-    
-    print("   ✓ Optimization complete")
+        logger.info("   Ended profiler trace")
+
+    logger.info("   ♪ Optimization complete")
     
     # Post-process and save results
-    print("\n[Saving] Post-processing and saving results...")
+    logger.info("[Saving] Post-processing and saving results...")
     pyklip_params_dict = record_pyklip_params(
         ffd_obj.numbasis,
         ffd_obj.iwa,
@@ -414,13 +425,13 @@ Examples:
         injected_model_path=injected_model_path
     )
     
-    print("\n✓ Optimization and saving complete!")
-    print(f"\nResults saved to: {run_dir}")
-    print(f"  - Optimized model")
-    print(f"  - Forward model")
-    print(f"  - Residuals")
-    print(f"  - Loss history")
-    print(f"  - Training plots")
+    logger.info("♪ Optimization and saving complete!")
+    logger.info("Results saved to: %s", run_dir)
+    logger.info("  - Optimized model")
+    logger.info("  - Forward model")
+    logger.info("  - Residuals")
+    logger.info("  - Loss history")
+    logger.info("  - Training plots")
 
 
 if __name__ == "__main__":

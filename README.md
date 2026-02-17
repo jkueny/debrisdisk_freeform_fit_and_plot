@@ -81,6 +81,8 @@ ff_klip -p initialization_files/your_config.yaml
 
 Or, for development without install: `python -m ffortissimo.ff_klip -p initialization_files/your_config.yaml`
 
+**Optional flags:** `--force` (regenerate existing basis), `--log-to-file`, `--make-diskless-image`
+
 This step:
 - Loads and prepares the dataset
 - Runs KLIP reduction with forward modeling
@@ -92,6 +94,8 @@ This step:
 ```bash
 ff_setup -p initialization_files/your_config.yaml
 ```
+
+**Optional flags:** `--initial-model`, `--do-fm` (forward-modeling dry run), `--injected-dir`, `--log-to-file`
 
 This step:
 - Verifies that `ff_klip` was run successfully
@@ -105,7 +109,11 @@ This step:
 ff_optimize -p initialization_files/your_config.yaml -i 50000
 ```
 
-This performs the JAX-based freeform model optimization. The `-i`/`--iterations` argument is required (maximum iterations; early stopping may occur based on `--loss-tolerance`).
+Use `--dry-run` to perform a single forward-modeling pass without optimization (no `-i` needed).
+
+**Optional flags:** `-i`/`--iterations` (required for optimization), `--loss-tolerance`, `--initial-model`, `--reg`, `--learning-rate`, `--injected-dir`, `--log-to-file`
+
+This performs the JAX-based freeform model optimization. Early stopping may occur based on `--loss-tolerance`.
 
 ### 5. (Optional) Fit Physical Model
 
@@ -124,11 +132,11 @@ Fit a physics-informed parametric disk model to the freeform results using MCMC.
    ```bash
    inject_fake_disk -p initialization_files/your_config.yaml -o synthetic_output_dir
    ```
-2. Run the pipeline with `--injected-dir` and `--injected-pa`:
+2. Run the pipeline with `--injected-dir`:
    ```bash
    ff_klip -p initialization_files/your_config.yaml --injected-dir synthetic_output_dir
-   ff_setup -p initialization_files/your_config.yaml --injected-dir synthetic_output_dir --injected-pa 115.0
-   ff_optimize -p initialization_files/your_config.yaml -i 10000 --injected-dir synthetic_output_dir --injected-pa 115.0
+   ff_setup -p initialization_files/your_config.yaml --injected-dir synthetic_output_dir
+   ff_optimize -p initialization_files/your_config.yaml -i 10000 --injected-dir synthetic_output_dir
    ```
 
 **Options:** `--pa`, `--rad`, `--hires`, `--data-dir` — see the [`inject_fake_disk.py`](src/ffortissimo/inject_fake_disk.py) module for details.
@@ -182,8 +190,7 @@ ff_optimize -p initialization_files/your_config.yaml -i 50000
 ff_optimize -p initialization_files/your_config.yaml \
     -i 100000 \
     --reg 0.5 \
-    --learning-rate 0.005 \
-    --delta 0.1
+    --learning-rate 0.005
 ```
 
 ## Output Files
@@ -206,10 +213,10 @@ A paper describing FFortissiMo is currently in review. Once published, we ask th
 For now, you may cite the software:
 
 ```bibtex
-@software{ffortissimo2024,
+@software{ffortissimo2026,
   author = {Kueny, Jay},
-  title = {FFortissiMo: Pixel-based Freeform Forward Modeling},
-  year = {2024},
+  title = {ffortissimo: Pixel-based Freeform Forward Modeling},
+  year = {2026},
   version = {0.1.0}
 }
 ```
