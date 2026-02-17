@@ -68,7 +68,7 @@ alpha_out_init: -12.70
 beta_init: 12.6
 a_r_init: 0.015
 inc_init: 76.75 #trying 45. init for the mask2minimize
-pa_init: 25.0
+pa_init: 25.4
 dx_init: -2.14
 dy_init: 1.31
 N_init: 958.62
@@ -150,7 +150,7 @@ MASK_IN_SCALING: 4 #bigger means shrink the inner bound
 MASK_OUT_SCALING: 4 #bigger means expand the outer bound
 MASK_SPECKLES: 6 #central circle mask
 MASK_MINOR: 55 #OWA to isolate minor axis
-MASK_DX: 0
+MASK_DX: -1
 MASK_DY: -1
 MASK_NOISE_IN: 1
 MASK_NOISE_OUT: 1
