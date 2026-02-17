@@ -1,19 +1,18 @@
-# FFortissiMo
+# ffortissimo
 
-**FFortissiMo** (Pixel-based Freeform Forward Modeling) is a Python package for fitting pixel-by-pixel freeform models to KLIP-reduced astronomical images of extended objects, with a focus on debris disk observations.
+**ffortissimo** is a Python package for fitting pixel-by-pixel freeform models to KLIP-reduced astronomical images of extended objects, with a focus on circumstellar disk observations in scattered light.
 
 ## Overview
 
-FFortissiMo provides a flexible framework for forward modeling extended astronomical sources (primarily debris disks) in high-contrast imaging data. The package leverages JAX for efficient gradient-based optimization and integrates with the KLIP (Karhunen-Loève Image Processing) pipeline for PSF subtraction.
+ffortissimo provides a flexible framework for forward modeling extended astronomical sources (primarily disks in scattered light) in high-contrast imaging data. The package leverages JAX for efficient gradient-based optimization and integrates with the KLIP (Karhunen-Loève Image Projection) pipeline for PSF subtraction.
 
 ### Key Features
 
-- **Pixel-by-pixel freeform modeling** of extended sources in high-contrast imaging data
+- **Pixel-by-pixel freeform modeling** of extended sources in single-filter high-contrast imaging data
 - **JAX-based optimization** for efficient gradient computation and optimization
 - **KLIP integration** with forward modeling for accurate PSF subtraction
 - **Support for ADI and RDI modes** (Angular Differential Imaging and Reference Differential Imaging)
-- **Flexible regularization** including spatial frequency penalties and radial profile constraints
-- **Physical model fitting** to freeform results for parameter extraction
+- **Simple regularization** facilitated by spatial frequency penalties via a single parameter
 
 ## Installation
 
