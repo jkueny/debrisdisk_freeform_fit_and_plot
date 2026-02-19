@@ -59,7 +59,7 @@ alpha1_prior: [0.0001, 0.9999]
 
 # Disk model parameters
   # INITIAL MODEL PARAMETERS
-r1_init: 76.0 #include just for initializing the mask function
+r1_init: 74.0 #include just for initializing the mask function
 r2_init: 88.00 #include just for initializing the mask function
 # r2_init: 100.00 #include just for initializing the mask function
 rc_init: 77.7 #35.5 #trying 39. for the masks
@@ -126,10 +126,10 @@ CONV_FACTOR: 1.112939359925286e-08 # Jy / Ang.
 
 # MASKING PARAMETERS
 MASK_IN_SCALING: 4 #bigger means shrink the inner bound
-MASK_OUT_SCALING: 6 #bigger means expand the outer bound
+MASK_OUT_SCALING: 7 #bigger means expand the outer bound
 MASK_SPECKLES: 6 #central circle mask
 MASK_MINOR: 55 #OWA to isolate minor axis
-MASK_DX: 0
+MASK_DX: -1
 MASK_DY: -1
 MASK_NOISE_IN: 1
 MASK_NOISE_OUT: 1
