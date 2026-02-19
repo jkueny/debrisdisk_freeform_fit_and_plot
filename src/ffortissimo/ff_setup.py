@@ -297,14 +297,18 @@ Examples:
             angle_sweep_factor=4
         )
         reduced_noise_masked = reduced_data * (1 - bespoke_noise_mask)
+        reduced_noise_masked_tight = reduced_data * (1 - masks['mask4noisemap'])
         tosave_reduced_noise_masked = reduced_data * bespoke_noise_mask
-        
+        tosave_reduced_noise_tight = reduced_data * masks['mask4noisemap']
         # Save the engineered noise mask (always regenerate)
         bespoke_noise_path = os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits")
+        tight_noise_path = os.path.join(klipdir, f"{file_prefix}_noisemap_tight.fits")
         save_fits(bespoke_noise_path, bespoke_noise_mask)
+        save_fits(tight_noise_path, masks['mask4noisemap'])
     else:
         logger.info("RDI mode: Using standard noise mask")
         reduced_noise_masked = reduced_data * (1 - masks['mask4noisemap'])
+        reduced_noise_masked_tight = None
         tosave_reduced_noise_masked = reduced_data * masks['mask4noisemap']
         # Estimate the median bkg of the fitting region
         logger.info("Estimating median background of the fitting region...")
@@ -325,6 +329,15 @@ Examples:
         reduced_data_no_disk=reduced_noise_masked,
         delta_radii=delta_radii
     )
+    if reduced_noise_masked_tight is not None:
+        noise_map_tight = ffd_obj.make_noise_map_rings(
+            reduced_data_no_disk=reduced_noise_masked_tight,
+            delta_radii=delta_radii
+        )
+        save_fits(tight_noise_path, noise_map_tight)
+        tosave_reduced_noise_tight_path = os.path.join(klipdir, f"{file_prefix}_use4noisemap_tight.fits")
+        save_fits(tosave_reduced_noise_tight_path, reduced_data * masks['mask4noisemap'])
+        logger.info("Tight noise map saved to %s", tight_noise_path)
     
     # Save noise map (always overwrite)
     fits.writeto(noise_map_path, noise_map, overwrite=True)

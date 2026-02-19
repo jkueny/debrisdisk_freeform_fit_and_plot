@@ -164,7 +164,8 @@ def save_ffdfit_outputs(run_dir: Path,
                         optimizer_name: str = "Optax Adam",
                         pyklip_params: dict = None,
                         weights_nominal: np.ndarray = None,
-                        injected_model_path: str = None):
+                        injected_model_path: str = None,
+                        learning_rate: float = None):
     """Saves output from the freeform diskfit optimization code.
 
     Args:
@@ -179,6 +180,7 @@ def save_ffdfit_outputs(run_dir: Path,
         huber_delta (float): Chosen huber delta value for run.
         optimizer_name (str, optional): Chosen optimizer. Defaults to "Optax Adam".
         pyklip_params (dict, optional): Chosen pyklip parameters for target image.
+        learning_rate (float, optional): Learning rate used for optimization.
 
     Returns:
         str: path to the save directory.
@@ -218,6 +220,7 @@ def save_ffdfit_outputs(run_dir: Path,
         "lambda_reg": float(hsf_regularization),
         "huber_delta": float(huber_delta),
         "optimizer": optimizer_name,
+        "learning_rate": learning_rate,
         "pyklip_params": pyklip_params or "unknown",
         # "param_file": "bestfit_params.json",
         # "model_file": "wdh_model.fits",

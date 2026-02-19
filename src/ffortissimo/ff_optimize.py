@@ -422,7 +422,8 @@ Examples:
         huber_delta=delta,
         pyklip_params=pyklip_params_dict,
         weights_nominal=outputs_dict["weights_nominal"],
-        injected_model_path=injected_model_path
+        injected_model_path=injected_model_path,
+        learning_rate=learning_rate
     )
     
     logger.info("♪ Optimization and saving complete!")
