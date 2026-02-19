@@ -308,7 +308,7 @@ Examples:
     radial_inds = component_dict["radial_inds"]
     counter_rotated_image = component_dict["counter_rotated_image"]
 
-    # TEST: if RDI mode, load and subtract the median background from the reduced data
+    # If diskless (counter-rotated) image exists, use (reduced - diskless) as fitting target; residuals use original reduced_data
     if counter_rotated_image is not None:
         reduced_data_no_bkg = reduced_data - counter_rotated_image
         # #debug look at the reduced data no bkg
@@ -340,7 +340,7 @@ Examples:
         logger.info("   Tracing to %s", trace_dest)
     
     optimized_params, loss_history, weights_nominal = optimize_model(
-        target_image=reduced_flat_interest_no_bkg if ffd_obj.mode == "RDI" else reduced_flat_interest,
+        target_image=reduced_flat_interest_no_bkg if counter_rotated_image is not None else reduced_flat_interest,
         model_init=init_model_interest,
         ref_psd=reference_model_psd,
         noise_map=noise_interest,
@@ -423,7 +423,8 @@ Examples:
         pyklip_params=pyklip_params_dict,
         weights_nominal=outputs_dict["weights_nominal"],
         injected_model_path=injected_model_path,
-        learning_rate=learning_rate
+        learning_rate=learning_rate,
+        dc_offset=outputs_dict["dc_offset"],
     )
     
     logger.info("♪ Optimization and saving complete!")
