@@ -592,6 +592,7 @@ class FreeFormDisk:
         disk_mask_apod = apodize_mask_gaussian(mask2generatedisk, sigma=3.0)
         self.disk_mask_apod = disk_mask_apod
         engineered_optimization_map = self._engineer_disk_mask(mask2generatedisk, angle_sweep_factor=4)
+        mask2generatedisk = engineered_optimization_map
         # optimization_mask = mask2generatedisk
         optimization_mask = engineered_optimization_map
         fits.writeto(f"{save_mask_part}_optimization_mask.fits",
