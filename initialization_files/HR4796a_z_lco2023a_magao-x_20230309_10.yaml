@@ -119,11 +119,11 @@ alpha_in_test: 45.86
 alpha_out_test: -15.00
 beta_test: 12.6
 a_r_test: 0.015
-inc_test: 45.00
+inc_test: 76.77
 pa_test: 115.0
 dx_test: 0.1
 dy_test: -0.1
-N_test: 1000.00
+N_test: 1385.77
 g1_test: 0.9045
 g2_test: -0.1452
 alpha1_test: 0.3651
