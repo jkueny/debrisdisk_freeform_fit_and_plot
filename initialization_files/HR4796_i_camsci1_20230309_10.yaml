@@ -42,7 +42,7 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 # STAR OBSERVATION PARAMETERS
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 BAND_NAME: 2023 Mar 9, $i'$ band #for plot titles uniquely
-DISTANCE_STAR: 72.8   #distance of the disk in pc
+DISTANCE_STAR: 72.248   #distance of the disk in pc
 PIXSCALE_INS: 0.012  #picscale of your data
 WL: 0.908 #wavelength in microns
 FILTER_NAME: $i'$
@@ -111,8 +111,8 @@ rc_test: 77.7
 alpha_in_test: 45.86
 alpha_out_test: -15.00
 beta_test: 12.6
-a_r_test: 0.015
-inc_test: 45.00
+a_r_test: 0.01
+inc_test: 76.75
 pa_test: 115.0
 dx_test: 0.1
 dy_test: -0.1
