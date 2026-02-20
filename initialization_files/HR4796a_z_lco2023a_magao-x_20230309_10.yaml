@@ -147,7 +147,7 @@ alpha1_test_prior: [0.0001, 0.9999]
 # TEST MASKING PARAMETERS
 # MASKING PARAMETERS
 TEST_MASK_IN_SCALING: 4 #bigger means shrink the inner bound
-TEST_MASK_OUT_SCALING: 1 #bigger means expand the outer bound
+TEST_MASK_OUT_SCALING: 10 #bigger means expand the outer bound
 TEST_MASK_NOISE_IN: 4
 TEST_MASK_NOISE_OUT: 1
 TEST_MASK_DX: 0
