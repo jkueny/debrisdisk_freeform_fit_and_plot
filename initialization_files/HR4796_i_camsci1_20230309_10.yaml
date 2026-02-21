@@ -66,7 +66,7 @@ alpha1_prior: [0.0001, 0.9999]
 
 # INITIAL MODEL PARAMETERS
 # Disk model parameters
-r1_init: 76.0 #include just for initializing the mask function
+r1_init: 74.0 #include just for initializing the mask function
 r2_init: 88.00 #include just for initializing the mask function
 rc_init: 74.31 #35.5 #trying 39. for the masks
 alpha_in_init: 50.
@@ -105,7 +105,7 @@ g2_best: -0.1452
 alpha1_best: 0.3651
 
 # INJECTED MODEL PARAMETERS
-r1_test: 76.0
+r1_test: 74.0
 r2_test: 84.00
 rc_test: 77.7
 alpha_in_test: 45.86
@@ -159,7 +159,7 @@ CONV_FACTOR: 1.6192783494243498e-07 # Jy / Ang.
 
 # MASKING PARAMETERS
 MASK_IN_SCALING: 4 #bigger means shrink inner bound
-MASK_OUT_SCALING: 5 #bigger means expand outer bound
+MASK_OUT_SCALING: 10 #bigger means expand outer bound
 MASK_SPECKLES: 10 #central circle mask
 # Make a tight mask for the noisemap calculation
 MASK_NOISE_IN: 3
