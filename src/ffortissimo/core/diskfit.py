@@ -67,9 +67,8 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
-    disk_params = mod_pix_params[:-1]
-    dc_offset = mod_pix_params[-1]
-    pos_mod_pix_params = jnp.abs(disk_params)
+    pos_mod_pix_params = jnp.abs(mod_pix_params)
+    # pos_mod_pix_params = mod_pix_params
     full_model_image = reconstruct_full_image(pos_mod_pix_params, total_pixels, disk_mask_inds)
     full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
@@ -137,7 +136,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     # Grab just the disk ROI pixels
     freeform_fm_interest = freeform_fm_flat[opt_mask_inds]
 
-    residuals = (freeform_fm_interest + dc_offset) - disk_image
+    residuals = (freeform_fm_interest - disk_image)
     residuals_apod = residuals * disk_mask_apod
     weights_nominal = 1 / noise_map
     raw_loss = residuals_apod**2 * weights_nominal
@@ -170,11 +169,8 @@ def optimize_model(
     klmodes_sections = basis_data_unpacked["klmodes"]
     ref_psfs_inds = basis_data_unpacked["ref_inds"]
 
-    # Initialize the initial image (disk pixels + DC offset as last element)
-    image_params = jnp.concatenate([
-        model_init.astype(jnp.float32),
-        jnp.array([0.0], dtype=jnp.float32),
-    ])
+    # Initialize the initial image
+    image_params = model_init.astype(jnp.float32)
 
     # Set up optimizer, use adaptive stochastic grad descent (Adam)
     optimizer = optax.adam(learning_rate)
@@ -274,7 +270,7 @@ def optimize_model(
                     reduced_data,
                     freeform_fm_full,
                     full_model_image,
-                    reconstruct_full_image(updates[:-1], total_pixels, disk_mask_indices),
+                    reconstruct_full_image(updates, total_pixels, disk_mask_indices),
                     opt_mask_indices
                 )
                 plot_idx += 1

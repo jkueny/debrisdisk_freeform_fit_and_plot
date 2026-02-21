@@ -165,8 +165,7 @@ def save_ffdfit_outputs(run_dir: Path,
                         pyklip_params: dict = None,
                         weights_nominal: np.ndarray = None,
                         injected_model_path: str = None,
-                        learning_rate: float = None,
-                        dc_offset: float = None):
+                        learning_rate: float = None):
     """Saves output from the freeform diskfit optimization code.
 
     Args:
@@ -227,8 +226,6 @@ def save_ffdfit_outputs(run_dir: Path,
         # "model_file": "wdh_model.fits",
         # "forward_model_file": "forward_model.fits"
     }
-    if dc_offset is not None:
-        metadata["dc_offset"] = float(dc_offset)
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.plot(loss_history, linewidth=3, alpha=0.8)
     ax.set(xlabel="Iterations")
@@ -250,11 +247,8 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
                             disk_mask, optimization_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
                             noise_interest, weights_nominal):
     outputs_dict = {}
-    # optimized_params = [disk_pixels..., dc_offset]; use only disk part for image reconstruction
-    optimized_disk_params = optimized_params[:-1]
-    dc_offset = float(np.asarray(optimized_params[-1]))
     print("Reconstructing full image...")
-    optimized_model = np.asarray(reconstruct_full_image(optimized_disk_params, total_pixels, disk_mask_indices))
+    optimized_model = np.asarray(reconstruct_full_image(optimized_params, total_pixels, disk_mask_indices))
 
     print("Convolving optimized model image...")
     opt_image_no_rprofsub = fftconvolve(optimized_model, psf, mode="same")
@@ -315,5 +309,4 @@ def harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_
     outputs_dict["median_profile_image"] = median_profile_image
     outputs_dict["residuals"] = np.asarray(residuals)
     outputs_dict["weights_nominal"] = np.asarray(w_reconstructed)
-    outputs_dict["dc_offset"] = dc_offset
     return outputs_dict
