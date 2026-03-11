@@ -115,13 +115,6 @@ Use `--dry-run` to perform a single forward-modeling pass without optimization (
 
 This performs the JAX-based freeform model optimization. Early stopping may occur based on `--loss-tolerance`.
 
-### 5. (Optional) Fit Physical Model
-
-```bash
-python scripts/modelfit_physical_to_freeform.py -p initialization_files/your_config.yaml
-```
-
-Fit a physics-informed parametric disk model to the freeform results using MCMC.
 
 ### Fake Disk Injection (Test Utility)
 
