@@ -226,8 +226,8 @@ BURNIN: 500   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
-VSCALING_MIN: 4.0
-VSCALING_MAX: 1.5
+VSCALING_MIN: 1.0
+VSCALING_MAX: 3.0
 
 # MCMC PLOTTING PARAMETERS. 
 # NAME and descirption THAT WILL APPEARS IN THE CORNER PLOTS
