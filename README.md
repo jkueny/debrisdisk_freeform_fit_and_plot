@@ -36,7 +36,7 @@ ffortissimo provides a flexible framework for forward modeling extended astronom
 
 ### Installation
 
-**From GitHub (recommended for public use):**
+**From GitHub (recommended if you just want to try it out):**
 
 ```bash
 pip install git+https://github.com/<username>/debrisdisk_freeform_fit_and_plot.git
