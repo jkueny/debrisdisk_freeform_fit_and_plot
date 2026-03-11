@@ -59,7 +59,7 @@ After installation, the CLI commands `ff_klip`, `ff_setup`, and `ff_optimize` ar
 
 ## Quick Start
 
-The pipeline has three discrete steps. Run them in order:
+You must supply your own PSF images which are assumed to have already been registered and square. The pipeline has three discrete steps. Run them in order: (1) ff_klip, (2) ff_setup, and (3) ff_optimize.
 
 ```mermaid
 flowchart LR
