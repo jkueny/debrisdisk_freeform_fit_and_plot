@@ -25,7 +25,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "jax>=0.4.0",
+    "jax>=0.4.0; sys_platform == 'darwin'",
+    "jax[cuda12]>=0.4.0; sys_platform == 'linux'",
     "jaxlib>=0.4.0",
     "optax>=0.1.0",
     "astropy>=5.0.0",
@@ -39,6 +40,7 @@ dependencies = [
     "h5py>=3.14.0",
     "bottleneck>=1.5.0",
     "numpy>=2.1",
+    "nvidia-cusparse>=12.7.9.17,<13",
 ]
 
 [project.optional-dependencies]

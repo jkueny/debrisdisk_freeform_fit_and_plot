@@ -190,6 +190,10 @@ Examples:
                         type=str,
                         required=False,
                         help='Path to starting model FITS file')
+    parser.add_argument('--random-seed',
+                        type=int,
+                        default=0,
+                        help='Random seed for initial model randomization (default: 0 -- loads static initial guess from disk if possible)')
     parser.add_argument('--learning-rate',
                         type=float,
                         default=1e-1,
@@ -227,6 +231,7 @@ Examples:
     learning_rate = args.learning_rate
     num_iterations = args.iterations
     loss_tolerance = args.loss_tolerance
+    random_seed = args.random_seed
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
     
@@ -284,6 +289,7 @@ Examples:
     component_dict = load_diskfit_components(
         ffd_obj=ffd_obj,
         init_model=init_model,
+        random_seed=random_seed,
     )
     psf = component_dict["psf"]
     jax_psf = component_dict["jax_psf"]

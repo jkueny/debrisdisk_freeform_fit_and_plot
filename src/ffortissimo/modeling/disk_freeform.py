@@ -9,6 +9,7 @@ single threaded is so much faster. 07/16/2025
 '''
 
 import os
+import logging
 import sys
 import glob
 from astropy.io import fits
@@ -120,8 +121,10 @@ class FreeFormDisk:
         os.makedirs(klipdir, exist_ok=True)
         self.klipdir = klipdir
 
+
+        results_dir_name = self.params_file.get('results_dir_name', 'results_freeform')
         resultsdir = os.path.join(basedir, self.params_file["BAND_DIR"],
-                                  "results_freeform")
+                                  results_dir_name)
         os.makedirs(resultsdir, exist_ok=True)
         self.resultsdir = resultsdir
 
@@ -432,12 +435,19 @@ class FreeFormDisk:
     def get_initial_model(self, loc_init_model=None, random_seed=0):
         rng = np.random.default_rng(random_seed)
 
-        #load in the model
-        if loc_init_model is not None:
+        # load in the model unless we're deliberately randomizing
+        if loc_init_model is not None and random_seed == 0:
+            logging.info(f"Loading the initial model from {loc_init_model}")
             model_init = fits.getdata(loc_init_model)
+            assert model_init.shape == self.image_shape, "Shape mismatch with loaded initial model"
         else:
+            init_min, init_max = 0.0, 1.0
+            logging.info(f"Randomizing the model with U~[{init_min}, {init_max}] in {self.image_shape}")
+
+            if loc_init_model is not None:
+                logging.warning(f"Got {loc_init_model=}, but non-default random seed ({random_seed}), so we're randomizing the initialization anyway")
             # we init the model fitting with just a noise image
-            model_init = rng.uniform(0.0, 1.0, self.image_shape)
+            model_init = rng.uniform(init_min, init_max, self.image_shape)
         
         # model_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_FirstModel.fits")
         # save_fits(model_saveto, model_init)

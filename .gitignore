@@ -9,3 +9,6 @@ __pycache__
 paper/
 old_results/
 archive/
+*.out
+*.log
+.DS_Store
