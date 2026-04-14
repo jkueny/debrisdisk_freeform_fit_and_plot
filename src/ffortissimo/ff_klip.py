@@ -12,6 +12,21 @@ Usage:
     ff_klip -p initialization_files/params.yaml --injected-dir /path/to/injected_dataset
     ff_klip -p initialization_files/params.yaml --force --log-to-file
     ff_klip -p initialization_files/params.yaml --make-diskless-image
+
+TODO add the option to specify a custom path for the output
+klip_fm_files directory
+  - This then needs to be reported in the logging/log file to
+  remind the user to specify this path in the subsequent steps
+  in the pipeline
+  - Actually this custom path should be specified in the config file
+  as a new parameter, e.g. KLIP_FM_FILES_PATH
+  - This then, *if present* needs to be used to override the default path
+  for the klip_fm_files directory. If KLIP_FM_FILES_PATH is null,
+  then the default path is used.
+  - I've added this new param to HR4796a_z_lco2023a_magao-x_20230309_10.yaml
+  - These changes should be propagated to the other config files as well.
+  - These changes should be propagated to the ff_setup.py and ff_optimize.py
+  scripts as well.
 '''
 
 import os

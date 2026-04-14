@@ -17,6 +17,7 @@ HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
 ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center the image before KLIP
 WL: 0.762 #wavelength in microns
+LYOT_LAMBDA_OVER_D: 8.0
 # The optimal parang span is 82 deg.
 
 #  In the KLIP do you want to remove the images where the disk is on the satspots 
@@ -27,6 +28,7 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
 BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+SPARKLE_COORDS_FILE: stacked/sparkle_coords_coron_thumbnail.txt # from BAND_DIR
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
@@ -51,9 +53,9 @@ HP_MAX: 32
 # MCMC PARAMETERS
 NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
-NWALKERS: 188 #Number of walkers (should be at least twice the # parameters)
+NWALKERS: 64 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
-N_ITER_MCMC: 2000 #Number of interation
+N_ITER_MCMC: 10000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
 # There is no burn-in phase here, the burnin only intervened when reading the data
 
@@ -102,31 +104,18 @@ alpha2_state: 0
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-hbeta_init: -5.57802689139913
-ha_r_init: 0.3060477867673782
-hsig_init: 1.7987038510994735
-hpa_init: 66.22190235846433
-hdx_init: 22.005460525381658
-hdy_init: -2.5497464275291795
+hbeta_init: 0.25
+ha_r_init: 1.1
+hsig_init: 20.0
+hfwhm_init: 3.0
+hpa_init: 359.71419036007387
+hdx_init: 0.1
+hdy_init: 0.0
 hdz_init: 0.01
-hN_init: 10745.2426097548
+hN_init: 1745.2426097548
+hgamma_init: 1.0
 dtheta_init: 1.0
 
-hbeta2_init: -5.57802689139913
-ha_r2_init: 0.29270564274473104
-hsig2_init: 1.7987038510994735
-hpa2_init: 166.906450623
-hdx2_init: 22.005460525381658
-hdy2_init: -2.5497464275291795
-hdz2_init: 0.01
-hN2_init: 1745.2426097548
-dtheta2_init: 1.0
-
-ha_r3_init: 0.34675792350288875
-hpa3_init: 126.73823081199598
-hdy3_init: 2.7432967701360966
-hN3_init: 537.03801376634
-dtheta3_init: 1.0
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 

@@ -59,7 +59,9 @@ After installation, the CLI commands `ff_klip`, `ff_setup`, and `ff_optimize` ar
 
 ## Quick Start
 
-You must supply your own PSF images which are assumed to have already been registered and square. The pipeline has three discrete steps. Run them in order: (1) ff_klip, (2) ff_setup, and (3) ff_optimize.
+You must supply your own PSF images which are assumed to have already been registered and square-shaped. You must also supply the instrument PSF for convolving the object model to make the image. Make sure to update your config file with the correct filenames and paths.
+
+The pipeline has three discrete steps. Run them in order: (1) ff_klip, (2) ff_setup, and (3) ff_optimize.
 
 ```mermaid
 flowchart LR
@@ -101,7 +103,15 @@ This step:
 - Verifies that `ff_klip` was run successfully
 - Creates binary masks for disk generation and noise mapping
 - Estimates spatial noise map from masked reduced data
-- Optionally performs a forward-modeling dry run with `--do-fm`
+- Optionally performs a forward-modeling dry run with `--do-fm` (possibly long runtime)
+
+**Make sure you inspect the masking at this stage, then adjust the parameters and re-run as needed**
+
+Parameters:
+- MASK_IN_SCALING: bigger number shrinks the inner mask boundary
+- MASK_OUT_SCALING: bigger number expands outer mask boundary
+- MASK_DX: shift mask template in x
+- MASK_DY: shift mask template in y
 
 ### 4. Step 3: Fit Freeform Model (`ff_optimize`)
 

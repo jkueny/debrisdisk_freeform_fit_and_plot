@@ -11,6 +11,20 @@ Usage:
     ff_optimize -p initialization_files/config.yaml -i 50000
     ff_optimize -p initialization_files/config.yaml --dry-run
     ff_optimize -p initialization_files/config.yaml -i 1000 --loss-tolerance 0.001 --log-to-file
+
+TODO add the option to specify a custom path for the output
+klip_fm_files directory
+  - This then needs to be reported in the logging/log file to
+  remind the user to specify this path in the subsequent steps
+  in the pipeline
+  - Actually this custom path should be specified in the config file
+  as a new parameter KLIP_FM_FILES_PATH
+  - This then, *if present* needs to be used to override the default path
+  for the klip_fm_files directory. If KLIP_FM_FILES_PATH is null,
+  then the default path is used.
+  - I've added this new param to HR4796a_z_lco2023a_magao-x_20230309_10.yaml
+
+
 '''
 
 import os
@@ -222,7 +236,10 @@ Examples:
 
     config = args.param_file
     init_model = args.initial_model if args.initial_model is not None else None
-    reg_lambda = args.reg if args.reg is not None else 1.0
+    if args.reg is None:
+        reg_lambda = config.get("LAMBDA_REG", 1.0)
+    else:
+        reg_lambda = args.reg
     delta = 1.0  # Huber loss delta (fixed)
     learning_rate = args.learning_rate
     num_iterations = args.iterations

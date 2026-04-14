@@ -38,6 +38,7 @@ ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center th
 
 BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/lite_psflib  # name of folder where are the data (from basedir)
 # BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/injected_psflib  # name of folder where are the data (from basedir)
+KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 INJECTED_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci2/injected_psflib  # from basedir
 FILE_PREFIX: camsci2_z_20230309_10 #prefix for all saved files (carefull not to erase your results)
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
@@ -128,6 +129,23 @@ g1_test: 0.9045
 g2_test: -0.1452
 alpha1_test: 0.3651
 
+# # INJECTED RINGLET MODEL PARAMETERS
+# r1_test: 76.0
+# r2_test: 84.00
+# rc_test: 77.7
+# alpha_in_test: 45.86
+# alpha_out_test: -15.00
+# beta_test: 12.6
+# a_r_test: 0.01
+# inc_test: 45.0
+# pa_test: 115.0
+# dx_test: 0.1
+# dy_test: -0.1
+# N_test: 1000.00
+# g1_test: 0.9045
+# g2_test: -0.1452
+# alpha1_test: 0.3651
+
 # INJECTED PARAMETER PRIORS [LOWER, UPPER]
 rc_test_prior: [70, 90]
 alpha_in_test_prior: [10, 100]
@@ -168,13 +186,13 @@ CONV_FACTOR: 2.4693741506195597e-07 # Jy
 # MASKING PARAMETERS
 MASK_IN_SCALING: 4 #bigger means shrink inner bound
 MASK_OUT_SCALING: 10 #bigger means expand outer bound
+MASK_DX: -1
+MASK_DY: -1
 MASK_SPECKLES: 10 #central circle mask
 # Make a tight mask for the noisemap calculation
 MASK_NOISE_IN: 3
 MASK_NOISE_OUT: 3
 MASK_MINOR: 81 #OWA to isolate minor axis
-MASK_DX: -1
-MASK_DY: -1
 
 USE_NOISE: true
 NOISE_DELTA_RADII: 1 #width of noisemap rings

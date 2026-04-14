@@ -1,0 +1,9 @@
+Prototype WDH MCMC fit summary
+Fixed PA (deg): 359.714190
+PARANG from data (deg): 47.502300
+Valid pixels in mask2minimize: 11985
+Best log prob: -5.992500e+03
+beta: 0.88282828
+h0: 2.43157270
+norm: 413.00922769
+x0: -3.45732955
