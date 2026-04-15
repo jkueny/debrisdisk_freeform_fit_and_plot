@@ -22,6 +22,8 @@ from ffortissimo.utils.diskfit_tools import convolve_model, \
     penalize_spatial_freq
 from ffortissimo.modeling.visualization import plot_training
 
+PLOT_EVERY_N = 100
+
 # Optimization functions (extracted from diskfit_freeform.py)
 def fm_scan_func_adi(_, input_pt, full_sample_refs, full_sample_models):
     flat_model_here = input_pt["models"]
@@ -263,7 +265,7 @@ def optimize_model(
                     break
                 abs_loss_history = []
         if not bool(basis_data_unpacked["klparams"]["isRDI"]):
-            if step_idx % 10 == 0:
+            if step_idx % PLOT_EVERY_N == 0:
                 out_filename = f"{run_dir}/training_{plot_idx:05}.png"
                 plot_training(
                     out_filename,

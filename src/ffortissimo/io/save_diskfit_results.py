@@ -1,6 +1,8 @@
+import time
 import json
 from pathlib import Path
 from datetime import datetime
+from datetime import timezone
 from astropy.io import fits
 import numpy as np
 import types
@@ -138,16 +140,21 @@ def save_wdhfit_outputs(save_dir: str,
 def get_next_run_dir(save_dir: str):
     run_root = Path(save_dir)
     run_root.mkdir(exist_ok=True)
+    retries = 2
+    while retries > 0:
+        timestamp = datetime.now().replace(tzinfo=timezone.utc).strftime('%Y-%m-%dT%H%M%S.%f')
+        run_dir = run_root / f"opt_run_{timestamp}"
+        try:
+            run_dir.mkdir()
+            retries = 0
+        except FileExistsError:
+            retries -= 1
+            if retries > 0:
+                print(f"Lost the race for {timestamp}, going around again")
+                continue
+            else:
+                raise
 
-    # auto-increment run number
-    existing = [p for p in run_root.glob("opt_run_*") if p.is_dir()]
-    run_id = 0
-    if existing:
-        nums = [int(p.name.split("_")[-1]) for p in existing if p.name.split("_")[-1].isdigit()]
-        if nums:
-            run_id = max(nums) + 1
-    run_dir = run_root / f"opt_run_{run_id:04d}"
-    run_dir.mkdir()
     return run_dir
 
 def save_ffdfit_outputs(run_dir: Path,

@@ -73,7 +73,7 @@ def fm_scan_func_adi(_, input_pt, full_sample_refs, full_sample_models):
         full_sample_refs,
         full_sample_models,
     )
-    
+
     return _, jnp.array(flat_postklip_psf_i)
 
 def fm_scan_func_rdi(_, input_pt):
@@ -86,7 +86,7 @@ def fm_scan_func_rdi(_, input_pt):
         flat_model_here,
         klmodes,
     )
-    
+
     return _, jnp.array(flat_postklip_psf_i)
 
 
@@ -94,7 +94,7 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     print('Saving', out_filename, '...', end=' ')
     import matplotlib.pyplot as plt
     from astropy.visualization import simple_norm
-    fig, axs = plt.subplots(ncols=4, figsize=(10, 3))
+    fig, axs = plt.subplots(ncols=5, figsize=(14, 3))
     fig.subplots_adjust(left=0.05, right=0.95)
     mask_tmp = np.zeros(reduced_data.size)
     mask_tmp[mask_indices] = 1.0
@@ -109,21 +109,29 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     plt.colorbar(axs[0].imshow(reduced_data_masked, origin='lower', norm=data_space_norm, cmap=viridis_g))
     axs[0].set(title='Reduced data')
     axs[0].axis('off')
+
     freeform_fm_full_masked = np.array(freeform_fm_full)
     freeform_fm_full_masked[mask_bad] = np.nan
     plt.colorbar(axs[1].imshow(freeform_fm_full_masked, origin='lower', norm=data_space_norm, cmap=viridis_g))
     axs[1].axis('off')
+    axs[1].set(title='Freeform FM')
+
+    model_diff = reduced_data_masked - freeform_fm_full_masked
+    diff_vmax = np.nanmax(np.abs(model_diff))
+    plt.colorbar(axs[2].imshow(model_diff, origin='lower', vmin=-diff_vmax, vmax=diff_vmax, cmap='RdBu_r'))
+    axs[2].axis('off')
+    axs[2].set(title='(Reduced) - (Freeform)')
+
     full_model_image_masked = np.array(full_model_image)
     full_model_image_masked[mask_bad] = np.nan
-    axs[1].set(title='Freeform FM')
-    axs[2].axis('off')
-    plt.colorbar(axs[2].imshow(full_model_image_masked, origin='lower', norm=simple_norm(full_model_image, 'linear', vmin=model_vmin, vmax=model_vmax), cmap=magma_g))
-    axs[2].set(title=r'Model')
     axs[3].axis('off')
+    plt.colorbar(axs[3].imshow(full_model_image_masked, origin='lower', norm=simple_norm(full_model_image, 'linear', vmin=model_vmin, vmax=model_vmax), cmap=magma_g))
+    axs[3].set(title=r'Model')
+
     updates_vmax = np.max(np.abs(updates))
-    plt.colorbar(axs[3].imshow(updates, origin='lower', vmax=updates_vmax, vmin=-updates_vmax, cmap='RdYlBu_r'))
-    axs[3].set(title=r'Updates')
-    axs[3].axis('off')
+    plt.colorbar(axs[4].imshow(updates, origin='lower', vmax=updates_vmax, vmin=-updates_vmax, cmap='RdYlBu_r'))
+    axs[4].set(title=r'Updates')
+    axs[4].axis('off')
     fig.savefig(out_filename, dpi=128)
     plt.close(fig)
     print('Done.')
@@ -134,10 +142,10 @@ def asym_weights(res, tau, alpha):
     return alpha + (1.0 - alpha) * 0.5*(1.0 + s)
 
 def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
-                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, iowa_sec_inds_arr, 
+                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, iowa_sec_inds_arr,
                   klmodes_stacked, radial_inds, aligned_center,
                   isRDI, do_radial_profile_sub, do_clean_final_fm,
-                  total_pixels, reg_lambda, 
+                  total_pixels, reg_lambda,
                   evals=None, evecs_stacked=None,
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
@@ -201,7 +209,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     if bool(hp_filtersize):
         freeform_image_profilesub_hp = high_pass_filter(freeform_image_profilesub, filtersize=hp_filtersize)
     else:
-        freeform_image_profilesub_hp = freeform_image_profilesub    
+        freeform_image_profilesub_hp = freeform_image_profilesub
     global_models_prepped = update_disk(model_disk=freeform_image_profilesub_hp,
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
@@ -212,7 +220,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
             "models": global_models_prepped,
             "images": aligned_images,
             "modes": klmodes_stacked,
-         
+
         }
         _, flat_postklip_psfs = lax.scan(fm_scan_func_rdi, None, fm_calc_inputs)
     else:
@@ -374,7 +382,7 @@ def optimize_model(
                     opt_mask_indices
                 )
                 plot_idx += 1
-    
+
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
 
@@ -503,7 +511,7 @@ def main(config,
     fm_dict = load_kl_basis(basis_path)
     mask4noisemap = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask4noisemap.fits"))
     mask2generatedisk = fits.getdata(os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits"))
-    # fm_dict contains 
+    # fm_dict contains
     # dict_keys(['aligned_images_dict', 'evals_dict', 'evecs_dict',
     # 'input_img_num_dict', 'klmodes_dict', 'section_ind_dict'])
     reduced_data = fits.getdata(os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits"))
@@ -538,7 +546,7 @@ def main(config,
     # Render the reference model
     if init_model is None and bool(new_ref):
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
-        
+
         reference_model[reference_model != reference_model] = 0.
         reference_model_psd, window_opt = ffd_obj.get_reference_model_psd(reference_model)
         print("New reference model + spectrum created. Check klip_fm_files dir and relaunch the script.")
@@ -608,7 +616,7 @@ def main(config,
         jax.profiler.stop_trace()
         print("Ended profiler trace")
     print("Saving pyklip params...")
-    
+
     # Let's save what pyklip params were used with the outputs
     pyklip_params_dict = record_pyklip_params(ffd_obj.numbasis,
                                             ffd_obj.iwa,
@@ -616,7 +624,7 @@ def main(config,
                                             ffd_obj.minrot,
                                             ffd_obj.aligned_center
                                             )
-    
+
     outputs_dict = harness_optimized_model(optimized_params, ffd_obj, reduced_data, psf, total_pixels, disk_mask_indices,
                             optimization_mask_indices, disk_mask, optimization_mask, aligned_center, radial_inds, do_radial_profile_sub, do_clean_final_fm, hp_filtersize,
                             noise_interest, weights_asym, weights_nominal)

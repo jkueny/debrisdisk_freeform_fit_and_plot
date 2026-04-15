@@ -846,8 +846,8 @@ class FreeFormDisk:
         # Override klipdir to point to klip_fm_files subdirectory in injected directory
         self.klipdir = os.path.join(injected_dir, "klip_fm_files")
         os.makedirs(self.klipdir, exist_ok=True)
-        # Override resultsdir to point to results_freeform subdirectory in injected directory
-        self.resultsdir = os.path.join(injected_dir, "results_freeform")
+        # Override resultsdir to point to configured subdirectory in injected directory
+        self.resultsdir = os.path.join(injected_dir, self.params_file.get('results_dir_name', 'results_freeform'))
         os.makedirs(self.resultsdir, exist_ok=True)
         print(f"Output will be saved to: {self.klipdir}")
         print(f"Results will be saved to: {self.resultsdir}")
