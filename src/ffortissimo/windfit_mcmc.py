@@ -1067,7 +1067,7 @@ if __name__ == '__main__':
     # and workers are forked from it before Accelerate/GCD ever initializes
     # in that server. Each worker loads NumPy post-fork, which is safe.
     import multiprocessing as mp
-    mp_ctx = mp.get_context('forkserver')
+    mp_ctx = mp.get_context('fork')
     MultiPool = mp_ctx.Pool
 
 

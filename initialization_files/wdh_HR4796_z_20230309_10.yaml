@@ -100,7 +100,7 @@ hbeta_init: 0.5
 ha_r_init: 0.3
 hsig_init: 30.0
 hfwhm_init: 3.0
-hpa_init: 66.8
+hpa_init: 69.5
 hdx_init: 1.45
 hdy_init: 0.007
 hN_init: 13460
@@ -110,7 +110,7 @@ fwhm_init: 3.0
 hbeta2_init: 0.5
 ha_r2_init: 0.29270564274473104
 hsig2_init: 30.0
-hpa2_init: -113.906450623
+hpa2_init: 93.8
 hdx2_init: 15.736274318840326
 hdy2_init: 2.7432967701360966
 hdz2_init: 0.01
@@ -119,7 +119,7 @@ hN2_init: 161.752741323
 hbeta3_init: 0.5
 ha_r3_init: 0.9278058937026628
 hsig3_init: 30.0
-hpa3_init: -113.906450623
+hpa3_init: 147.2
 hdx3_init: 15.736274318840326
 hdy3_init: 1.2852098741333626
 hN3_init: 134.862950151
