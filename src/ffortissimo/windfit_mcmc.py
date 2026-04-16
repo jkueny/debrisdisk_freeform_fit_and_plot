@@ -1044,6 +1044,14 @@ if __name__ == '__main__':
                         '--param_file',
                         required=False,
                         help='parameter file name')
+    parser.add_argument('--nwalkers',
+                        type=int,
+                        required=False,
+                        help='override walker count from parameter file')
+    parser.add_argument('--niter',
+                        type=int,
+                        required=False,
+                        help='override MCMC iteration count from parameter file')
     args = parser.parse_args()
 
     # Parallel processing stuff.
@@ -1075,8 +1083,14 @@ if __name__ == '__main__':
         params_mcmc_yaml = yaml.safe_load(yaml_file)
     
     # load in global the Parameters necessary to launch the MCMC
-    NWALKERS = params_mcmc_yaml['NWALKERS']  #Number of walkers
-    N_ITER_MCMC = params_mcmc_yaml['N_ITER_MCMC']  #Number of interation
+    NWALKERS = params_mcmc_yaml['NWALKERS']  # Number of walkers
+    N_ITER_MCMC = params_mcmc_yaml['N_ITER_MCMC']  # Number of iterations
+    if args.nwalkers is not None:
+        NWALKERS = int(args.nwalkers)
+        print(f"CLI override: NWALKERS={NWALKERS}")
+    if args.niter is not None:
+        N_ITER_MCMC = int(args.niter)
+        print(f"CLI override: N_ITER_MCMC={N_ITER_MCMC}")
     DISK_MODEL = params_mcmc_yaml['DISK_MODEL']
 
     FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
