@@ -46,13 +46,6 @@ import glob
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-
-# # because this error was coming up
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-# os.environ['MKL_NUM_THREADS'] = '1'
-# os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-# os.environ['ACCELERATE_NUM_THREADS'] = '1'
-
 from multiprocessing import cpu_count
 
 
@@ -92,6 +85,11 @@ from ffortissimo.utils.improc_tools import subtract_radial_profile, get_radial_i
 # and by PyKLIPto avoid that NumPy automatically parallelizes some operations,
 # which kill the speed
 os.environ["OMP_NUM_THREADS"] = "1"
+# # because this error was coming up
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['ACCELERATE_NUM_THREADS'] = '1'
 
 
 # Globals consumed by lnpb/logl/call_gen_disk
