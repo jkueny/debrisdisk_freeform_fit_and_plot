@@ -91,13 +91,15 @@ from ffortissimo.utils.improc_tools import subtract_radial_profile
 # which kill the speed
 os.environ["OMP_NUM_THREADS"] = "1"
 
-# Globals configured from YAML in __main__
-N_WDH_COMPONENTS = 3
-COMPONENT_INIT = []
-SHARED_COMPONENT_FLAGS = {}
-FREE_PARAMS = []
-THETA_INIT = np.array([])
-GAMMA_FIXED = 1.0
+
+# # Globals consumed by lnpb/logl/call_gen_disk
+# DIMENSION = None
+# ALIGNED_CENTER = None
+# WHEREMASK2GENERATEHALO = None
+# DISKOBJ = None
+# REDUCED_DATA = None
+# NOISE = None
+# USE_NOISE = None
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -213,6 +215,85 @@ def _shared_component_flags(params_mcmc_yaml):
         "x0": bool(_cfg_first_match(cfg, ["x0_shared_state", "dx_shared_state"], default=False)),
         "Norm": bool(_cfg_first_match(cfg, ["Norm_shared_state"], default=False)),
     }
+
+
+def validate_mcmc_runtime_globals():
+    """Ensure globals used by lnpb/logl/call_gen_disk are initialized."""
+    required = {
+        "DIMENSION": DIMENSION,
+        "ALIGNED_CENTER": ALIGNED_CENTER,
+        "WHEREMASK2GENERATEHALO": WHEREMASK2GENERATEHALO,
+        "DISKOBJ": DISKOBJ,
+        "REDUCED_DATA": REDUCED_DATA,
+        "USE_NOISE": USE_NOISE,
+    }
+    if USE_NOISE:
+        required["NOISE"] = NOISE
+
+    missing = [name for name, value in required.items() if value is None]
+    if missing:
+        raise RuntimeError(
+            "Missing required MCMC globals before multiprocessing launch: "
+            + ", ".join(missing)
+        )
+
+
+def _init_mcmc_worker(
+    dimension,
+    aligned_center,
+    wheremask2generatehalo,
+    reduced_data,
+    noise,
+    use_noise,
+    component_init,
+    shared_component_flags,
+    free_params,
+    n_wdh_components,
+    gamma_fixed,
+    theta_init,
+    basis_filename,
+    initial_model_list,
+):
+    """Pool initializer that populates every module-level global consumed by
+    ``lnpb`` / ``logl`` / ``call_gen_disk`` in a freshly-spawned worker.
+
+    Needed because on macOS NumPy is linked against Accelerate, and Accelerate
+    uses Grand Central Dispatch which is not ``fork()``-safe. We therefore use
+    ``forkserver`` (or ``spawn``) as the start method; those methods do not
+    inherit parent globals, so each worker has to set its own state here.
+
+    The large ``DISKOBJ`` (WindFM) object is intentionally not passed across
+    the pickle boundary: workers rebuild it from the on-disk KL basis, which
+    is cheap after the OS file cache has the file warm.
+    """
+    global DIMENSION, ALIGNED_CENTER, WHEREMASK2GENERATEHALO
+    global DISKOBJ, REDUCED_DATA, NOISE, USE_NOISE
+    global COMPONENT_INIT, SHARED_COMPONENT_FLAGS, FREE_PARAMS
+    global N_WDH_COMPONENTS, GAMMA_FIXED, THETA_INIT
+
+    DIMENSION = dimension
+    ALIGNED_CENTER = aligned_center
+    WHEREMASK2GENERATEHALO = wheremask2generatehalo
+    REDUCED_DATA = reduced_data
+    NOISE = noise
+    USE_NOISE = use_noise
+    COMPONENT_INIT = component_init
+    SHARED_COMPONENT_FLAGS = shared_component_flags
+    FREE_PARAMS = free_params
+    N_WDH_COMPONENTS = n_wdh_components
+    GAMMA_FIXED = gamma_fixed
+    THETA_INIT = theta_init
+
+    DISKOBJ = WindFM(
+        None,
+        None,
+        None,
+        model_wdh_list=initial_model_list,
+        model_pas_mask=None,
+        basis_filename=basis_filename,
+        load_from_basis=True,
+    )
+    DISKOBJ.update_wind(initial_model_list)
 
 
 def arr_free_params(params_mcmc_yaml):
@@ -934,11 +1015,21 @@ if __name__ == '__main__':
                         help='parameter file name')
     args = parser.parse_args()
 
-    # Parallel processing stuff
+    # Parallel processing stuff.
+    #
+    # On macOS, NumPy wheels are linked against Apple's Accelerate framework
+    # which uses Grand Central Dispatch internally. GCD is NOT fork()-safe, so
+    # using mp.get_context('fork').Pool here causes a silent SIGSEGV inside
+    # the first np.dot() call in each worker (see pyklip/fm.py::perturb_*).
+    # The symptom in that case is that the parent appears to hang because
+    # emcee is waiting on pool.map() results that never come back.
+    #
+    # We use 'forkserver' instead: a clean helper process is spawned once,
+    # and workers are forked from it before Accelerate/GCD ever initializes
+    # in that server. Each worker loads NumPy post-fork, which is safe.
     import multiprocessing as mp
-    mp.set_start_method('fork')
-    MultiPool = mp.get_context('fork').Pool
-    # from multiprocessing import Pool as MultiPool
+    mp_ctx = mp.get_context('forkserver')
+    MultiPool = mp_ctx.Pool
 
 
     if args.param_file is None: #grab param file if no command line input, JKK
@@ -1015,8 +1106,8 @@ if __name__ == '__main__':
     # measure the size of images DIMENSION and make it global
     DIMENSION = round(ALIGNED_CENTER[0]) * 2
     N_DIM_MCMC = len(THETA_INIT)
-    N_DIM_MOD = round(N_DIM_MCMC / 2)
-    
+
+
     if params_mcmc_yaml['FIRST_TIME']:
     # initialize_diskfm and make diskobj global
         DISKOBJ, REDUCED_DATA = initialize_windfm(dataset,
@@ -1086,8 +1177,38 @@ if __name__ == '__main__':
     print("initialize walkers and start the MCMC...")
     startTime = datetime.now()
 
+    # Explicitly verify all globals consumed inside lnpb/logl/model calls are ready
+    # before handing work to multiprocessing workers.
+    validate_mcmc_runtime_globals()
 
-    with MultiPool() as pool:
+    # forkserver/spawn workers don't inherit the parent's globals, so we pass
+    # everything lnpb needs via the pool initializer. DISKOBJ itself is rebuilt
+    # inside each worker from the on-disk KL basis to avoid shipping a
+    # ~100+ MB pickled WindFM over the IPC queue.
+    _worker_basis_filename = os.path.join(KLIPDIR, FILE_PREFIX + '_klbasis.h5')
+    _worker_initial_models = call_gen_disk(THETA_INIT)
+    _worker_initargs = (
+        DIMENSION,
+        ALIGNED_CENTER,
+        WHEREMASK2GENERATEHALO,
+        REDUCED_DATA,
+        NOISE,
+        USE_NOISE,
+        COMPONENT_INIT,
+        SHARED_COMPONENT_FLAGS,
+        FREE_PARAMS,
+        N_WDH_COMPONENTS,
+        GAMMA_FIXED,
+        THETA_INIT,
+        _worker_basis_filename,
+        _worker_initial_models,
+    )
+
+    print("multiprocessing start method:", mp_ctx.get_start_method())
+    with MultiPool(
+        initializer=_init_mcmc_worker,
+        initargs=_worker_initargs,
+    ) as pool:
 
         # initialize the walkers if necessary. initialize/load the backend
         # make them global
