@@ -49,9 +49,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # # because this error was coming up
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
-os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-os.environ['ACCELERATE_NUM_THREADS'] = '1'
+# os.environ['MKL_NUM_THREADS'] = '1'
+# os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+# os.environ['ACCELERATE_NUM_THREADS'] = '1'
 
 from multiprocessing import cpu_count
 
