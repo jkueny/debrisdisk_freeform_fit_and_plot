@@ -130,6 +130,7 @@ def prep_image_frames_parangs(filelist):
 def gen_wdh_image(
     x: np.ndarray,
     y: np.ndarray,
+    wheremask2generatehalo: np.ndarray,
     beta: float,
     h0: float,
     sigma: float,
@@ -140,11 +141,13 @@ def gen_wdh_image(
     """
     Generate a single WDH-like intensity map on the same grid as ``x`` and ``y``.
 
+    Spatial support is set by ``wheremask2generatehalo`` (same convention as the global
+    ``WHEREMASK2GENERATEHALO``): pixels where this mask is True are excluded from the
+    model (no inner IWA/r1 cutoff — the control-region mask defines extent).
+
     ``PA_deg`` is the position angle (degrees) used to rotate the halo axis; ``x0`` is an
     offset along the rotated radial coordinate (pixels, same units as ``x``, ``y``).
     """
-    # At pixel scale ~0.012"/pixel this is the IWA at g', about 4 lambda/D
-    r1 = 10.0
     pa_rad = -np.deg2rad(PA_deg)
     x_rot = np.sin(pa_rad) * x + np.cos(pa_rad) * y
     y_rot = np.cos(pa_rad) * x - np.sin(pa_rad) * y
@@ -161,8 +164,9 @@ def gen_wdh_image(
     exp_term = np.exp(-0.5 * (radial_term + (x_rot / sigma_safe) ** 2))
     i_map = power_law * exp_term
     i_map = np.nan_to_num(i_map, nan=0.0, posinf=0.0, neginf=0.0)
-    i_map = np.where(r < r1, 0.0, i_map)
-
+    # Restrict model to the halo generation region (from mask2generatehalo.fits logic).
+    exclude = np.asarray(wheremask2generatehalo, dtype=np.float64)
+    i_map = i_map * (1.0 - exclude)
 
     return i_map.astype(np.float32, copy=False)
 
@@ -407,6 +411,7 @@ def call_gen_disk(theta):
         model = gen_wdh_image(
             x=x,
             y=y,
+            wheremask2generatehalo=WHEREMASK2GENERATEHALO,
             beta=comp["beta"],
             h0=comp["h0"],
             sigma=comp["sigma"],
@@ -415,7 +420,6 @@ def call_gen_disk(theta):
             gamma=param_disk["gamma"],
         )
         model = model * comp["Norm"]
-        model *= (1 - WHEREMASK2GENERATEHALO)
         model[np.isnan(model)] = 0
         model_list.append(model.astype(np.float32, copy=False))
 

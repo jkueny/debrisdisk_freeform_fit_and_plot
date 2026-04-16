@@ -1060,7 +1060,7 @@ def _get_section_indicies(input_shape, img_center, radstart, radend, phistart, p
 
 
 
-def _save_rotated_section(input_shape, sector, sector_ind, output_img, output_img_numstacked, angle, radstart, radend, phistart, phiend, padding,IOWA, img_center, flipx=True,
+def _save_rotated_section(input_shape, sector, sector_ind, output_img, output_img_numstacked, angle, radstart, radend, phistart, phiend, padding,IOWA, img_center, flipx=False,
                           new_center=None):
     """
     Rotate and save sector in output image at desired ranges

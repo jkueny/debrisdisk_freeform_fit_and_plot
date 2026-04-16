@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: false
+FIRST_TIME: true
 FIRST_TIME_GS: False #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: wdh # original or modified Max MB model code

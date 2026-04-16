@@ -889,7 +889,7 @@ class WindFM(NoFM):
                 parang=self.PAs[img_num],
                 numbasis=self.numbasis,
                 fmout=fmout_np,
-                flipx=False,
+                flipx=True,
                 mode=mode)
 
         # put any finishing touches on the FM Output
