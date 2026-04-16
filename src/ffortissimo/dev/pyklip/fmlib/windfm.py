@@ -207,7 +207,7 @@ class WindFM(NoFM):
                 "KLIP reduction parameters (mode, annuli and subsections) "\
                 "are only defined once in klip_dataset [pyklip.parallelized].")
 
-        super(WindFM, self).__init__(inputs_shape, numbasis, save_basis)
+        super(WindFM, self).__init__(inputs_shape, numbasis)
 
         self.supports_rdi = True # temporary flag until all FM classes supports RDI. 
 
@@ -322,7 +322,7 @@ class WindFM(NoFM):
 
             for j in range(num_components):
                 # print(j)
-                model = deepcopy(model_wdh_list[j]).astype(np.float64).newbyteorder("=")
+                model = np.asarray(deepcopy(model_wdh_list[j]), dtype=np.float64)
 
                 # Get the wind PA list for this component
                 do_rot = self.validPAs[j][i]

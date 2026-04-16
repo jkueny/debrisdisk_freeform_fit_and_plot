@@ -25,7 +25,8 @@ import argparse
 
 # careful on Python 3.8 mac multiprocessing switched to spawn so the global varialbe do not work
 
-basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
+# TODO fix basedir to be more general
+basedir = f'{os.environ["HOME"]}/data'  # the base directory where is
 # your data (using OS environnement variable allow to use same code on
 # different computer without changing this).
 
@@ -33,7 +34,7 @@ basedir = f'{os.environ["HOME"]}/projects'  # the base directory where is
 # default_parameter_file = 'HR4796_r_camsci1_20230312_13.yaml'  # name of the parameter file
 # default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = 'HR4796_i_camsci1_20230309_10.yaml'  # name of the parameter file
-default_parameter_file = "wdh_test.yaml"
+default_parameter_file = "wdh_HR4796_z_20230309_10.yaml"
 # you can also call it with the python function argument -p
 
 # For parallelization stuff...?
@@ -58,11 +59,11 @@ from datetime import datetime
 
 import math as mt
 import numpy as np
-import pandas as pd
 
 import astropy.io.fits as fits
 # from astropy.convolution import convolve
 from scipy.signal import convolve
+from scipy.ndimage import rotate as nd_rotate
 # from scipy.signal import fftconvolve
 from astropy.wcs import FITSFixedWarning
 
@@ -83,11 +84,20 @@ from ffortissimo.utils.masks import control_region_mask
 
 import ffortissimo.utils.make_gpi_psf_for_disks as gpidiskpsf
 import ffortissimo.utils.astro_unit_conversion as convert
+from ffortissimo.utils.improc_tools import subtract_radial_profile
 
 # recommended by emcee https://emcee.readthedocs.io/en/stable/tutorials/parallel/
 # and by PyKLIPto avoid that NumPy automatically parallelizes some operations,
 # which kill the speed
 os.environ["OMP_NUM_THREADS"] = "1"
+
+# Globals configured from YAML in __main__
+N_WDH_COMPONENTS = 3
+COMPONENT_INIT = []
+SHARED_COMPONENT_FLAGS = {}
+FREE_PARAMS = []
+THETA_INIT = np.array([])
+GAMMA_FIXED = 1.0
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -97,36 +107,14 @@ def sort_parang_monotonic(filename):
     else:
         raise ValueError(f"Filename {filename} does not match expected pattern.")
     
-def prep_image_frames_parangs(filelist, parquet_file, time_bin_sz="min"):
-    wind_directions1 = []
-    wind_directions2 = []
+def prep_image_frames_parangs(filelist):
     derot_angs = []
     frames = []
-    df = pd.read_parquet(parquet_file)
-    df = df.reset_index()
-    for ea,name in enumerate(filelist):
+    for name in filelist:
         dat_unit, hdr_unit = fits.getdata(name,header=True)
-        # print(name, hdr_unit['PARANG'])
         derot_angs.append(hdr_unit['PARANG'])
         frames.append(dat_unit)
-        df["ts6"] = df["timestamp"].str[:20]
-        df["ts_dt"] = pd.to_datetime(df["ts6"], format="%Y%m%d%H%M%S%f", utc=True)
-        obs = hdr_unit["DATE-OBS"]
-        obs_ts = pd.to_datetime(obs, utc=True)
-        df = df.set_index("ts_dt").sort_index()
-        # TODO generalize this for any temporal bin size (within reason)
-        obs_round = obs_ts.round(time_bin_sz) #round to nearest minute, for now
-        nearest = df.reindex([obs_round], method="nearest").iloc[0]
-        # print(f"Science frame at {obs_ts} → matched wind at {obs_round}")
-        # one or both directions may be np.nan, meaning no wind detected
-        winddir1 = nearest["direction_1"]
-        winddir2 = nearest["direction_2"]
-        if ea < 5:
-            print(obs, nearest["timestamp"], winddir1, winddir2)
-        wind_directions1.append(winddir1)
-        wind_directions2.append(winddir2)
-    return np.asarray(frames), np.asarray(derot_angs),  \
-        np.asarray(wind_directions1), np.asarray(wind_directions2)
+    return np.asarray(frames), np.asarray(derot_angs)
 
 def gen_wdh_image(
     x: np.ndarray,
@@ -151,14 +139,15 @@ def gen_wdh_image(
     y_rot = np.cos(pa_rad) * x - np.sin(pa_rad) * y
 
     dx = x_rot - x0
-    r = np.sqrt(dx**2 + dy**2)
+    r = np.sqrt(dx**2 + y_rot**2)
     r_safe = np.maximum(r, 1e-6)
 
     power_law = (1.0 / r_safe) ** beta
     denom = h0 * (dx**2)
     denom = np.where(np.abs(denom) < 1e-12, np.copysign(1e-12, denom + 1e-30), denom)
     radial_term = (r**2 / denom) ** gamma
-    exp_term = np.exp(-0.5 * (radial_term + (x_rot / sigma) ** 2))
+    sigma_safe = np.maximum(np.abs(sigma), 1e-6)
+    exp_term = np.exp(-0.5 * (radial_term + (x_rot / sigma_safe) ** 2))
     i_map = power_law * exp_term
     i_map = np.nan_to_num(i_map, nan=0.0, posinf=0.0, neginf=0.0)
     i_map = np.where(r < r1, 0.0, i_map)
@@ -167,126 +156,85 @@ def gen_wdh_image(
     return i_map.astype(np.float32, copy=False)
 
 
+def _cfg_first_match(cfg, candidates, default=None):
+    """Return the first key match from candidates in cfg."""
+    for key in candidates:
+        if key in cfg:
+            return cfg[key]
+    return default
+
+
+def _param_candidates(base_name, comp_idx, suffix):
+    """
+    Return init/state key candidates for one WDH component parameter.
+    Supports both legacy (hbeta/ha_r/...) and newer (beta/a_r/...) conventions.
+    """
+    init_keys = {
+        "beta": [f"hbeta{suffix}_init", f"beta{suffix}_init"],
+        "h0": [f"ha_r{suffix}_init", f"a_r{suffix}_init"],
+        "sigma": [f"hsig{suffix}_init", f"sig{suffix}_init"],
+        "PA": [f"hpa{suffix}_init", f"pa{suffix}_init"],
+        "x0": [f"hdx{suffix}_init", f"dx{suffix}_init"],
+        "Norm": [f"hN{suffix}_init", f"Norm{suffix}_init"],
+    }
+    state_keys = {
+        "beta": [f"hbeta{suffix}_state", f"beta{suffix}_state"],
+        "h0": [f"ha_r{suffix}_state", f"a_r{suffix}_state"],
+        "sigma": [f"hsig{suffix}_state", f"sig{suffix}_state"],
+        "PA": [f"hpa{suffix}_state", f"pa{suffix}_state"],
+        "x0": [f"hdx{suffix}_state", f"dx{suffix}_state"],
+        "Norm": [f"hN{suffix}_state", f"Norm{suffix}_state"],
+    }
+    return init_keys[base_name], state_keys[base_name]
+
+
+def _component_init_from_yaml(params_mcmc_yaml, comp_idx):
+    suffix = "" if comp_idx == 1 else str(comp_idx)
+    cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
+    params = {}
+    for p_name in ("beta", "h0", "sigma", "PA", "x0", "Norm"):
+        init_candidates, _ = _param_candidates(p_name, comp_idx, suffix)
+        default_val = 1.0 if p_name == "Norm" else 0.0
+        params[p_name] = float(_cfg_first_match(cfg, init_candidates, default=default_val))
+    return params
+
+
+def _n_wdh_components(params_mcmc_yaml):
+    cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
+    return int(_cfg_first_match(cfg, ["N_WIND_LAYERS", "N_WDH_COMPONENTS"], default=3))
+
+
+def _shared_component_flags(params_mcmc_yaml):
+    cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
+    return {
+        "beta": bool(_cfg_first_match(cfg, ["beta_shared_state"], default=False)),
+        "h0": bool(_cfg_first_match(cfg, ["h0_shared_state", "a_r_shared_state"], default=False)),
+        "sigma": bool(_cfg_first_match(cfg, ["sigma_shared_state", "sig_shared_state"], default=False)),
+        "x0": bool(_cfg_first_match(cfg, ["x0_shared_state", "dx_shared_state"], default=False)),
+        "Norm": bool(_cfg_first_match(cfg, ["Norm_shared_state"], default=False)),
+    }
+
+
 def arr_free_params(params_mcmc_yaml):
     free_params = []
-    # if bool(params_mcmc_yaml['rscale_state']):
-    #     free_params.append('rscale')
-    # else:
-    #     # free_params.append(False)
-    #     pass
-    if bool(params_mcmc_yaml['hbeta_state']):
-        free_params.append('hbeta')
-    else:
-        # free_params.append(False)
-        pass
+    n_components = _n_wdh_components(params_mcmc_yaml)
+    shared_flags = _shared_component_flags(params_mcmc_yaml)
+    cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
 
-    if bool(params_mcmc_yaml['ha_r_state']):
-        free_params.append('ha_r')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['hsig_state']):
-        free_params.append('hsig')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['hpa_state']):
-        free_params.append('hPA')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['hdx_state']):
-        free_params.append('hdx')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['hdy_state']):
-        free_params.append('hdy')
-    else:
-        # free_params.append(False)
-        pass
-    # if bool(params_mcmc_yaml['hoffset_state']):
-    #     free_params.append('hoffset')
-    # else:
-    #     # free_params.append(False)
-    #     pass
-    if bool(params_mcmc_yaml['hN_state']):
-        free_params.append('hNorm')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['dtheta_state']):
-        free_params.append('dtheta')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['hbeta2_state']):
-        free_params.append('hbeta2')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['ha_r2_state']):
-        free_params.append('ha_r2')
-    else:
-        # free_params.append(False)
-        pass
-    # if bool(params_mcmc_yaml['hsig2_state']):
-    #     free_params.append('hsig2')
-    # else:
-    #     # free_params.append(False)
-    #     pass
-    if bool(params_mcmc_yaml['hpa2_state']):
-        free_params.append('hPA2')
-    else:
-        # free_params.append(False)
-        pass
-    # if bool(params_mcmc_yaml['hdx2_state']):
-    #     free_params.append('hdx2')
-    # else:
-    #     # free_params.append(False)
-    #     pass
-    if bool(params_mcmc_yaml['hdy2_state']):
-        free_params.append('hdy2')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['hN2_state']):
-        free_params.append('hNorm2')
-    else:
-        # free_params.append(False)
-        pass
-    if bool(params_mcmc_yaml['dtheta2_state']):
-        free_params.append('dtheta2')
-    else:
-        # free_params.append(False)
-        pass
-        # if multiwdh > 1:
-        #     if bool(params_mcmc_yaml['ha_r3_state']):
-        #         free_params.append('ha_r3')
-        #     else:
-        #         # free_params.append(False)
-        #         pass
-        #     if bool(params_mcmc_yaml['hpa3_state']):
-        #         free_params.append('hPA3')
-        #     else:
-        #         # free_params.append(False)
-        #         pass
-        #     if bool(params_mcmc_yaml['hdy3_state']):
-        #         free_params.append('hdy3')
-        #     else:
-        #         # free_params.append(False)
-        #         pass
+    for p_name in ("beta", "h0", "sigma", "x0", "Norm"):
+        if shared_flags[p_name]:
+            init_candidates, state_candidates = _param_candidates(p_name, 1, "")
+            is_free = bool(_cfg_first_match(cfg, state_candidates, default=True))
+            if is_free:
+                free_params.append(f"{p_name}_1")
+            continue
 
-        #     if bool(params_mcmc_yaml['hN3_state']):
-        #         free_params.append('hNorm3')
-        #     else:
-        #         # free_params.append(False)
-        #         pass
-        #     if bool(params_mcmc_yaml['dtheta3_state']):
-        #         free_params.append('dtheta3')
-        #     else:
-        #         # free_params.append(False)
-        #         pass
+        for idx in range(1, n_components + 1):
+            suffix = "" if idx == 1 else str(idx)
+            _, state_candidates = _param_candidates(p_name, idx, suffix)
+            is_free = bool(_cfg_first_match(cfg, state_candidates, default=True))
+            if is_free:
+                free_params.append(f"{p_name}_{idx}")
 
     print(f'Fitting params: {free_params}')
     return free_params
@@ -295,88 +243,38 @@ def from_theta_to_params(theta):
     '''
     Setup function. This function takes the prior parameters and creates a dictionary and vector of parameters from it.
     '''
-    param_disk = {} #disk parameters are put into a dict.
-    vector_param = [] #this is for the walker chain plots, free params only
+    theta = np.asarray(theta, dtype=float)
+    comp_params = [dict(item) for item in COMPONENT_INIT]
+    vector_param = []
 
-    param_disk['beta_in'] = -10  # we fix the inner power law
-    param_disk['hr1'] = 1
-    param_disk['hr2'] = 60
-    # param_disk['hbeta'] = theta[0]
-    # param_disk['ha_r'] = theta[1]  # we fix the aspect ratio
-    # # param_disk['beta'] = 1.
-    # param_disk['hPA'] = theta[2]
-    # param_disk['hdx'] = theta[3]
-    # param_disk['hdy'] = theta[4]
-    # param_disk['hNorm'] = mt.exp(theta[5])
-    # all_params = ['hbeta', 'hbeta2', 'ha_r', 'hsig', 'hPA', 'hdx', 'hdy', 'hNorm']
+    if theta.size != len(FREE_PARAMS):
+        raise ValueError(
+            f"Theta size ({theta.size}) does not match free parameter count ({len(FREE_PARAMS)})."
+        )
 
-    all_params = [
-                # 'rscale',
-                'hbeta',
-                'ha_r',
-                'hsig',
-                'hPA',
-                'hdx',
-                'hdy',
-                # 'hdz',
-                'hNorm',
-                'dtheta',
-                # 'hbeta2',
-                'ha_r2',
-                # 'hsig2',
-                'hPA2',
-                # 'hdx2',
-                'hdy2',
-                # 'hdz2',
-                'hNorm2',
-                'dtheta2',
-                ]
-    fixed_params = 0
-    delta_params = len(all_params) - len(FREE_PARAMS)
-    for ea, p in enumerate(all_params):
-        # print(ea, p, fixed_params, (ea - fixed_params))
-        if p in FREE_PARAMS:
-            # if (p == 'rscale'):
-            #     # print(ea, p)
-            #     param_disk['rscale'] = mt.exp(theta[ea - fixed_params])
-            #     vector_param.append(param_disk['rscale'])
-            if (p == 'hNorm'):
-                # print(ea, p)
-                param_disk['hNorm'] = mt.exp(theta[ea - fixed_params])
-                vector_param.append(param_disk['hNorm'])
-            elif (p == 'hNorm2'):
-                # print(ea, p)
-                param_disk['hNorm2'] = mt.exp(theta[ea - fixed_params])
-                vector_param.append(param_disk['hNorm2'])
-            elif (p == 'hNorm3'):
-                # print(ea, p)
-                param_disk['hNorm3'] = mt.exp(theta[ea - fixed_params])
-                vector_param.append(param_disk['hNorm3'])
+    free_idx = 0
+    for p_name in ("beta", "h0", "sigma", "x0", "Norm"):
+        if SHARED_COMPONENT_FLAGS[p_name]:
+            token = f"{p_name}_1"
+            if token in FREE_PARAMS:
+                value = float(theta[free_idx])
+                free_idx += 1
             else:
-                # print(ea, p)
-                param_disk[p] = theta[max(0,ea)]
-                vector_param.append(param_disk[p])
-        else:
-            # print(ea,p)
-            fixed_params += 1
-            param_disk[p] = THETA_INIT[ea]
-            # vector_param.append(param_disk[p])
+                value = float(comp_params[0][p_name])
+            for comp in comp_params:
+                comp[p_name] = value
+                vector_param.append(value)
+            continue
 
-    # We don't need the DC offset term bc the SPF gets normalized at 90
-    # param_spf['dc'] = np.exp(theta[0])
-    # param_spf['dc'] = 1. #fix the dc offset
-    # vector_param = [
-    # param_disk['hbeta'], param_disk['ha_r'],
-    # param_disk['hPA'], param_disk['hdx'], param_disk['hdy'], param_disk['hNorm']
-    #                 ]
-    # print('in theta_to_params',theta)
-    # print(theta.shape)
-    # print(param_disk)
-    # print(param_disk['coeffs'])
-    # print(param_disk['dc'])
-    # print(vector_param.shape)
-    # exit()
-    return param_disk, vector_param #return the disk parameter dict. and theta vector of parameters
+        for idx in range(N_WDH_COMPONENTS):
+            token = f"{p_name}_{idx + 1}"
+            if token in FREE_PARAMS:
+                value = float(theta[free_idx])
+                free_idx += 1
+                comp_params[idx][p_name] = value
+                vector_param.append(value)
+
+    return {"components": comp_params, "gamma": GAMMA_FIXED}, vector_param
 
 
 ####################################################### 
@@ -399,131 +297,27 @@ def call_gen_disk(theta):
         a 2d model
     """
     param_disk, _ = from_theta_to_params(theta)
-    # print(param_disk)
-    R1 = param_disk['hr1']
-    R2 = param_disk['hr2']
-    beta = param_disk['hbeta']
-    a_r = param_disk['ha_r']
-    sig = param_disk['hsig']
-    pa = param_disk['hPA']
-    dx = param_disk['hdx']
-    dy = param_disk['hdy']
-    # dz = param_disk['hdz']
-    # dz = 0
-    Norm = param_disk['hNorm']
-    # rscale = param_disk["rscale"]
-    dtheta = param_disk['dtheta']
+    x = np.arange(DIMENSION, dtype=np.float64)[None, :] - ALIGNED_CENTER[0]
+    y = np.arange(DIMENSION, dtype=np.float64)[:, None] - ALIGNED_CENTER[1]
+    model_list = []
 
-    max_fov = DIMENSION / 2. * PIXSCALE_INS  #maximum radial distance in AU from the center to the edge
-    n_pts = int(np.floor(DIMENSION / 1))
-    xsize = max_fov * DISTANCE_STAR  #maximum radial distance in AU from the center to the edge
+    for comp in param_disk["components"]:
+        model = gen_wdh_image(
+            x=x,
+            y=y,
+            beta=comp["beta"],
+            h0=comp["h0"],
+            sigma=comp["sigma"],
+            PA_deg=comp["PA"],
+            x0=comp["x0"],
+            gamma=param_disk["gamma"],
+        )
+        model = model * comp["Norm"]
+        model *= (1 - WHEREMASK2GENERATEHALO)
+        model[np.isnan(model)] = 0
+        model_list.append(model.astype(np.float32, copy=False))
 
-    # print(f'max_fov: {max_fov}; xsize: {xsize}')
-
-    #The coordinate system here [x,y,z] is defined :
-    # +ve x is the line of sight
-    # +ve y is going right from the center
-    # +ve z is going up from the center
-
-    # y = np.linspace(0,xsize,num=npts/2)
-    y = np.linspace(-xsize, xsize, num=n_pts)
-    z = np.linspace(-xsize, xsize, num=n_pts)
-
-    model_left = fastgen_wind(ctrlrad=R2,
-                         beta=beta,
-                         pa=pa,
-                         dx=dx, dy=dy,
-                         Norm=Norm,
-                         a_r=a_r,sig=sig,
-                         y_arr=y,
-                         z_arr=z,
-                         npts=n_pts,
-                         mask=WHEREMASK2GENERATEHALO,
-                         left=True)
-    model_right = fastgen_wind(ctrlrad=R2,
-                         beta=beta,
-                         pa=pa,
-                         dx=dx, dy=dy,
-                         Norm=Norm,
-                         a_r=a_r*dtheta,sig=sig,
-                         y_arr=y,
-                         z_arr=z,
-                         npts=n_pts,
-                         mask=WHEREMASK2GENERATEHALO)
-    model1 = (model_left + model_right)
-
-    a_r2 = param_disk['ha_r2']
-    # sig2 = param_disk['hsig2']
-    pa2 = param_disk['hPA2']
-    # dx2 = param_disk['hdx2']
-    dy2 = param_disk['hdy2']
-    # dz2 = param_disk['hdz2']
-    Norm2 = param_disk['hNorm2']
-    dtheta2 = param_disk['dtheta2']
-
-    model2_left = fastgen_wind(ctrlrad=R2,
-                        beta=beta,
-                        pa=pa2,
-                        dx=dx, dy=dy2,
-                        Norm=Norm2,
-                        a_r=a_r2,sig=sig,
-                        y_arr=y,
-                        z_arr=z,
-                        npts=n_pts,
-                        mask=WHEREMASK2GENERATEHALO,
-                        left=True)
-    model2_right = fastgen_wind(ctrlrad=R2,
-                        beta=beta,
-                        pa=pa2,
-                        dx=dx, dy=dy2,
-                        Norm=Norm2,
-                        a_r=a_r2*dtheta2,sig=sig,
-                        y_arr=y,
-                        z_arr=z,
-                        npts=n_pts,
-                        mask=WHEREMASK2GENERATEHALO)
-        
-    model2 = (model2_left + model2_right)
-
-        # if ADD_WDH > 1:
-        #     a_r3 = param_disk['ha_r3']
-        #     pa3 = param_disk['hPA3']
-        #     dy3 = param_disk['hdy3']
-        #     # dz3 = param_disk['hdz3']
-        #     Norm3 = param_disk['hNorm3']
-        #     dtheta3 = param_disk['dtheta3']
-
-        #     model3_left = fastgen_wind(ctrlrad=R2,
-        #                         beta=beta,
-        #                         pa=pa3,
-        #                         dx=dx, dy=dy3,
-        #                         Norm=Norm3,
-        #                         a_r=a_r3,sig=sig,
-        #                         y_arr=y,
-        #                         z_arr=z,
-        #                         npts=n_pts,
-        #                         mask=WHEREMASK2GENERATEHALO,
-        #                         left=True)
-        #     model3_right = fastgen_wind(ctrlrad=R2,
-        #                         beta=beta,
-        #                         pa=pa3,
-        #                         dx=dx, dy=dy3,
-        #                         Norm=Norm3,
-        #                         a_r=a_r3*dtheta3,sig=sig,
-        #                         y_arr=y,
-        #                         z_arr=z,
-        #                         npts=n_pts,
-        #                         mask=WHEREMASK2GENERATEHALO)
-        #     model += model3_left + model3_right
-    
-    # remove the nans to avoid problems when convolving
-    model1[model1 != model1] = 0
-    model2[model2 != model2] = 0
-    # I normalize by value of a_r to avoid degenerascies between a_r and Normalization
-    # model = param_spf['dc'] * model / param_disk['a_r']
-
-    # return model, rscale
-    return model1, model2
+    return model_list
 
 
 ########################################################
@@ -545,20 +339,8 @@ def logl(theta):
     Returns:
         Chisquare
     """
-    # model, scaling = call_gen_disk(theta)
-    model1, model2 = call_gen_disk(theta)
-
-
-    # modelconvolved = convolve(model, PSF, boundary='wrap')
-    # modelconvolved = fftconvolve(model, PSF, mode='same')
-    model1convolved = convolve(model1, PSF, mode='same')#,method='fft')
-    model2convolved = convolve(model2, PSF, mode='same')#,method='fft')
-    # if RPROFSUB:
-    #     modelconvolved += (MED_PROFILE_EST * scaling)
-    model1convolved *= (1 - WHEREMASK2GENERATEHALO)
-    model2convolved *= (1 - WHEREMASK2GENERATEHALO)
-    DISKOBJ.update_wind(model1convolved, model2convolved)
-    # model_fm = DISKOBJ.fm_parallelized_jit()[0]
+    model_list = call_gen_disk(theta)
+    DISKOBJ.update_wind(model_list)
     model_fm = DISKOBJ.fm_parallelized()[0]
 
     model_fm[model_fm != model_fm] = 0.
@@ -595,134 +377,27 @@ def logp(theta):
         log of priors
     """
     param_disk, _ = from_theta_to_params(theta)
+    for idx, comp in enumerate(param_disk["components"], start=1):
+        if comp["beta"] < -50 or comp["beta"] > 50:
+            print(f'beta_{idx} out of prior.')
+            return -np.inf
+        if comp["h0"] < -10 or comp["h0"] > 10:
+            print(f'h0_{idx} out of prior')
+            return -np.inf
+        if comp["sigma"] < 0.01 or comp["sigma"] > 224:
+            print(f'sigma_{idx} out of prior')
+            return -np.inf
+        if comp["PA"] < -180 or comp["PA"] > 180:
+            print(f'PA_{idx} out of prior')
+            return -np.inf
+        if comp["x0"] < -100 or comp["x0"] > 100:
+            print(f'x0_{idx} out of prior')
+            return -np.inf
+        if comp["Norm"] < 0.001 or comp["Norm"] > 1e5:
+            print(f'Norm_{idx} out of prior')
+            return -np.inf
 
-
-    prior_rout = 1.
-    # define the prior values
-
-
-    # if param_disk['rscale'] < 1 or param_disk['rscale'] > 500:
-    #     print('rscale out of prior.')
-    #     return -np.inf
-    # else:
-    #     prior_rout = prior_rout * 1.
-
-    if param_disk['hbeta'] < -50 or param_disk['hbeta'] > 50:
-        print('hbeta out of prior.')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-
-
-    if (param_disk['ha_r'] < -10 or param_disk['ha_r'] > 10):
-        print('ha_r out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    if (param_disk['hsig'] < 0.01 or param_disk['hsig'] > 224):
-        print('hsig out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    if (param_disk['hPA'] < -180 or param_disk['hPA'] > 180):
-        print('hPA out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    if (param_disk['hdx'] < -100) or (param_disk['hdx'] > 100):  #The x offset
-        print('hdx out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    if (param_disk['hdy'] < -6) or (param_disk['hdy'] > 6):  #The y offset
-        print('hdy out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    if (param_disk['hNorm'] < 0.001 or param_disk['hNorm'] > 1e5):
-        print('hNorm out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-
-    if (param_disk['dtheta'] < 0.999 or param_disk['dtheta'] > 2.0):
-        print('dtheta out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    # if param_disk['hbeta2'] < -50 or param_disk['hbeta2'] > 50:
-    #     print('hbeta2 out of prior.')
-    #     return -np.inf
-    # else:
-    #     prior_rout = prior_rout * 1.
-    if (param_disk['ha_r2'] < -10 or param_disk['ha_r2'] > 10):
-        print('ha_r2 out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    # if (param_disk['hsig2'] < 0.01 or param_disk['hsig2'] > 224):
-    #     print('hsig2 out of prior')
-    #     return -np.inf
-    # else:
-    #     prior_rout = prior_rout * 1.
-    # if (param_disk['hPA2'] < (param_disk['hPA'] + (WDH_DPA*0.75)) or param_disk['hPA2'] > (param_disk['hPA'] + (WDH_DPA*1.25))):
-    if (param_disk['hPA2'] < -180 or param_disk['hPA2'] > 180):
-        print('hPA2 out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    # if (param_disk['hdx2'] < -100) or (param_disk['hdx2'] > 100):  #The x offset
-    #     print('hdx2 out of prior')
-    #     return -np.inf
-    # else:
-    #     prior_rout = prior_rout * 1.
-    if (param_disk['hdy2'] < -6) or (param_disk['hdy2'] > 6):  #The y offset
-        print('hdy2 out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-    if (param_disk['hNorm2'] < 0.001 or param_disk['hNorm2'] > 1e5):
-        print('hNorm2 out of prior', param_disk['hNorm2'])
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-
-    if (param_disk['dtheta2'] < 0.999 or param_disk['dtheta2'] > 2.0):
-        print('dtheta2 out of prior')
-        return -np.inf
-    else:
-        prior_rout = prior_rout * 1.
-
-        # if ADD_WDH > 1:
-        #     if (param_disk['ha_r3'] < -10 or param_disk['ha_r3'] > 10):
-        #         print('ha_r3 out of prior')
-        #         return -np.inf
-        #     else:
-        #         prior_rout = prior_rout * 1.
-        #     # if (param_disk['hPA3'] < (param_disk['hPA2'] - (WDH_DPA2*1.1)) or param_disk['hPA3'] > (param_disk['hPA2'] + (WDH_DPA2*1.1))):
-        #     if (param_disk['hPA3'] < -180) or (param_disk['hPA3'] > 180):
-        #         print('hPA3 out of prior')
-        #         return -np.inf
-        #     else:
-        #         prior_rout = prior_rout * 1.
-        #     if (param_disk['hdy3'] < -4) or (param_disk['hdy3'] > 4):  #The y offset
-        #         print('hdy3 out of prior')
-        #         return -np.inf
-        #     else:
-        #         prior_rout = prior_rout * 1.
-        #     if (param_disk['hNorm3'] < 0.001 or param_disk['hNorm3'] > 1e5):
-        #         print('hNorm3 out of prior')
-        #         return -np.inf
-        #     else:
-        #         prior_rout = prior_rout * 1.
-        #     if (param_disk['dtheta3'] < 0.999 or param_disk['dtheta3'] > 2.0):
-        #         print('dtheta3 out of prior')
-        #         return -np.inf
-        #     else:
-        #         prior_rout = prior_rout * 1.
-
-    # otherwise ...
-    return np.log(prior_rout)
+    return 0.0
 
 
 ########################################################
@@ -768,8 +443,10 @@ def make_noise_map_rings(nodisk_data,
         a [dim,dim] array where each concentric rings is at a constant value
             of the standard deviation of the reduced_data
     """
-    if aligned_center == None:
+    if aligned_center is None:
         image_center = nodisk_data.shape[0] // 2, nodisk_data.shape[1] // 2
+    else:
+        image_center = aligned_center
     if len(nodisk_data.shape) > 2:
         # print('Generating noise cube...')
         insitu_noise_frames = []
@@ -792,7 +469,7 @@ def make_noise_map_rings(nodisk_data,
             insitu_noise_frames.append(blank_noise)
         noise_map = np.asarray(insitu_noise_frames)
     else:
-        dim = nodisk_data.shape[1]
+        dim = nodisk_data.shape[0]
         # nodisk_data[nodisk_data != nodisk_data] = 0
         # create rho2D for the rings
         x = np.arange(dim, dtype=float)[None, :] - image_center[0]
@@ -807,7 +484,7 @@ def make_noise_map_rings(nodisk_data,
         # noise_map[noise_map == 0] = np.nan
     return noise_map
 
-def create_uncertainty_map(params_mcmc_yaml):
+def create_uncertainty_map(dataset, params_mcmc_yaml):
     """ measure the uncertainty map using the counter rotation trick
     described in Sec4 of Gerard&Marois SPIE 2016 and probabaly elsewhere
 
@@ -824,19 +501,34 @@ def create_uncertainty_map(params_mcmc_yaml):
     """
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
     aligned_center = params_mcmc_yaml['ALIGNED_CENTER']
-    
+    delta_raddii = int(params_mcmc_yaml.get("DELTA_RADII", 1))
+
     datadir = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'])
-    klipdir = os.path.join(datadir, 'klip_fm_files')
+    klipdir = os.path.join(datadir, 'wind_fm_files')
 
     maskfornoisemap = fits.getdata(
-        os.path.join(klipdir,
-                     file_prefix + '_mask2minimize.fits'))
-    reduced_data = fits.getdata(
-        os.path.join(klipdir,
-                     file_prefix + '-klipped-KLmodes-all.fits'))
-    noise = make_noise_map_rings(reduced_data * maskfornoisemap,
-                                 aligned_center=aligned_center,
-                                 delta_raddii=1)
+        os.path.join(klipdir, file_prefix + '_mask2minimize.fits')
+    )
+    back_rotated = []
+    for frame, parang in zip(dataset.input, dataset.PAs):
+        # Back-rotate each frame to the pupil frame; the astrophysical signal
+        # smears out in the median while residual speckles remain.
+        back_rotated.append(
+            nd_rotate(frame, -float(parang), reshape=False, order=1, mode="nearest")
+        )
+    back_rotated = np.asarray(back_rotated)
+    median_back_rotated = np.nanmedian(back_rotated, axis=0)
+    fits.writeto(
+        os.path.join(klipdir, file_prefix + '_backrot_median.fits'),
+        median_back_rotated,
+        overwrite=True,
+    )
+
+    noise = make_noise_map_rings(
+        median_back_rotated * maskfornoisemap,
+        aligned_center=aligned_center,
+        delta_raddii=delta_raddii,
+    )
     noise[noise == 0] = np.nan  #we are going to divide by this noise
 
     return noise
@@ -881,10 +573,6 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
     eff_wl = params_mcmc_yaml['WL']
     noise_multiplication_factor = params_mcmc_yaml["NOISE_MULTIPLICATION_FACTOR"]
     mask_speckles = params_mcmc_yaml['MASK_SPECKLES']
-    which_wind_parquet = params_mcmc_yaml["WIND_LOOKUP"]
-    path_wind_parquet = f"{basedir}/{which_wind_parquet}"
-    print(f"Read wind lookup table -> {path_wind_parquet}")
-
     ### This is the only part of the code different for GPI IFS anf SPHERE
     # For SPHERE We load and crop the PSF and the parangs
     # For GPI, we load the raw data, emasure hte PSF from sat spots and
@@ -895,19 +583,19 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
             if len(filelist) == 0:
                 raise ValueError(f"Could not find files in the dir: {datadir}")
 
-            input_data, par_angs, wdh1_angs, wdh2_angs = prep_image_frames_parangs(filelist,
-                                                                                   path_wind_parquet,
-                                                                                   )
+            input_data, par_angs = prep_image_frames_parangs(filelist)
             input_centers = np.array([aligned_center for _ in range(len(filelist))])
             # IWA = 10#use 10 for now, which is ~1.5 lambda/d JKK 01/08/22
             IWA = params_mcmc_yaml['IWA']#use 13 for now, post-optimized bkg sub SNRE says JKK 01/18/23
+            wdh_parangs = np.tile(par_angs, (N_WDH_COMPONENTS, 1))
+            valid_pa_mask = np.ones_like(wdh_parangs, dtype=bool)
 
             dataset = GenericWDH(input_data,
                                  input_centers,
                                  obj_parangs=par_angs,
-                                 wdh1_parangs=wdh1_angs,
-                                 wdh2_parangs=wdh2_angs,
+                                 wdh_parangs=wdh_parangs,
                                  IWA=IWA,filenames=filelist)
+            dataset._wdhValidMask = valid_pa_mask
         else:
             print("Unknown instrument. Exiting the script.")
             sys.exit("An error occurred due to not knowing which instrument.")
@@ -994,9 +682,7 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
 
         sys.stdout = sys.__stdout__
         
-        noise = create_uncertainty_map(
-                                       params_mcmc_yaml
-                                       )
+        noise = create_uncertainty_map(dataset, params_mcmc_yaml)
         noise *= noise_multiplication_factor
         fits.writeto(os.path.join(klipdir, file_prefix + '_noisemap.fits'),
                      noise,
@@ -1040,6 +726,8 @@ def initialize_windfm(dataset, params_mcmc_yaml, psflib=None, quietklip=True):
     klipdir = os.path.join(datadir, 'wind_fm_files')
 
 
+    model_pa_mask = np.ones((N_WDH_COMPONENTS, dataset.input.shape[0]), dtype=bool) if first_time else None
+
     if first_time:
         # create a first model to check the begining parameter and initialize the FM.
         # We will clear all useless variables befire starting the MCMC
@@ -1053,33 +741,14 @@ def initialize_windfm(dataset, params_mcmc_yaml, psflib=None, quietklip=True):
 
         #generate the model
         # model_here, scaling_here = call_gen_disk(theta_init)
-        model1_here, model2_here = call_gen_disk(theta_init)
+        model_list_here = call_gen_disk(theta_init)
 
         fits.writeto(os.path.join(klipdir, file_prefix + '_FirstModel.fits'),
-                     model1_here + model2_here,
-                     overwrite='True')
-
-        # model_here_convolved = convolve(model_here, PSF, boundary='wrap')
-        # model_here_convolved = fftconvolve(model_here, PSF, mode='same')
-        model1_here_convolved = convolve(model1_here, PSF, mode='same')#,method='fft')
-        model2_here_convolved = convolve(model2_here, PSF, mode='same')#,method='fft')
-        # if RPROFSUB:
-        #     model_here_convolved += (MED_PROFILE_EST*scaling_here)
-
-        fits.writeto(os.path.join(klipdir,
-                                  file_prefix + '_FirstModel1_Conv.fits'),
-                     model1_here_convolved,
-                     overwrite='True')
-        fits.writeto(os.path.join(klipdir,
-                                  file_prefix + '_FirstModel2_Conv.fits'),
-                     model2_here_convolved,
+                     np.nansum(np.asarray(model_list_here), axis=0),
                      overwrite='True')
 
     else:
-        model1_here_convolved = fits.getdata(
-        os.path.join(klipdir, file_prefix + '_FirstModel1_Conv.fits'))
-        model2_here_convolved = fits.getdata(
-        os.path.join(klipdir, file_prefix + '_FirstModel2_Conv.fits'))
+        model_list_here = call_gen_disk(THETA_INIT)
 
     if first_time:
         # Disable print for pyklip
@@ -1090,8 +759,8 @@ def initialize_windfm(dataset, params_mcmc_yaml, psflib=None, quietklip=True):
         diskobj = WindFM(dataset.input.shape,
                          numbasis,
                          dataset,
-                         model_wdh1=model1_here_convolved,
-                         model_wdh2=model2_here_convolved,
+                         model_wdh_list=model_list_here,
+                         model_pas_mask=model_pa_mask,
                          basis_filename=os.path.join(
                              klipdir, file_prefix + '_klbasis.h5'),
                          save_basis=True,
@@ -1149,8 +818,8 @@ def initialize_windfm(dataset, params_mcmc_yaml, psflib=None, quietklip=True):
     diskobj = WindFM(None,
                      None,
                      None,
-                     model_wdh1=model1_here_convolved,
-                     model_wdh2=model2_here_convolved,
+                     model_wdh_list=model_list_here,
+                     model_pas_mask=None,
                      basis_filename=os.path.join(klipdir,
                                                  file_prefix + '_klbasis.h5'),
                      load_from_basis=True)
@@ -1158,11 +827,11 @@ def initialize_windfm(dataset, params_mcmc_yaml, psflib=None, quietklip=True):
 
     # test the diskFM object
 
-    diskobj.update_wind(model1_here, model2_here)
+    diskobj.update_wind(model_list_here)
 
     if first_time:
         ### we take only the first KL modemode
-        modelfm_here = diskobj.fm_parallelized_jit()[0]
+        modelfm_here = diskobj.fm_parallelized()[0]
         # if RPROFSUB:
         #     modelfm_here -= MED_PROFILE_EST
         fits.writeto(os.path.join(klipdir,
@@ -1239,37 +908,16 @@ def from_param_to_theta_init(params_mcmc_yaml):
     Returns:
         initial set of MCMC parameter
     """
+    _ = params_mcmc_yaml  # maintained for compatibility with legacy call sites
     theta_init = []
+    component_lookup = {idx + 1: comp for idx, comp in enumerate(COMPONENT_INIT)}
 
-    # cosinc_init = np.cos(np.radians(params_mcmc_yaml['inc_init']))
-    # theta_init.append(np.log(params_mcmc_yaml['rscale_init']))
-    theta_init.append(params_mcmc_yaml['hbeta_init'])
-    theta_init.append(params_mcmc_yaml['ha_r_init'])
-    theta_init.append(params_mcmc_yaml['hsig_init'])
-    theta_init.append(params_mcmc_yaml['hpa_init'])
-    theta_init.append(params_mcmc_yaml['hdx_init'])
-    theta_init.append(params_mcmc_yaml['hdy_init'])
-    # theta_init.append(np.log(params_mcmc_yaml['hoffset_init']))
-    theta_init.append(np.log(params_mcmc_yaml['hN_init']))
-    theta_init.append(params_mcmc_yaml['dtheta_init'])
-    # theta_init.append(params_mcmc_yaml['hbeta2_init'])
-    theta_init.append(params_mcmc_yaml['ha_r2_init'])
-    # theta_init.append(params_mcmc_yaml['hsig2_init'])
-    theta_init.append(params_mcmc_yaml['hpa2_init'])
-    # theta_init.append(params_mcmc_yaml['hdx2_init'])
-    theta_init.append(params_mcmc_yaml['hdy2_init'])
-    theta_init.append(np.log(params_mcmc_yaml['hN2_init']))
-    theta_init.append(params_mcmc_yaml['dtheta2_init'])
-        # if multiwdh > 1:
-        #     theta_init.append(params_mcmc_yaml['ha_r3_init'])
-        #     theta_init.append(params_mcmc_yaml['hpa3_init'])
-        #     theta_init.append(params_mcmc_yaml['hdy3_init'])
-        #     theta_init.append(np.log(params_mcmc_yaml['hN3_init']))
-        #     theta_init.append(params_mcmc_yaml['dtheta3_init'])
-    
+    for token in FREE_PARAMS:
+        p_name, idx_str = token.split("_")
+        idx = int(idx_str)
+        theta_init.append(component_lookup[idx][p_name])
 
-
-    return np.asarray(theta_init)
+    return np.asarray(theta_init, dtype=float)
 
 
 if __name__ == '__main__':
@@ -1308,8 +956,6 @@ if __name__ == '__main__':
     NWALKERS = params_mcmc_yaml['NWALKERS']  #Number of walkers
     N_ITER_MCMC = params_mcmc_yaml['N_ITER_MCMC']  #Number of interation
     DISK_MODEL = params_mcmc_yaml['DISK_MODEL']
-    R_INNER = params_mcmc_yaml['r_inner'] #for modified disk model boundaries
-    R_OUTER = params_mcmc_yaml['r_outer'] #for modified disk model boundaries
 
     FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
     NEW_BACKEND = params_mcmc_yaml['NEW_BACKEND']
@@ -1325,10 +971,10 @@ if __name__ == '__main__':
                                  'windfit_MCMC')
 
 
-    if (DISK_MODEL.lower() == 'modified') or (DISK_MODEL.lower() == 'original'):
+    if DISK_MODEL.lower() in ('wdh'):
         pass
     else:
-        raise ValueError(DISK_MODEL + "not a valid disk model. Choose 'original' or 'modified'.")
+        raise ValueError(DISK_MODEL + "not a valid disk model. Choose 'wdh'.")
 
     # load DISTANCE_STAR & PIXSCALE_INS and make them global
     DISTANCE_STAR = params_mcmc_yaml['DISTANCE_STAR']
@@ -1336,10 +982,20 @@ if __name__ == '__main__':
     ALIGNED_CENTER = params_mcmc_yaml['ALIGNED_CENTER']
 
 
+    wdh_cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
+    N_WDH_COMPONENTS = _n_wdh_components(params_mcmc_yaml)
+    SHARED_COMPONENT_FLAGS = _shared_component_flags(params_mcmc_yaml)
+    COMPONENT_INIT = [
+        _component_init_from_yaml(params_mcmc_yaml, idx)
+        for idx in range(1, N_WDH_COMPONENTS + 1)
+    ]
+    GAMMA_FIXED = float(_cfg_first_match(wdh_cfg, ["gamma_fixed"], default=1.0))
+    FREE_PARAMS = arr_free_params(params_mcmc_yaml)
+    THETA_INIT = from_param_to_theta_init(params_mcmc_yaml)
+
     # initialize the things necessary to measure the model (PSF, masks,
     # uncertainities). In RDI mode, psflib is also initiliazed here
-    dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml,
-                                                quietklip=True)
+    dataset, psflib = initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True)
 
     ## Load all variables necessary for the MCMC and make them global
     ## to avoid very long transfert time at each iteration
@@ -1350,25 +1006,12 @@ if __name__ == '__main__':
 
     # load noise and make it global
 
-    # load PSF and make it global
-    # PSF = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_SmallPSF.fits'))
-    PSF = fits.getdata(os.path.join(KLIPDIR, FILE_PREFIX + '_instrPSF.fits'))
-    PSF /= np.sum(PSF)
-
-    # if ADD_WDH > 0:
-    #     WDH_DPA = params_mcmc_yaml["WDH_DPA"]
-    #     if ADD_WDH > 1:
-    #         WDH_DPA2 = params_mcmc_yaml["WDH_DPA2"]
     USE_NOISE = params_mcmc_yaml["USE_NOISE"]
+    # TODO add a radial profile subtraction for the WDH model
     RPROFSUB = params_mcmc_yaml["RPROFSUB"]
     # if RPROFSUB:
     #     MED_PROFILE_EST = fits.getdata(f"{KLIPDIR}/estimated_med_profile.fits")
     #     MED_PROFILE_EST /= np.max(MED_PROFILE_EST)
-    FREE_PARAMS = arr_free_params(params_mcmc_yaml)
-
-    # load initial parameter value and make them global
-    THETA_INIT = from_param_to_theta_init(params_mcmc_yaml)
-
     # measure the size of images DIMENSION and make it global
     DIMENSION = round(ALIGNED_CENTER[0]) * 2
     N_DIM_MCMC = len(THETA_INIT)

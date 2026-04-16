@@ -1019,16 +1019,18 @@ def _save_rotated_section(input_shape, sector, sector_ind, output_img, output_im
     # rot_sector_validpix_2d = np.isnan(blank_output)
 
     # save output sector. We need to reshape the array into 2d arrays to save it
-    output_img.shape = [outputs_shape[1], outputs_shape[2]]
+    # Use the provided single-image shape directly; relying on global
+    # outputs_shape is brittle across serial/debug execution modes.
+    output_img.shape = [dims[0], dims[1]]
     # output_img[rot_sector_validpix_2d] = np.nansum([output_img[rot_sector_pix][sector_validpix], rot_sector[sector_validpix]], axis=0)
     output_img[rot_sector_validpix_2d] = np.nansum([output_img[rot_sector_pix][~sector_validpix], rot_sector[~sector_validpix]], axis=0)
-    output_img.shape = [outputs_shape[1] * outputs_shape[2]]
+    output_img.shape = [dims[0] * dims[1]]
 
     # Increment the numstack counter if it is not None
     if output_img_numstacked is not None:
-        output_img_numstacked.shape = [outputs_shape[1], outputs_shape[2]]
+        output_img_numstacked.shape = [dims[0], dims[1]]
         output_img_numstacked[rot_sector_validpix_2d] += 1
-        output_img_numstacked.shape = [outputs_shape[1] *  outputs_shape[2]]
+        output_img_numstacked.shape = [dims[0] * dims[1]]
 
 
 
