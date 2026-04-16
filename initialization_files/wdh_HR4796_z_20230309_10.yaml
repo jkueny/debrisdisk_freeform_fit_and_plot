@@ -1,5 +1,5 @@
 # PYKLIP PARAMETERS
-FIRST_TIME: False
+FIRST_TIME: false
 FIRST_TIME_GS: False #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
 DISK_MODEL: wdh # original or modified Max MB model code
@@ -11,7 +11,7 @@ ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 10 # pixels
 OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
-MOVE_HERE: 8  #minrot in PyKLIP ADI
+MOVE_HERE: 6  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
 #use [int((thumb_dim+1)/2),int((thumb_dim+1)/2)]
 # ALIGNED_CENTER: [120,120] #image center in your model, also use to center the image before KLIP
@@ -86,9 +86,9 @@ alpha1_init: 0.3184
 # WIND PARAMETERS
 N_WIND_LAYERS: 3
 gamma_fixed: 1.0
-beta_shared_state: false
-a_r_shared_state: false
-sig_shared_state: false
+beta_shared_state: true
+a_r_shared_state: true
+sig_shared_state: true
 dx_shared_state: false
 Norm_shared_state: false
 
