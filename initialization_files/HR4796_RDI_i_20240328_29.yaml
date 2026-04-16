@@ -31,6 +31,7 @@ ALIGNED_CENTER: [111.5,111.5] #image center in your model, also use to center th
 # The images where the disk is on the satspots are autonatically remove to measure the PSF
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
 BAND_DIR: HR4796_lco20240328_29/raws_2x2binning_iz_smlyot/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 RDI_DIR: .       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)

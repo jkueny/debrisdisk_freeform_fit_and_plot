@@ -13,20 +13,8 @@ Usage:
     ff_klip -p initialization_files/params.yaml --force --log-to-file
     ff_klip -p initialization_files/params.yaml --make-diskless-image
 
-TODO add the option to specify a custom path for the output
-klip_fm_files directory
-  - This then needs to be reported in the logging/log file to
-  remind the user to specify this path in the subsequent steps
-  in the pipeline
-  - Actually this custom path should be specified in the config file
-  as a new parameter, e.g. KLIP_FM_FILES_PATH
-  - This then, *if present* needs to be used to override the default path
-  for the klip_fm_files directory. If KLIP_FM_FILES_PATH is null,
-  then the default path is used.
-  - I've added this new param to HR4796a_z_lco2023a_magao-x_20230309_10.yaml
-  - These changes should be propagated to the other config files as well.
-  - These changes should be propagated to the ff_setup.py and ff_optimize.py
-  scripts as well.
+The optional config key `KLIP_FM_FILES_PATH` overrides the default
+`BAND_DIR/klip_fm_files` output path when present.
 '''
 
 import os
@@ -39,6 +27,40 @@ from astropy.io import fits
 from ffortissimo.modeling.disk_freeform import FreeFormDisk
 from ffortissimo.io.log_handling import configure_logging
 logger = logging.getLogger(__name__)
+
+
+def resolve_klip_output_dir(ffd_obj, injected_dir=None):
+    """
+    Resolve KLIP/FM output directory from CLI and config.
+
+    Priority:
+      1) injected_dir/klip_fm_files when --injected-dir is used
+      2) KLIP_FM_FILES_PATH from config (absolute or basedir-relative)
+      3) default FreeFormDisk path derived from BAND_DIR
+    """
+    if injected_dir is not None:
+        output_dir = os.path.join(injected_dir, "klip_fm_files")
+        source = "--injected-dir"
+    else:
+        custom_path = ffd_obj.params_file.get("KLIP_FM_FILES_PATH")
+        if custom_path is None:
+            output_dir = ffd_obj.klipdir
+            source = "BAND_DIR default"
+        else:
+            custom_path = str(custom_path).strip()
+            if custom_path == "":
+                output_dir = ffd_obj.klipdir
+                source = "BAND_DIR default"
+            else:
+                expanded_path = os.path.expanduser(custom_path)
+                if not os.path.isabs(expanded_path):
+                    expanded_path = os.path.join(ffd_obj.basedir, expanded_path)
+                output_dir = os.path.abspath(expanded_path)
+                source = "KLIP_FM_FILES_PATH"
+
+    os.makedirs(output_dir, exist_ok=True)
+    ffd_obj.klipdir = output_dir
+    return output_dir, source
 
 
 
@@ -106,7 +128,7 @@ Examples:
     original_datadir = ffd_obj.datadir
     injected_dir = args.injected_dir if args.injected_dir is not None else None
 
-    # Override data and output directories if injected directory is provided
+    # Override data directory if injected directory is provided
     if injected_dir is not None:
         if not os.path.exists(injected_dir):
             logger.error("Injected directory not found: %s", injected_dir)
@@ -114,10 +136,10 @@ Examples:
         logger.info("Using injected data directory: %s", injected_dir)
         # Override datadir to point to injected directory (where FITS files are)
         ffd_obj.datadir = injected_dir
-        # Override klipdir to point to klip_fm_files subdirectory in injected directory
-        ffd_obj.klipdir = os.path.join(injected_dir, "klip_fm_files")
-        os.makedirs(ffd_obj.klipdir, exist_ok=True)
-        logger.info("Output will be saved to: %s", ffd_obj.klipdir)
+    resolved_klipdir, klipdir_source = resolve_klip_output_dir(ffd_obj, injected_dir=injected_dir)
+    logger.info("KLIP/FM output directory (%s): %s", klipdir_source, resolved_klipdir)
+    if klipdir_source == "KLIP_FM_FILES_PATH":
+        logger.info("Use this same directory for ff_setup and ff_optimize.")
     main_datadir = ffd_obj.datadir
     # data_dir = os.join(os.environ["HOME"], "data", ffd_obj.params_file["BAND_DIR"])
     save_to_dir = args.log_to_file if args.log_to_file is not None else False

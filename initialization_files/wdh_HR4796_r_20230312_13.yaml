@@ -27,6 +27,7 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
 BAND_DIR: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)

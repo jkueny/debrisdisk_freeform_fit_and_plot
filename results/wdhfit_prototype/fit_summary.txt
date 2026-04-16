@@ -1,9 +1,11 @@
-Prototype WDH MCMC fit summary
-Fixed PA (deg): 359.714190
-PARANG from data (deg): 47.502300
-Valid pixels in mask2minimize: 11985
-Best log prob: -5.992500e+03
-beta: 0.88282828
-h0: 2.43157270
-norm: 413.00922769
-x0: -3.45732955
+WDH parametric fit to reference WDH model
+Reference FITS: /Users/jkueny/projects/debrisdisk_freeform_fit_and_plot/starting_models/wdh_camsci2_z_20230309_10.fits
+Valid pixels in mask2generatehalo: 50056
+Best log prob: -4.668119e+06
+beta: 1.35481645
+h0: 0.14710397
+norm: 1800599.77282022
+fwhm: 17.53115813
+x0: 1.11348924
+PA: 66.73505087
+y0: -0.09505956

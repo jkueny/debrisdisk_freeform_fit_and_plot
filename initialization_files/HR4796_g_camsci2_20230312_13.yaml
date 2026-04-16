@@ -26,6 +26,7 @@ pyklip:
 
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
 band_dir: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci2/lite_psflib  # name of folder where are the data (from basedir)
+KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 rdi_dir: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 file_prefix: camsci2_g_20230312_13 #prefix for all saved files (carefull not to erase your results)
 metadata:

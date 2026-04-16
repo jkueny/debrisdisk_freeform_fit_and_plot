@@ -12,17 +12,8 @@ Usage:
     ff_optimize -p initialization_files/config.yaml --dry-run
     ff_optimize -p initialization_files/config.yaml -i 1000 --loss-tolerance 0.001 --log-to-file
 
-TODO add the option to specify a custom path for the output
-klip_fm_files directory
-  - This then needs to be reported in the logging/log file to
-  remind the user to specify this path in the subsequent steps
-  in the pipeline
-  - Actually this custom path should be specified in the config file
-  as a new parameter KLIP_FM_FILES_PATH
-  - This then, *if present* needs to be used to override the default path
-  for the klip_fm_files directory. If KLIP_FM_FILES_PATH is null,
-  then the default path is used.
-  - I've added this new param to HR4796a_z_lco2023a_magao-x_20230309_10.yaml
+The optional config key `KLIP_FM_FILES_PATH` overrides the default
+`BAND_DIR/klip_fm_files` output path when present.
 
 
 '''
@@ -47,6 +38,40 @@ from ffortissimo.utils.diskfit_tools import record_pyklip_params
 from ffortissimo.io.log_handling import configure_logging
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_klip_output_dir(ffd_obj, injected_dir=None):
+    """
+    Resolve KLIP/FM output directory from CLI and config.
+
+    Priority:
+      1) injected_dir/klip_fm_files when --injected-dir is used
+      2) KLIP_FM_FILES_PATH from config (absolute or basedir-relative)
+      3) default FreeFormDisk path derived from BAND_DIR
+    """
+    if injected_dir is not None:
+        output_dir = os.path.join(injected_dir, "klip_fm_files")
+        source = "--injected-dir"
+    else:
+        custom_path = ffd_obj.params_file.get("KLIP_FM_FILES_PATH")
+        if custom_path is None:
+            output_dir = ffd_obj.klipdir
+            source = "BAND_DIR default"
+        else:
+            custom_path = str(custom_path).strip()
+            if custom_path == "":
+                output_dir = ffd_obj.klipdir
+                source = "BAND_DIR default"
+            else:
+                expanded_path = os.path.expanduser(custom_path)
+                if not os.path.isabs(expanded_path):
+                    expanded_path = os.path.join(ffd_obj.basedir, expanded_path)
+                output_dir = os.path.abspath(expanded_path)
+                source = "KLIP_FM_FILES_PATH"
+
+    os.makedirs(output_dir, exist_ok=True)
+    ffd_obj.klipdir = output_dir
+    return output_dir, source
 
 
 def verify_prerequisites(ffd_obj):
@@ -284,6 +309,11 @@ Examples:
         assert ffd_obj.params_init['g2'] == ffd_obj.params_file['g2_test']
         assert ffd_obj.params_init['alpha1'] == ffd_obj.params_file['alpha1_test']
         logger.info("Injected directory: %s", injected_dir)
+
+    resolved_klipdir, klipdir_source = resolve_klip_output_dir(ffd_obj, injected_dir=injected_dir)
+    logger.info("KLIP/FM output directory (%s): %s", klipdir_source, resolved_klipdir)
+    if klipdir_source == "KLIP_FM_FILES_PATH":
+        logger.info("Ensure ff_klip and ff_setup used this same directory.")
 
     klipdir = ffd_obj.klipdir
     resultsdir = ffd_obj.resultsdir
