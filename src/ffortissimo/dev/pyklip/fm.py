@@ -7,6 +7,7 @@ import itertools
 import multiprocessing as mp
 import ctypes
 
+import numba
 import numpy as np
 import scipy.linalg as la
 from scipy.stats import norm
@@ -176,6 +177,158 @@ def klip_math(sci, refs, numbasis, covar_psfs=None, model_sci=None, models_ref=N
 
 
 # @profile
+@numba.njit(cache=True, fastmath=True)
+def tile_rows(arr, reps0):
+    """
+    Repeat the 1D array `arr` reps0 times along a new first axis,
+    producing a 2D array of shape (reps0, arr.shape[0]).
+    Equivalent to np.tile(arr, (reps0, 1)), but works under Numba.
+    """
+    m = reps0
+    n = arr.shape[0]
+    out = np.empty((m, n), arr.dtype)
+    for i in range(m):
+        for j in range(n):
+            out[i, j] = arr[j]
+    return out
+
+
+@numba.njit(cache=True, fastmath=True)
+def subtract_row_means(arr):
+    """
+    For a 2D array arr of shape (N_image, pixels), compute:
+      out[i, j] = arr[i, j] - (1/pixels) * sum_k arr[i, k]
+    """
+    n_rows, n_cols = arr.shape
+    out = np.empty((n_rows, n_cols), arr.dtype)
+    for i in range(n_rows):
+        total = 0.0
+        for j in range(n_cols):
+            total += arr[i, j]
+        mean = total / n_cols
+        for j in range(n_cols):
+            out[i, j] = arr[i, j] - mean
+    return out
+
+
+@numba.njit(cache=True, fastmath=True)
+def perturb_jit(evals, evecs, original_KL, refs, models_ref):
+    """
+    Perturb the KL modes using a model of the PSF but with the spectrum included in the model. Quicker than the others
+
+    Args:
+        evals: array of eigenvalues of the reference PSF covariance matrix (array of size numbasis)
+        evecs: corresponding eigenvectors (array of size [p, numbasis])
+        orignal_KL: unpertrubed KL modes (array of size [numbasis, p])
+        refs: N x p array of the N reference images that
+                  characterizes the extended source with p pixels
+        models_ref: N x p array of the N models corresponding to reference images.
+                    Each model should contain spectral informatoin
+
+    Returns:
+        delta_KL_nospec: perturbed KL modes. Shape is (numKL, pix)
+
+    Note:
+        Numba @njit'd. Inputs MUST be float64 numpy arrays. The caller is
+        responsible for upstream contiguity/dtype conformance.
+    """
+
+    max_basis = original_KL.shape[0]
+
+    refs_mean_sub = subtract_row_means(refs)
+    models_mean_sub = subtract_row_means(models_ref)
+
+    # Numba @njit-to-@njit calls: keep all args positional (kwargs are
+    # supported in modern numba but positional is the safer contract).
+    evals_tiled = tile_rows(evals, max_basis)
+    for k in range(max_basis):
+        evals_tiled[k, k] = 1.0
+    evals_sqrt = np.sqrt(evals)
+    evalse_inv_sqrt = 1.0 / evals_sqrt
+    evals_ratio = (evalse_inv_sqrt[:, None]).dot(evals_sqrt[None, :])
+    beta_tmp = 1.0 / (evals_tiled.transpose() - evals_tiled)
+    n = evals.shape[0]
+    for i in range(n):
+        beta_tmp[i, i] = -0.5 / evals[i]
+    beta = evals_ratio * beta_tmp
+
+    # Hottest line in the original (parent) implementation: this O(N_ref^2 * N_pix)
+    # outer product was where the macOS Accelerate segfault used to manifest under
+    # `fork`. Under @njit numba dispatches np.dot to BLAS directly, but inputs may
+    # be non-contiguous strided views from upstream slicing — see the
+    # NumbaPerformanceWarning. If profiling shows this is a bottleneck, wrap
+    # `models_mean_sub`/`refs_mean_sub` with np.ascontiguousarray *before* calling.
+    C_partial = models_mean_sub.dot(refs_mean_sub.transpose())
+    C = C_partial + C_partial.transpose()
+    alpha = (evecs.transpose()).dot(C).dot(evecs)
+
+    delta_KL = (beta * alpha).dot(original_KL) + (
+        evalse_inv_sqrt[:, None] * evecs.transpose()
+    ).dot(models_mean_sub)
+
+    return delta_KL
+
+
+@numba.njit(cache=True, fastmath=True)
+def calculate_fm_single_2d_jit(delta_KL, original_KL, sci, model_sci):
+    """JIT-compiled fast path for ``calculate_fm_singleNumbasis``.
+
+    Handles the single-numbasis, no-inputflux, 2D ``delta_KL`` case used by
+    :func:`WindFM.fm_parallelized_jit`. The original full-featured function
+    is kept for the other call paths (e.g. spectral mode, multi-basis, etc.).
+
+    Args:
+        delta_KL:    perturbed KL modes, shape (max_basis, N_pix), float64
+        original_KL: unperturbed KL modes, shape (max_basis, N_pix), float64
+        sci:         science vector, shape (N_pix,), float64
+        model_sci:   science-frame model vector, shape (N_pix,), float64
+                     (NOTE: NaNs are zeroed in-place — same behavior as the
+                     non-JIT calculate_fm_singleNumbasis to avoid a copy.)
+
+    Returns:
+        fm_psf: forward-modeled PSF for the (single) basis cutoff, shape (N_pix,).
+    """
+    n_pix = sci.shape[0]
+
+    # Mean-subtract science (NaN-aware), zeroing any remaining NaNs.
+    sci_sum = 0.0
+    n_finite = 0
+    for k in range(n_pix):
+        v = sci[k]
+        if v == v:  # not NaN
+            sci_sum += v
+            n_finite += 1
+    sci_mean = sci_sum / n_finite if n_finite > 0 else 0.0
+
+    sci_ms = np.empty(n_pix, sci.dtype)
+    for k in range(n_pix):
+        v = sci[k] - sci_mean
+        sci_ms[k] = 0.0 if v != v else v
+
+    # Match original behavior: zero NaNs in model_sci in-place (no mean-subtract).
+    for k in range(n_pix):
+        if model_sci[k] != model_sci[k]:
+            model_sci[k] = 0.0
+
+    # Reshape to (1, N_pix) for BLAS.
+    sci_ms_row = sci_ms.reshape(1, n_pix)
+    model_row = model_sci.reshape(1, n_pix)
+
+    # Inner products: each is (1, max_basis). All three reductions over pixels.
+    over_inner = model_row.dot(original_KL.T)
+    self1_inner = sci_ms_row.dot(delta_KL.T)
+    self2_inner = sci_ms_row.dot(original_KL.T)
+
+    # Project back through KL modes -> (1, N_pix). Single-basis case so the
+    # original `[max_basis::]=0` slice ops are no-ops and we drop them.
+    klipped_oversub = over_inner.dot(original_KL)
+    klipped_selfsub = self1_inner.dot(original_KL) + self2_inner.dot(delta_KL)
+
+    # FM PSF for the only basis row -> 1D (N_pix,).
+    out = np.empty(n_pix, sci.dtype)
+    for k in range(n_pix):
+        out[k] = model_sci[k] - klipped_oversub[0, k] - klipped_selfsub[0, k]
+    return out
 
 
 def perturb_specIncluded(evals, evecs, original_KL, refs, models_ref):

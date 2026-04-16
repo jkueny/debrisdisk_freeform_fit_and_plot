@@ -37,9 +37,6 @@ basedir = f'{os.environ["HOME"]}/data'  # the base directory where is
 default_parameter_file = "wdh_HR4796_z_20230309_10.yaml"
 # you can also call it with the python function argument -p
 
-# For parallelization stuff...?
-MPI = False  ## by default the MCMC is not mpi. you can change it
-## in the the python function argument --mpi
 
 import sys
 import glob
@@ -52,6 +49,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # # because this error was coming up
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['ACCELERATE_NUM_THREADS'] = '1'
+
 from multiprocessing import cpu_count
 
 
@@ -64,6 +65,7 @@ import astropy.io.fits as fits
 # from astropy.convolution import convolve
 from scipy.signal import convolve
 from scipy.ndimage import rotate as nd_rotate
+from scipy.ndimage import labeled_comprehension
 # from scipy.signal import fftconvolve
 from astropy.wcs import FITSFixedWarning
 
@@ -84,7 +86,7 @@ from ffortissimo.utils.masks import control_region_mask
 
 import ffortissimo.utils.make_gpi_psf_for_disks as gpidiskpsf
 import ffortissimo.utils.astro_unit_conversion as convert
-from ffortissimo.utils.improc_tools import subtract_radial_profile
+from ffortissimo.utils.improc_tools import subtract_radial_profile, get_radial_inds
 
 # recommended by emcee https://emcee.readthedocs.io/en/stable/tutorials/parallel/
 # and by PyKLIPto avoid that NumPy automatically parallelizes some operations,
@@ -92,14 +94,16 @@ from ffortissimo.utils.improc_tools import subtract_radial_profile
 os.environ["OMP_NUM_THREADS"] = "1"
 
 
-# # Globals consumed by lnpb/logl/call_gen_disk
-# DIMENSION = None
-# ALIGNED_CENTER = None
-# WHEREMASK2GENERATEHALO = None
-# DISKOBJ = None
-# REDUCED_DATA = None
-# NOISE = None
-# USE_NOISE = None
+# Globals consumed by lnpb/logl/call_gen_disk
+DIMENSION = None
+ALIGNED_CENTER = None
+WHEREMASK2GENERATEHALO = None
+DISKOBJ = None
+REDUCED_DATA = None
+NOISE = None
+USE_NOISE = None
+RPROFSUB = False
+RADIAL_INDS = None
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -108,6 +112,13 @@ def sort_parang_monotonic(filename):
         return float(match.group(1))
     else:
         raise ValueError(f"Filename {filename} does not match expected pattern.")
+
+def subtract_radial_profile_np(image, radial_inds, radii):
+    medians = labeled_comprehension(
+        image, radial_inds, radii, np.median, float, 0.0
+    )
+    profile_2d = medians[radial_inds]
+    return image - profile_2d
     
 def prep_image_frames_parangs(filelist):
     derot_angs = []
@@ -229,6 +240,8 @@ def validate_mcmc_runtime_globals():
     }
     if USE_NOISE:
         required["NOISE"] = NOISE
+    if RPROFSUB:
+        required["RADIAL_INDS"] = RADIAL_INDS
 
     missing = [name for name, value in required.items() if value is None]
     if missing:
@@ -245,6 +258,9 @@ def _init_mcmc_worker(
     reduced_data,
     noise,
     use_noise,
+    rprofsub,
+    radial_inds,
+    radii,
     component_init,
     shared_component_flags,
     free_params,
@@ -267,8 +283,8 @@ def _init_mcmc_worker(
     is cheap after the OS file cache has the file warm.
     """
     global DIMENSION, ALIGNED_CENTER, WHEREMASK2GENERATEHALO
-    global DISKOBJ, REDUCED_DATA, NOISE, USE_NOISE
-    global COMPONENT_INIT, SHARED_COMPONENT_FLAGS, FREE_PARAMS
+    global DISKOBJ, REDUCED_DATA, NOISE, USE_NOISE, RPROFSUB, RADIAL_INDS
+    global COMPONENT_INIT, SHARED_COMPONENT_FLAGS, FREE_PARAMS, RADII
     global N_WDH_COMPONENTS, GAMMA_FIXED, THETA_INIT
 
     DIMENSION = dimension
@@ -277,6 +293,9 @@ def _init_mcmc_worker(
     REDUCED_DATA = reduced_data
     NOISE = noise
     USE_NOISE = use_noise
+    RPROFSUB = rprofsub
+    RADIAL_INDS = radial_inds
+    RADII = radii
     COMPONENT_INIT = component_init
     SHARED_COMPONENT_FLAGS = shared_component_flags
     FREE_PARAMS = free_params
@@ -293,7 +312,11 @@ def _init_mcmc_worker(
         basis_filename=basis_filename,
         load_from_basis=True,
     )
-    DISKOBJ.update_wind(initial_model_list)
+    # Note: we deliberately do NOT call DISKOBJ.update_wind(initial_model_list)
+    # here. The very first lnpb/logl invocation in this worker calls update_wind
+    # with the proposed walker state, immediately overwriting any model_wdhs we
+    # would compute now. validPAs/wdhPAs/aligned_center are all restored by
+    # load_from_basis=True, so the object is in a usable state already.
 
 
 def arr_free_params(params_mcmc_yaml):
@@ -421,6 +444,14 @@ def logl(theta):
         Chisquare
     """
     model_list = call_gen_disk(theta)
+    if RPROFSUB:
+        combined_model = np.nansum(np.asarray(model_list), axis=0)
+        combined_model_sub = subtract_radial_profile_np(
+            combined_model,
+            RADIAL_INDS,
+            RADII,
+        )
+        model_list = [np.asarray(combined_model_sub, dtype=np.float32)]
     DISKOBJ.update_wind(model_list)
     model_fm = DISKOBJ.fm_parallelized()[0]
 
@@ -1105,6 +1136,10 @@ if __name__ == '__main__':
     #     MED_PROFILE_EST /= np.max(MED_PROFILE_EST)
     # measure the size of images DIMENSION and make it global
     DIMENSION = round(ALIGNED_CENTER[0]) * 2
+    RADIAL_INDS = np.asarray(get_radial_inds((DIMENSION, DIMENSION), ALIGNED_CENTER))
+    RADIAL_INDS_NP = np.asarray(RADIAL_INDS, dtype=np.int32)
+    MAX_R = int(RADIAL_INDS_NP.max()) + 1
+    RADII = np.arange(MAX_R)
     N_DIM_MCMC = len(THETA_INIT)
 
 
@@ -1194,6 +1229,9 @@ if __name__ == '__main__':
         REDUCED_DATA,
         NOISE,
         USE_NOISE,
+        RPROFSUB,
+        RADIAL_INDS,
+        RADII,
         COMPONENT_INIT,
         SHARED_COMPONENT_FLAGS,
         FREE_PARAMS,

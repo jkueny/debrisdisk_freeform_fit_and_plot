@@ -8,92 +8,90 @@ import ctypes
 import h5py
 
 import numpy as np
-# import numba
 
-from dev.pyklip.fmlib.nofm import NoFM
-import dev.pyklip.fm as fm
-from dev.pyklip.klip import rotate, rotate_image
+from ffortissimo.dev.pyklip.fmlib.nofm import NoFM
+import ffortissimo.dev.pyklip.fm as fm
+from ffortissimo.dev.pyklip.klip import rotate, rotate_image
 
-# define the global variables for that code
-# @numba.njit
 def fm_from_eigen_jit(
-                    klmodes=None,
-                    evals=None,
-                    evecs=None,
-                    input_img_num=None,
-                    ref_psfs_indicies=None,
-                    section_ind=None,
-                    target_img=None,
-                    ref_imgs=None,
-                    model_disks=None,
-                    numbasis=None):
+    klmodes,
+    evals,
+    evecs,
+    input_img_num,
+    ref_psfs_indicies,
+    section_ind,
+    target_img,
+    ref_imgs,
+    model_disks,
+):
     """
-    Generate forward models using the KL modes, eigenvectors, and eigenvectors from
-    KLIP. Calls fm.py functions to perform the forward modelling. If we wish to save
-    the KL modes, it save in dictionnaries.
+    Forward-model a single section using JIT-compiled inner kernels.
+
+    This is the fast path used by :meth:`WindFM.fm_parallelized_jit` for the
+    typical MCMC iteration: ``load_from_basis=True``, no RDI, single
+    ``numbasis``, no NaNs in the rotated WDH model. Numerics live in two
+    ``@numba.njit`` helpers exported from ``fm.py``:
+
+        - ``fm.perturb_jit``                 -> perturbed KL modes (delta_KL)
+        - ``fm.calculate_fm_single_2d_jit``  -> forward-modeled PSF section
+
+    The orchestrator itself is **not** ``@njit``: it does only array slicing
+    plus two calls into the JIT'd kernels, which is where ~all of the wall
+    time lives. Decorating the orchestrator would force us to either also
+    JIT ``calculate_fm_singleNumbasis`` (with its complex spectral/multi-
+    basis branches) or duplicate that logic; both options carry significant
+    maintenance cost for negligible speedup.
 
     Args:
-        klmodes: unpertrubed KL modes
-        evals: eigenvalues of the covariance matrix that generated the KL modes in
-                ascending order(lambda_0 is the 0 index) (shape of [nummaxKL])
-        evecs: corresponding eigenvectors (shape of [p, nummaxKL])
-        input_image_shape: 2-D shape of inpt images ([ysize, xsize])
-        input_img_num: index of sciece frame
-        ref_psfs_indicies: array of indicies for each reference PSF
-        section_ind: array indicies into the 2-D x-y image that correspond to
-                        this section. Note: needs be called as section_ind[0]
-        radstart: radius of start of segment
-        radend: radius of end of segment
-        phistart: azimuthal start of segment [radians]
-        phiend: azimuthal end of segment [radians]
-        padding: amount of padding on each side of sector
-        IOWA: tuple (IWA,OWA) IWA = Inner working angle & OWA = Outer working angle,
-                both in pixels. It defines the separation interva in which klip will
-                be run.
-        ref_center: center of image
-        parang: parallactic angle of input image [DEGREES]
-        numbasis: array of KL basis cutoffs
-        fmout: numpy output array for FM output. Shape is (N, y, x, b)
-        mode: mode of the reduction ('RDI', 'ADI', 'SDI'). If RDI only, we only 
-                measure the oversubctraction
-        kwargs: any other variables that we don't use but are part of the input
+        klmodes: unperturbed KL modes, shape (max_basis, N_pix)
+        evals: covariance eigenvalues, shape (max_basis,)
+        evecs: covariance eigenvectors, shape (N_ref, max_basis)
+        input_img_num: index of the science frame
+        ref_psfs_indicies: 1D array of reference-PSF indices for this section
+        section_ind: index array into the flattened image for this section
+                     (used as ``section_ind[0]`` per pyklip convention)
+        target_img: the science section pixels, shape (N_pix,)
+        ref_imgs: the reference section pixels, shape (N_ref, N_pix)
+        model_disks: ``self.model_wdhs``, shape (N_frames, N_image_pix);
+                     this function slices the science and reference rows
+                     internally.
 
     Returns:
-        None
-
+        fm_psf: forward-modelled PSF section as a 1D numpy array of length
+                N_pix. Caller passes this directly to
+                ``fm._save_rotated_section`` as the ``sector`` argument.
     """
-    
-    sci = target_img
-    refs = ref_imgs
-    
 
-
-    # use the disk model stored
-    # We've checked if there are NaNs in the disk model before this
-    # function is called, right? Right.
-    model_sci = model_disks[input_img_num, section_ind[0]]
-    model_ref = model_disks[ref_psfs_indicies, :]
-    model_ref = model_ref[:, section_ind[0]]
-
-    # delta_KL = fm.perturb_specIncluded(
-    delta_KL = fm.perturb_jit(
-        evals,
-        evecs,
-        klmodes,
-        refs,
-        model_ref,
-        # return_perturb_covar=False,
+    # Section slices off self.model_wdhs. We materialize *contiguous*
+    # float64 copies up front because:
+    #   1. The inner @njit kernels emit a NumbaPerformanceWarning on
+    #      strided non-contiguous BLAS inputs (the model_disks slices are
+    #      strided views).
+    #   2. Numba dispatches to BLAS more efficiently on C-contiguous arrays.
+    # The cost of np.ascontiguousarray here is well under the cost of
+    # `perturb_jit`'s O(N_ref^2 * N_pix) outer products that follow.
+    section = section_ind[0]
+    model_sci = np.ascontiguousarray(
+        model_disks[input_img_num, section], dtype=np.float64
+    )
+    model_ref = np.ascontiguousarray(
+        model_disks[ref_psfs_indicies, :][:, section], dtype=np.float64
     )
 
-    # postklip_psf, _, _ = fm.calculate_fm_singleNumbasis(delta_KL,
-    postklip_psf = fm.calculate_fm_singleNumbasis(delta_KL,
-                                                klmodes,
-                                                numbasis,
-                                                sci,
-                                                model_sci,)
+    sci = np.ascontiguousarray(target_img, dtype=np.float64)
+    refs = np.ascontiguousarray(ref_imgs, dtype=np.float64)
+    klmodes_c = np.ascontiguousarray(klmodes, dtype=np.float64)
+    evals_c = np.ascontiguousarray(evals, dtype=np.float64)
+    evecs_c = np.ascontiguousarray(evecs, dtype=np.float64)
 
-    # We save the KL basis and params for this image and section in a dictionnaries
-    return postklip_psf
+    # 1) Perturb the KL modes from the proposed model (the BLAS-heavy step).
+    delta_KL = fm.perturb_jit(evals_c, evecs_c, klmodes_c, refs, model_ref)
+
+    # 2) Compose the forward-modelled PSF for this section.
+    #    Returns a 1D (N_pix,) array directly — the previous tuple-return
+    #    plumbing (`pk_psf[0]`-into-`_save_rotated_section`) relied on
+    #    accidental shape broadcasting and was confusing.
+    return fm.calculate_fm_single_2d_jit(delta_KL, klmodes_c, sci, model_sci)
 
 
 class WindFM(NoFM):
@@ -313,41 +311,43 @@ class WindFM(NoFM):
         """
         num_components = len(model_wdh_list)
         model_shape = np.shape(model_wdh_list[0])
+        n_frames = int(self.inputs_shape[0])
         self.model_wdhs = np.zeros(self.inputs_shape)
 
         wind_pa_list = self.wdhPAs
 
-        for i in range(self.inputs_shape[0]): # inputs_shape [Kimages xpix ypix]
+        # Hoist the float64 cast out of the inner loop. There are only
+        # `num_components` unique input arrays, but the inner loop runs
+        # n_frames * num_components times, so the previous deepcopy + cast
+        # in-loop produced ~n_frames extra copies per call. rotate_image
+        # (cv2.warpAffine) does not mutate its input, so reusing the same
+        # cast array across frames is safe.
+        models = [m.astype(np.float64, copy=True) for m in model_wdh_list]
+
+        for i in range(n_frames):  # inputs_shape [Kimages xpix ypix]
             model_sum = np.zeros(model_shape)
 
             for j in range(num_components):
-                # print(j)
-                model = np.asarray(deepcopy(model_wdh_list[j]), dtype=np.float64)
+                if not self.validPAs[j][i]:
+                    # Adding zeros is a no-op; skip the rotation and the
+                    # zeros allocation we used to do here.
+                    continue
 
-                # Get the wind PA list for this component
-                do_rot = self.validPAs[j][i]
-
-                if do_rot:
-                    wind_pa_here = wind_pa_list[j][i]
-                    model_rot = rotate_image(
-                        model,
-                        wind_pa_here,
-                        self.aligned_center,
-                        flipx=True,
-                    )
-                else:
-                    model_rot = np.zeros(model_shape)
-
+                wind_pa_here = wind_pa_list[j][i]
+                model_rot = rotate_image(
+                    models[j],
+                    wind_pa_here,
+                    self.aligned_center,
+                    flipx=True,
+                )
                 model_sum += model_rot
 
             model_sum[np.isnan(model_sum)] = 0.0
             self.model_wdhs[i] = model_sum
 
-        # print(valid_PA_mask[1])
-
         self.model_wdhs = np.reshape(
             self.model_wdhs,
-            (self.inputs_shape[0], self.inputs_shape[1] * self.inputs_shape[2]),
+            (n_frames, self.inputs_shape[1] * self.inputs_shape[2]),
         )
 
 
@@ -840,10 +840,15 @@ class WindFM(NoFM):
 
         """
 
-        fmout_data, fmout_shape = self.alloc_fmout(self.output_imgs_shape)
-        fmout_np = fm._arraytonumpy(fmout_data,
-                                    fmout_shape,
-                                    dtype=self.data_type)
+        # The per-section loop below is sequential: there is no inner
+        # multiprocessing.Pool reading/writing fmout, so we do not need an
+        # mp.Array (which incurs a synchronized shared-memory allocation
+        # plus a resource_tracker round-trip per call). A plain numpy array
+        # is materially faster in the MCMC hot path. alloc_fmout is left in
+        # place for the fm.klip_dataset basis-construction path, which does
+        # spawn workers that share fmout.
+        fmout_np = np.zeros(self.output_imgs_shape, dtype=self.data_type)
+
         # this line is added to be able to use fm._save_rotated_section
         # which uses global var outputs_shape
         fm.outputs_shape = self.output_imgs_shape
@@ -861,11 +866,6 @@ class WindFM(NoFM):
         for key in self.dict_keys:  # loop pver the sections/images
 
             img_num = self.input_img_num_dict[key]
-
-            # To have a single identifier for each set of aligned images,
-            # we save the wavelenght in nm
-            # wl_here = wvs[img_num]
-            # wlstr = 'wl' + str(int(wl_here * 1000)).zfill(4)
 
             # in load mode, we do not pass aligned_images_dict
             # because it is already in the class to
@@ -893,11 +893,7 @@ class WindFM(NoFM):
                 mode=mode)
 
         # put any finishing touches on the FM Output
-        fmout_np = fm._arraytonumpy(fmout_data,
-                                    fmout_shape,
-                                    dtype=self.data_type)
         fmout_np = self.cleanup_fmout(fmout_np)
-
 
         # If false then this is a collapsed-spec mode or pol mode: collapsed
         # across all files
@@ -921,14 +917,11 @@ class WindFM(NoFM):
 
         """
 
-        fmout_data, fmout_shape = self.alloc_fmout(self.output_imgs_shape)
-        # fmout_np = np.zeros(self.output_imgs_shape)
-        fmout_np = fm._arraytonumpy(fmout_data,
-                                    fmout_shape,
-                                    dtype=self.data_type)
-        
-        # print(f"print(fmout_data.shape) -> {fmout_np.shape}")
-        # print(f"print(fmout_np_new.shape) -> {fmout_np_new.shape}")
+        # See fm_parallelized: this loop is sequential, so we skip the
+        # mp.Array shared-memory allocation in the MCMC hot path. alloc_fmout
+        # remains for the fm.klip_dataset basis-construction path.
+        fmout_np = np.zeros(self.output_imgs_shape, dtype=self.data_type)
+
         # this line is added to be able to use fm._save_rotated_section
         # which uses global var outputs_shape
         fm.outputs_shape = self.output_imgs_shape
@@ -943,19 +936,29 @@ class WindFM(NoFM):
             # if not we don't care since it does not have an
             # impact at this point
 
+        # Hoist branch-decision out of the per-section loop. All four
+        # conditions are invariant across `self.dict_keys` for a single
+        # MCMC step:
+        #   - load_from_basis / isRDI / numbasis size are class-level config
+        #   - model_wdhs is sanitized inside update_wind (NaNs zeroed) before
+        #     fm_parallelized_jit is called from logl, so the np.isnan scan
+        #     was always False here AND was an O(N) full-model traversal per
+        #     section. We drop it entirely; if a future code path can re-
+        #     introduce NaNs in model_wdhs, sanitize at the source instead.
+        use_jit_path = (
+            self.load_from_basis
+            and not self.isRDI
+            and np.size(self.numbasis) == 1
+        )
+
         for key in self.dict_keys:  # loop pver the sections/images
 
             img_num = self.input_img_num_dict[key]
 
-            # To have a single identifier for each set of aligned images,
-            # we save the wavelenght in nm
-            # wl_here = wvs[img_num]
-            # wlstr = 'wl' + str(int(wl_here * 1000)).zfill(4)
-
             # in load mode, we do not pass aligned_images_dict
             # because it is already in the class to
             # save memory
-            if not self.load_from_basis or self.isRDI or np.any(np.isnan(self.model_wdh1)) or np.size(self.numbasis) > 1:
+            if not use_jit_path:
                 self.fm_from_eigen(
                     klmodes=self.klmodes_dict[key],
                     evals=self.evals_dict[key],
@@ -976,9 +979,10 @@ class WindFM(NoFM):
                     numbasis=self.numbasis,
                     fmout=fmout_np,
                     mode=mode)
-            # currently we don't call the fast JIT function if using RDI, bc RDI is already fast, but TODO
+            # JIT fast path: load_from_basis, no RDI, single numbasis, no NaN
+            # in the rotated WDH model. RDI is intentionally excluded — it skips
+            # the perturb step entirely (delta_KL = 0) and would not benefit.
             else:
-                # print("JIT fm activated")
                 wlstrkey = 'wl' + str(int(self.wvs[img_num] * 1000)).zfill(4)
                 this_section = self.section_ind_dict[key][0]
                 these_ref_indices = self.ref_psfs_indicies_dict[key]
@@ -987,38 +991,35 @@ class WindFM(NoFM):
                 these_refs = self.aligned_images_dict[wlstrkey][these_ref_indices, :]
                 these_refs = these_refs[:, this_section]
                 pk_psf = fm_from_eigen_jit(
-                    klmodes=self.klmodes_dict[key],
-                    evals=self.evals_dict[key],
-                    evecs=self.evecs_dict[key],
-                    input_img_num=img_num,
-                    ref_psfs_indicies=self.ref_psfs_indicies_dict[key],
-                    section_ind=self.section_ind_dict[key],
-                    target_img=this_image,
-                    ref_imgs=these_refs,
-                    model_disks=self.model_wdhs,
-                    numbasis=self.numbasis,)
-                # write forward modelled disk to fmout (as output)
-                # need to derotate the image in this step
-
-                fm._save_rotated_section([self.inputs_shape[1], self.inputs_shape[2]],
-                                        pk_psf[0],
-                                        self.section_ind_dict[key],
-                                        fmout_np[img_num, :, :,
-                                            0],
-                                        None,
-                                        self.PAs[img_num],
-                                        self.radstart_dict[key],
-                                        self.radend_dict[key],
-                                        self.phistart_dict[key],
-                                        self.phiend_dict[key],
-                                        0.0,
-                                        (self.IWA, self.OWA),
-                                        self.aligned_center,
-                                        flipx=True)
-                # put any finishing touches on the FM Output
-        fmout_np = fm._arraytonumpy(fmout_data,
-                                    fmout_shape,
-                                    dtype=self.data_type)
+                    self.klmodes_dict[key],
+                    self.evals_dict[key],
+                    self.evecs_dict[key],
+                    img_num,
+                    self.ref_psfs_indicies_dict[key],
+                    self.section_ind_dict[key],
+                    this_image,
+                    these_refs,
+                    self.model_wdhs,
+                )
+                # pk_psf is a 1D (N_pix,) array, written into the single-basis
+                # slice of fmout_np via _save_rotated_section's standard plumbing.
+                fm._save_rotated_section(
+                    [self.inputs_shape[1], self.inputs_shape[2]],
+                    pk_psf,
+                    self.section_ind_dict[key],
+                    fmout_np[img_num, :, :, 0],
+                    None,
+                    self.PAs[img_num],
+                    self.radstart_dict[key],
+                    self.radend_dict[key],
+                    self.phistart_dict[key],
+                    self.phiend_dict[key],
+                    0.0,
+                    (self.IWA, self.OWA),
+                    self.aligned_center,
+                    flipx=True,
+                )
+        # put any finishing touches on the FM Output
         fmout_np = self.cleanup_fmout(fmout_np)
 
         fmout_return = np.nanmean(fmout_np, axis=1)
