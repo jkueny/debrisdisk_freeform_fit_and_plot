@@ -57,7 +57,6 @@ import numpy as np
 import astropy.io.fits as fits
 # from astropy.convolution import convolve
 from scipy.signal import convolve
-from scipy.ndimage import rotate as nd_rotate
 from scipy.ndimage import labeled_comprehension
 # from scipy.signal import fftconvolve
 from astropy.wcs import FITSFixedWarning
@@ -74,6 +73,7 @@ from ffortissimo.dev.pyklip.instruments.Wind import GenericWDH
 
 from ffortissimo.dev.pyklip.fmlib.windfm import WindFM
 import ffortissimo.dev.pyklip.fm as fm
+import ffortissimo.dev.pyklip.parallelized as parallelized
 
 from ffortissimo.utils.masks import control_region_mask
 
@@ -599,7 +599,8 @@ def make_noise_map_rings(nodisk_data,
     return noise_map
 
 def create_uncertainty_map(dataset, params_mcmc_yaml):
-    """ measure the uncertainty map using the counter rotation trick
+    """ measure the uncertainty map using a KLIP image built from
+    negated parallactic angles.
     described in Sec4 of Gerard&Marois SPIE 2016 and probabaly elsewhere
 
     Args:
@@ -607,8 +608,6 @@ def create_uncertainty_map(dataset, params_mcmc_yaml):
         params_mcmc_yaml: dic, all the parameters of the MCMC and klip
                             read from yaml file
         delta_raddii: pixel, widht of the small concentric rings
-        psflib: a PSF librairy if RDI
-
     Returns:
         a [dim,dim] array containing only speckles and the disk has been removed
 
@@ -623,29 +622,94 @@ def create_uncertainty_map(dataset, params_mcmc_yaml):
     maskfornoisemap = fits.getdata(
         os.path.join(klipdir, file_prefix + '_mask2minimize.fits')
     )
-    back_rotated = []
-    for frame, parang in zip(dataset.input, dataset.PAs):
-        # Back-rotate each frame to the pupil frame; the astrophysical signal
-        # smears out in the median while residual speckles remain.
-        back_rotated.append(
-            nd_rotate(frame, -float(parang), reshape=False, order=1, mode="nearest")
-        )
-    back_rotated = np.asarray(back_rotated)
-    median_back_rotated = np.nanmedian(back_rotated, axis=0)
-    fits.writeto(
-        os.path.join(klipdir, file_prefix + '_backrot_median.fits'),
-        median_back_rotated,
-        overwrite=True,
-    )
 
+    backrot_klip = fits.getdata(
+        os.path.join(klipdir, file_prefix + '_backrot-KLmodes-all.fits')
+    )[0]
+
+    # we don't need the noise map (which is the disk masked out) because
+    # the disk has been medianed out in the backrotated KLIP image
     noise = make_noise_map_rings(
-        median_back_rotated * maskfornoisemap,
+        backrot_klip,
         aligned_center=aligned_center,
         delta_raddii=delta_raddii,
     )
     noise[noise == 0] = np.nan  #we are going to divide by this noise
 
     return noise
+
+
+def create_backrotated_klip_image(dataset, params_mcmc_yaml, psflib=None, quietklip=True):
+    """Run KLIP once more with negated PAs and save the back-rotated product."""
+    file_prefix = params_mcmc_yaml['FILE_PREFIX']
+    aligned_center = params_mcmc_yaml['ALIGNED_CENTER']
+    numbasis = [params_mcmc_yaml['KLMODE_NUMBER']]
+    move_here = params_mcmc_yaml['MOVE_HERE']
+    mode = params_mcmc_yaml['MODE']
+    annuli = params_mcmc_yaml['ANNULI']
+    hp = params_mcmc_yaml['HP_FILTER']
+    datadir = os.path.join(basedir, params_mcmc_yaml['BAND_DIR'])
+    klipdir = os.path.join(datadir, 'wind_fm_files')
+    backrot_prefix = file_prefix + '_backrot'
+
+    original_pas = np.asarray(dataset._PAs, dtype=float).copy()
+
+    try:
+        dataset._PAs = -original_pas
+
+        blank_model = np.zeros(dataset.input.shape[1:], dtype=np.float32)
+        blank_model_list = [blank_model.copy() for _ in range(max(int(N_WDH_COMPONENTS), 1))]
+        model_pa_mask = np.ones((len(blank_model_list), dataset.input.shape[0]), dtype=bool)
+        windobj_backrot = WindFM(
+            dataset.input.shape,
+            numbasis,
+            dataset,
+            model_wdh_list=blank_model_list,
+            model_pas_mask=model_pa_mask,
+            basis_filename=os.path.join(klipdir, backrot_prefix + '_klbasis.h5'),
+            save_basis=True,
+            aligned_center=aligned_center,
+        )
+        maxnumbasis = dataset.input.shape[0]
+        if quietklip:
+            sys.stdout = open(os.devnull, 'w')
+
+        if hp > 0:
+            parallelized.klip_dataset(dataset,
+                            numbasis=numbasis,
+                            maxnumbasis=maxnumbasis,
+                            annuli=annuli,
+                            subsections=1,
+                            mode=mode,
+                            outputdir=klipdir,
+                            fileprefix=backrot_prefix,
+                            aligned_center=aligned_center,
+                            highpass=hp,
+                            minrot=move_here,
+                            calibrate_flux=False,
+                            numthreads=1,
+                            time_collapse='median',
+                            psf_library=psflib)
+        else:
+            parallelized.klip_dataset(dataset,
+                            numbasis=numbasis,
+                            maxnumbasis=maxnumbasis,
+                            annuli=annuli,
+                            mode=mode,
+                            subsections=1,
+                            outputdir=klipdir,
+                            fileprefix=backrot_prefix,
+                            aligned_center=aligned_center,
+                            highpass=False,
+                            minrot=move_here,
+                            calibrate_flux=False,
+                            numthreads=1,
+                            time_collapse='median',
+                            psf_library=psflib)
+    finally:
+        dataset._PAs = original_pas
+        if quietklip:
+            sys.stdout = sys.__stdout__
 
 
 
@@ -691,6 +755,8 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
     # For SPHERE We load and crop the PSF and the parangs
     # For GPI, we load the raw data, emasure hte PSF from sat spots and
     # collaspe the data
+    psflib = None
+
     if first_time:
         if instrument == 'MagAO-X':
             filelist = sorted(glob.glob(f'{datadir}/*parang.fits'), key=sort_parang_monotonic)
@@ -796,14 +862,18 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
 
         sys.stdout = sys.__stdout__
         
+        create_backrotated_klip_image(
+            dataset,
+            params_mcmc_yaml,
+            psflib=psflib,
+            quietklip=quietklip,
+        )
         noise = create_uncertainty_map(dataset, params_mcmc_yaml)
         noise *= noise_multiplication_factor
         fits.writeto(os.path.join(klipdir, file_prefix + '_noisemap.fits'),
                      noise,
                      overwrite='True')
-        psflib = None
     else:
-        psflib = None
         dataset = None
 
     return dataset, psflib
@@ -1304,7 +1374,8 @@ if __name__ == '__main__':
         # mode MPI or not
 
 
-        moves = [(StretchMove(), 0.5), (DEMove(), 0.3), (KDEMove(), 0.2)]
+        # moves = [(StretchMove(), 0.5), (DEMove(), 0.3), (KDEMove(), 0.2)]
+        moves = [(DEMove(), 0.8), (DESnookerMove(), 0.2)]
 
         sampler = EnsembleSampler(NWALKERS,
                                     N_DIM_MCMC,

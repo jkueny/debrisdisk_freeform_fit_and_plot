@@ -139,7 +139,7 @@ def klip_math(sci, ref_psfs, numbasis, covar_psfs=None, return_basis=False, retu
     max_basis = np.max(numbasis) + 1  # maximum number of eigenvectors/KL basis we actually need to use/calculate
 
     # calculate eigenvalues and eigenvectors of covariance matrix, but only the ones we need (up to max basis)
-    evals, evecs = la.eigh(covar_psfs, eigvals=(tot_basis-max_basis, tot_basis-1))
+    evals, evecs = la.eigh(covar_psfs, subset_by_index=(tot_basis-max_basis, tot_basis-1))
 
     # check if there are negative eignevalues as they will cause NaNs later that we have to remove
     # the eigenvalues are ordered smallest to largest
@@ -340,7 +340,7 @@ def nan_map_coordinates_2d(img, yp, xp, mc_kwargs=None):
     medval = np.nanmedian(img)
     img_copy = np.copy(img)
     img_copy[nanpix] = medval
-    transformed_img = ndimage.map_coordinates(img_copy, [yp, xp], order=1,
+    transformed_img = ndimage.map_coordinates(input=img_copy, coordinates=[yp, xp],
                                               **mc_kwargs)
 
     # mask nans

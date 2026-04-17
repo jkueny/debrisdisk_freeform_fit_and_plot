@@ -9,7 +9,7 @@ DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. V
 KLMODE_NUMBER: 2 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
-IWA: 10 # pixels
+IWA: 6 # pixels
 OWA: 112 # OWA of the reduction, in pixel. Reduce the zone to accelerate the code.
 MOVE_HERE: 14  #minrot in PyKLIP ADI
 HP_FILTER: False #size of FWHM for HP filter, disabled in diskfit_mcmc for now
@@ -56,7 +56,7 @@ NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 64 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
-N_ITER_MCMC: 5000 #Number of interation
+N_ITER_MCMC: 1000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
 # There is no burn-in phase here, the burnin only intervened when reading the data
 

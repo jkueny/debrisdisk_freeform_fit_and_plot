@@ -22,9 +22,9 @@ REFERENCE_WDH_FITS = _REPO_ROOT / "starting_models" / "wdh_camsci2_z_20230309_10
 
 
 def gen_wdh_image(
-    x, y, beta, h0, sigma, norm, pa_deg, x0, y0, gamma, inner_radius, fwhm
+    x, y, beta, h0, norm, pa_deg, x0, y0, gamma, inner_radius
 ):
-    """Generate a parametric WDH model image; optional Gaussian blur (fwhm in pixels)."""
+    """Generate a parametric WDH model image (no sigma term, no convolution)."""
     pa_rad = -np.deg2rad(pa_deg)
     x_rot = np.sin(pa_rad) * x + np.cos(pa_rad) * y
     y_rot = np.cos(pa_rad) * x - np.sin(pa_rad) * y
@@ -36,22 +36,17 @@ def gen_wdh_image(
     r_safe = np.maximum(r_shift, 1e-6)
     x_safe = np.sign(x_shift) * np.maximum(np.abs(x_shift), 1e-6)
     h0_safe = max(h0, 1e-6)
-    sigma_safe = max(sigma, 1e-6)
 
-    power_law = r_safe ** (-beta)
+    power_law = (1 / r_safe) ** (beta)
     exp_term = np.exp(
         -0.5
         * (
             (r_safe**2 / (h0_safe * np.abs(x_safe) ** 2) ** gamma)
-            + (x_safe / sigma_safe) ** 2
         )
     )
     image = np.nan_to_num(power_law * exp_term, nan=0.0, posinf=0.0, neginf=0.0)
     image *= norm
     image[r < inner_radius] = 0.0
-    if fwhm > 0:
-        sigma_pix = fwhm / (2 * np.sqrt(2 * np.log(2)))
-        image = ndi.gaussian_filter(image, sigma=sigma_pix, mode="nearest")
     return image
 
 
@@ -194,14 +189,12 @@ def hourglass_directional_mask(shape, center, pa_deg, opening_angle_deg):
 
 
 def build_parameterization(params):
-    """Free parameters; sigma and gamma stay fixed from YAML."""
+    """Free parameters; gamma stays fixed from YAML."""
     fixed_gamma = float(params["hgamma_init"])
-    fixed_sigma = float(params["hsig_init"])
     mapping = [
         ("hbeta_init", "beta"),
         ("ha_r_init", "h0"),
         ("hN_init", "norm"),
-        ("hfwhm_init", "fwhm"),
         ("hdx_init", "x0"),
         ("hpa_init", "PA"),
         ("hdy_init", "y0"),
@@ -217,33 +210,28 @@ def build_parameterization(params):
         theta_names,
         np.array(theta0, dtype=float),
         fixed_gamma,
-        fixed_sigma,
     )
 
 
-def theta_to_model_params(theta, fixed_gamma, fixed_sigma):
+def theta_to_model_params(theta, fixed_gamma):
     return {
         "beta": theta[0],
         "h0": theta[1],
         "norm": theta[2],
-        "fwhm": theta[3],
-        "x0": theta[4],
-        "pa_deg": theta[5],
-        "y0": theta[6],
-        "sigma": fixed_sigma,
+        "x0": theta[3],
+        "pa_deg": theta[4],
+        "y0": theta[5],
         "gamma": fixed_gamma,
     }
 
 
 def log_prior(theta):
-    beta, h0, norm, fwhm, x0, pa_deg, y0 = theta
+    beta, h0, norm, x0, pa_deg, y0 = theta
     if not (-3.0 < beta < 3.0):
         return -np.inf
     if not (0.1 < h0 < 10.0):
         return -np.inf
     if not (1e-8 < norm < 1e8):
-        return -np.inf
-    if not (0.0 <= fwhm < 30.0):
         return -np.inf
     if not (-5.0 < x0 < 5.0):
         return -np.inf
@@ -258,21 +246,18 @@ def log_likelihood(theta, data):
     params = theta_to_model_params(
         theta,
         fixed_gamma=data["fixed_gamma"],
-        fixed_sigma=data["fixed_sigma"],
     )
     model = gen_wdh_image(
         data["xgrid"],
         data["ygrid"],
         beta=params["beta"],
         h0=params["h0"],
-        sigma=params["sigma"],
         norm=params["norm"],
         pa_deg=params["pa_deg"],
         x0=params["x0"],
         y0=params["y0"],
         gamma=params["gamma"],
         inner_radius=data["inner_radius"],
-        fwhm=params["fwhm"],
     )
     residual = data["target_wdh"] - model
     fit_mask = data["mask2generatehalo"] > 0.5
@@ -399,7 +384,7 @@ def main():
     if valid_pix == 0:
         raise ValueError("mask2generatehalo has no valid pixels; check coronagraph settings.")
 
-    theta_names, theta0, fixed_gamma, fixed_sigma = build_parameterization(params)
+    theta_names, theta0, fixed_gamma = build_parameterization(params)
     center = np.asarray(params["ALIGNED_CENTER"], dtype=float)
     yy, xx = np.indices(target_wdh.shape, dtype=float)
     data = {
@@ -408,7 +393,6 @@ def main():
         "target_wdh": target_wdh,
         "mask2generatehalo": mask2generatehalo,
         "fixed_gamma": fixed_gamma,
-        "fixed_sigma": fixed_sigma,
         "inner_radius": float(params.get("IWA", 10.0)),
     }
 
@@ -432,7 +416,6 @@ def main():
     best_model_params = theta_to_model_params(
         best_theta,
         fixed_gamma=fixed_gamma,
-        fixed_sigma=fixed_sigma,
     )
 
     best_model = gen_wdh_image(
@@ -440,14 +423,12 @@ def main():
         data["ygrid"],
         beta=best_model_params["beta"],
         h0=best_model_params["h0"],
-        sigma=best_model_params["sigma"],
         norm=best_model_params["norm"],
         pa_deg=best_model_params["pa_deg"],
         x0=best_model_params["x0"],
         y0=best_model_params["y0"],
         gamma=best_model_params["gamma"],
         inner_radius=data["inner_radius"],
-        fwhm=best_model_params["fwhm"],
     )
     best_model_display = best_model * mask2generatehalo
     best_residual = target_wdh - best_model
