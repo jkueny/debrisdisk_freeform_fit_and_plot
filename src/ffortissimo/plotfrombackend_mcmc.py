@@ -83,12 +83,6 @@ def bootstrap_windfit_plot_runtime(params_mcmc_yaml, datadir):
         wfm.RADII = None
 
 
-def wdh_plot_axis_labels(params_mcmc_yaml):
-    """One label per FREE_PARAMS row (must match chain columns)."""
-    labels_map = params_mcmc_yaml.get('LABELS', {})
-    return [labels_map.get(tok, tok) for tok in wfm.FREE_PARAMS]
-
-
 def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
     """Infer token order for an existing backend, including pre-PA chains."""
     current = list(wfm.FREE_PARAMS)
@@ -113,7 +107,7 @@ def _theta_init_for_tokens(tokens):
     theta = []
     for token in tokens:
         try:
-            p_name, idx_str = token.split('_')
+            p_name, idx_str = token.rsplit('_', 1)
             theta.append(float(component_lookup[int(idx_str)][p_name]))
         except Exception:
             theta.append(np.nan)

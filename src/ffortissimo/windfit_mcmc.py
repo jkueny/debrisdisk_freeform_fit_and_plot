@@ -140,7 +140,8 @@ def gen_wdh_image(
     wheremask2generatehalo: np.ndarray,
     beta: float,
     h0: float,
-    sigma: float,
+    sigma_up: float,
+    sigma_down: float,
     PA_deg: float,
     x0: float,
     gamma: float,
@@ -152,8 +153,9 @@ def gen_wdh_image(
     ``WHEREMASK2GENERATEHALO``): pixels where this mask is True are excluded from the
     model (no inner IWA/r1 cutoff — the control-region mask defines extent).
 
-    ``PA_deg`` is the position angle (degrees) used to rotate the halo axis; ``x0`` is an
-    offset along the rotated radial coordinate (pixels, same units as ``x``, ``y``).
+    ``PA_deg`` rotates the halo axis. ``sigma_up`` / ``sigma_down`` set the Gaussian
+    width on the two sides of the rotated x-axis (lobe asymmetry). ``x0`` is a fixed
+    radial offset (from YAML init; not sampled in MCMC).
     """
     pa_rad = -np.deg2rad(PA_deg)
     x_rot = np.sin(pa_rad) * x + np.cos(pa_rad) * y
@@ -167,7 +169,7 @@ def gen_wdh_image(
     denom = h0 * (dx**2)
     denom = np.where(np.abs(denom) < 1e-12, np.copysign(1e-12, denom + 1e-30), denom)
     radial_term = (r**2 / denom) ** gamma
-    sigma_safe = np.maximum(np.abs(sigma), 1e-6)
+    sigma_safe = np.where(x_rot > 0, np.maximum(sigma_up, 1e-6), np.maximum(sigma_down, 1e-6))
     exp_term = np.exp(-0.5 * (radial_term + (x_rot / sigma_safe) ** 2))
     i_map = power_law * exp_term
     i_map = np.nan_to_num(i_map, nan=0.0, posinf=0.0, neginf=0.0)
@@ -194,7 +196,16 @@ def _param_candidates(base_name, comp_idx, suffix):
     init_keys = {
         "beta": [f"hbeta{suffix}_init", f"beta{suffix}_init"],
         "h0": [f"ha_r{suffix}_init", f"a_r{suffix}_init"],
-        "sigma": [f"hsig{suffix}_init", f"sig{suffix}_init"],
+        "sigma_up": [
+            f"hsig{suffix}_up_init",
+            f"sigma_up{suffix}_init",
+            f"sig_up{suffix}_init",
+        ],
+        "sigma_down": [
+            f"hsig{suffix}_down_init",
+            f"sigma_down{suffix}_init",
+            f"sig_down{suffix}_init",
+        ],
         "PA": [f"hpa{suffix}_init", f"pa{suffix}_init"],
         "x0": [f"hdx{suffix}_init", f"dx{suffix}_init"],
         "Norm": [f"hN{suffix}_init", f"Norm{suffix}_init"],
@@ -202,8 +213,22 @@ def _param_candidates(base_name, comp_idx, suffix):
     state_keys = {
         "beta": [f"hbeta{suffix}_state", f"beta{suffix}_state"],
         "h0": [f"ha_r{suffix}_state", f"a_r{suffix}_state"],
-        "sigma": [f"hsig{suffix}_state", f"sig{suffix}_state"],
+        "sigma_up": [
+            f"hsig{suffix}_up_state",
+            f"sigma_up{suffix}_state",
+            f"sig_up{suffix}_state",
+            f"hsig{suffix}_state",
+            f"sig{suffix}_state",
+        ],
+        "sigma_down": [
+            f"hsig{suffix}_down_state",
+            f"sigma_down{suffix}_state",
+            f"sig_down{suffix}_state",
+            f"hsig{suffix}_state",
+            f"sig{suffix}_state",
+        ],
         "PA": [f"hpa{suffix}_state", f"pa{suffix}_state"],
+        # x0 is fixed to init in MCMC; state keys kept for YAML compatibility.
         "x0": [f"hdx{suffix}_state", f"dx{suffix}_state"],
         "Norm": [f"hN{suffix}_state", f"Norm{suffix}_state"],
     }
@@ -214,10 +239,24 @@ def _component_init_from_yaml(params_mcmc_yaml, comp_idx):
     suffix = "" if comp_idx == 1 else str(comp_idx)
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
     params = {}
-    for p_name in ("beta", "h0", "sigma", "PA", "x0", "Norm"):
+    for p_name in ("beta", "h0", "PA", "x0", "Norm"):
         init_candidates, _ = _param_candidates(p_name, comp_idx, suffix)
         default_val = 1.0 if p_name == "Norm" else 0.0
         params[p_name] = float(_cfg_first_match(cfg, init_candidates, default=default_val))
+
+    up_cands, _ = _param_candidates("sigma_up", comp_idx, suffix)
+    dn_cands, _ = _param_candidates("sigma_down", comp_idx, suffix)
+    legacy_sig = [f"hsig{suffix}_init", f"sig{suffix}_init"]
+    sig_up = _cfg_first_match(cfg, up_cands, default=None)
+    sig_dn = _cfg_first_match(cfg, dn_cands, default=None)
+    if sig_up is None or sig_dn is None:
+        leg = float(_cfg_first_match(cfg, legacy_sig, default=30.0))
+        params["sigma_up"] = float(sig_up) if sig_up is not None else leg
+        params["sigma_down"] = float(sig_dn) if sig_dn is not None else leg
+    else:
+        params["sigma_up"] = float(sig_up)
+        params["sigma_down"] = float(sig_dn)
+
     return params
 
 
@@ -228,13 +267,20 @@ def _n_wdh_components(params_mcmc_yaml):
 
 def _shared_component_flags(params_mcmc_yaml):
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
+    sig_sh = bool(
+        _cfg_first_match(
+            cfg,
+            ["sig_shared_state", "sigma_shared_state", "sig_up_shared_state"],
+            default=False,
+        )
+    )
     return {
         "beta": bool(_cfg_first_match(cfg, ["beta_shared_state"], default=False)),
         "h0": bool(_cfg_first_match(cfg, ["h0_shared_state", "a_r_shared_state"], default=False)),
-        "sigma": bool(_cfg_first_match(cfg, ["sigma_shared_state", "sig_shared_state"], default=False)),
+        "sigma_up": sig_sh,
+        "sigma_down": sig_sh,
         # Keep PA component-specific by design (sharing PA would collapse components).
         "PA": False,
-        "x0": bool(_cfg_first_match(cfg, ["x0_shared_state", "dx_shared_state"], default=False)),
         "Norm": bool(_cfg_first_match(cfg, ["Norm_shared_state"], default=False)),
     }
 
@@ -338,7 +384,8 @@ def arr_free_params(params_mcmc_yaml):
     shared_flags = _shared_component_flags(params_mcmc_yaml)
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
 
-    for p_name in ("beta", "h0", "sigma", "PA", "x0", "Norm"):
+    # x0 (offset along rotated axis) is fixed to YAML init; not sampled.
+    for p_name in ("beta", "h0", "sigma_up", "sigma_down", "PA", "Norm"):
         if shared_flags[p_name]:
             init_candidates, state_candidates = _param_candidates(p_name, 1, "")
             is_free = bool(_cfg_first_match(cfg, state_candidates, default=True))
@@ -370,7 +417,7 @@ def from_theta_to_params(theta):
         )
 
     free_idx = 0
-    for p_name in ("beta", "h0", "sigma", "PA", "x0", "Norm"):
+    for p_name in ("beta", "h0", "sigma_up", "sigma_down", "PA", "Norm"):
         if SHARED_COMPONENT_FLAGS[p_name]:
             token = f"{p_name}_1"
             if token in FREE_PARAMS:
@@ -390,6 +437,9 @@ def from_theta_to_params(theta):
                 free_idx += 1
                 comp_params[idx][p_name] = value
                 vector_param.append(value)
+
+    for i in range(N_WDH_COMPONENTS):
+        comp_params[i]["x0"] = float(COMPONENT_INIT[i]["x0"])
 
     return {"components": comp_params, "gamma": GAMMA_FIXED}, vector_param
 
@@ -425,7 +475,8 @@ def call_gen_disk(theta):
             wheremask2generatehalo=WHEREMASK2GENERATEHALO,
             beta=comp["beta"],
             h0=comp["h0"],
-            sigma=comp["sigma"],
+            sigma_up=comp["sigma_up"],
+            sigma_down=comp["sigma_down"],
             PA_deg=comp["PA"],
             x0=comp["x0"],
             gamma=param_disk["gamma"],
@@ -510,8 +561,11 @@ def logp(theta):
         if comp["h0"] < 0.01 or comp["h0"] > 10:
             print(f'h0_{idx} out of prior')
             return -np.inf
-        if comp["sigma"] < 0.01 or comp["sigma"] > 224:
-            print(f'sigma_{idx} out of prior')
+        if comp["sigma_up"] < 0.1 or comp["sigma_up"] > 100:
+            print(f'sigma_up_{idx} out of prior')
+            return -np.inf
+        if comp["sigma_down"] < 0.1 or comp["sigma_down"] > 100:
+            print(f'sigma_down_{idx} out of prior')
             return -np.inf
         if comp["PA"] < -180 or comp["PA"] > 180:
             print(f'PA_{idx} out of prior')
@@ -519,9 +573,6 @@ def logp(theta):
         pa0 = float(COMPONENT_INIT[idx - 1]["PA"])
         dpa = _wrapped_angle_delta_deg(comp["PA"], pa0)
         lp_reg += -0.5 * (dpa / float(PA_PRIOR_SIGMA))**2
-        if comp["x0"] < -7.5 or comp["x0"] > 7.5:
-            print(f'x0_{idx} out of prior')
-            return -np.inf
         if comp["Norm"] < 0.001 or comp["Norm"] > 1e10:
             print(f'Norm_{idx} out of prior')
             return -np.inf
@@ -1112,7 +1163,7 @@ def from_param_to_theta_init(params_mcmc_yaml):
     component_lookup = {idx + 1: comp for idx, comp in enumerate(COMPONENT_INIT)}
 
     for token in FREE_PARAMS:
-        p_name, idx_str = token.split("_")
+        p_name, idx_str = token.rsplit("_", 1)
         idx = int(idx_str)
         theta_init.append(component_lookup[idx][p_name])
 

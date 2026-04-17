@@ -84,7 +84,7 @@ alpha1_init: 0.3184
 
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 2
+N_WIND_LAYERS: 1
 gamma_fixed: 1.0
 beta_shared_state: true
 a_r_shared_state: true
@@ -99,10 +99,11 @@ hr2_init: 60 #include just for initializing the mask function
 rscale_init: 1.01
 hbeta_init: 0.35
 ha_r_init: 0.22
-hsig_init: 35.0
+hsig_up_init: 35.0
+hsig_down_init: 35.0
 hfwhm_init: 3.0
 hpa_init: 66.1
-hdx_init: 1.45
+hdx_init: 0.0
 hdy_init: 0.007
 hN_init: 13460
 dtheta_init: 1.0
@@ -110,16 +111,19 @@ fwhm_init: 3.0
 
 hbeta2_init: 0.5
 ha_r2_init: 0.29270564274473104
-hsig2_init: 30.0
+hsig2_up_init: 30.0
+hsig2_down_init: 50.0
 hpa2_init: 93.8
-hdx2_init: -1.736274318840326
-hdy2_init: 2.7432967701360966
+hdx2_init: 0.0
+hdy2_init: 0.0
 hdz2_init: 0.01
 hN2_init: 161.752741323
 
 hbeta3_init: 0.5
 ha_r3_init: 0.9278058937026628
 hsig3_init: 30.0
+hsig3_up_init: 30.0
+hsig3_down_init: 30.0
 hpa3_init: 147.2
 hdx3_init: 1.736274318840326
 hdy3_init: 1.2852098741333626
@@ -130,8 +134,9 @@ rscale_state: 0
 hbeta_state: 1
 ha_r_state: 1
 hsig_state: 1
+# hdx_init / hdxN_init: fixed offset x0 (not sampled; lobe asymmetry via sigma_up/down)
+hdx_state: 0
 hpa_state: 1
-hdx_state: 1
 hdy_state: 1
 hdz_state: 1
 # hoffset_state: 1
@@ -142,7 +147,7 @@ hbeta2_state: 1
 ha_r2_state: 1
 hsig2_state: 1
 hpa2_state: 1
-hdx2_state: 1
+hdx2_state: 0
 hdy2_state: 1
 hdz2_state: 1
 hN2_state: 1
@@ -151,6 +156,7 @@ dtheta2_state: 0
 hbeta3_state: 1
 ha_r3_state: 1
 hpa3_state: 1
+hdx3_state: 0
 hdy3_state: 1
 hN3_state: 1
 
@@ -159,7 +165,7 @@ beta3_state: 1
 a_r3_state: 1
 sig3_state: 1
 pa3_state: 0
-dx3_state: 1
+dx3_state: 0
 dy3_state: 1
 Norm3_state: 1
 
@@ -221,55 +227,31 @@ VSCALING_MAX: 0.33
 NAMES:
   - beta_1
   - h0_1
-  - sigma_1
+  - sigma_up_1
+  - sigma_down_1
   - PA_1
-  - PA_2
-  - PA_3
-  - x0_1
   - Norm_1
-  - x0_2
-  - Norm_2
-  - x0_3
-  - Norm_3
 
 LABELS:
   beta_1: $\beta$ (shared)
   h0_1: $h_0$ / $a_r$ (shared)
-  sigma_1: $\sigma$ (shared)
+  sigma_up_1: $\sigma_+$ (shared)
+  sigma_down_1: $\sigma_-$ (shared)
   PA_1: $PA$, L1
-  PA_2: $PA$, L2
-  PA_3: $PA$, L3
-  x0_1: $x_0$, L1
   Norm_1: Norm, L1
-  x0_2: $x_0$, L2
-  Norm_2: Norm, L2
-  x0_3: $x_0$, L3
-  Norm_3: Norm, L3
 
 VARIABLES:
   beta_1: beta_1
   h0_1: h0_1
-  sigma_1: sigma_1
+  sigma_up_1: sigma_up_1
+  sigma_down_1: sigma_down_1
   PA_1: PA_1
-  PA_2: PA_2
-  PA_3: PA_3
-  x0_1: x0_1
   Norm_1: Norm_1
-  x0_2: x0_2
-  Norm_2: Norm_2
-  x0_3: x0_3
-  Norm_3: Norm_3
 
 COMMENTS:
   beta_1: 'WDH radial exponent beta (shared across layers)'
   h0_1: 'WDH scale h0 / a_r (shared)'
-  sigma_1: 'WDH sigma, arc opening (shared)'
+  sigma_up_1: 'Lobe width sigma (x_rot>0), prior [0.1,100]'
+  sigma_down_1: 'Lobe width sigma (x_rot<=0), prior [0.1,100]'
   PA_1: 'Position angle, layer 1 (Gaussian-regularized around init)'
-  PA_2: 'Position angle, layer 2 (Gaussian-regularized around init)'
-  PA_3: 'Position angle, layer 3 (Gaussian-regularized around init)'
-  x0_1: 'Offset x0 along rotated axis, layer 1'
   Norm_1: 'Amplitude Norm, layer 1'
-  x0_2: 'Offset x0, layer 2'
-  Norm_2: 'Amplitude Norm, layer 2'
-  x0_3: 'Offset x0, layer 3'
-  Norm_3: 'Amplitude Norm, layer 3'
