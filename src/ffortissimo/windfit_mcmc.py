@@ -495,7 +495,7 @@ def logp(theta):
         if comp["beta"] < -50 or comp["beta"] > 50:
             print(f'beta_{idx} out of prior.')
             return -np.inf
-        if comp["h0"] < -10 or comp["h0"] > 10:
+        if comp["h0"] < 0.01 or comp["h0"] > 10:
             print(f'h0_{idx} out of prior')
             return -np.inf
         if comp["sigma"] < 0.01 or comp["sigma"] > 224:
@@ -504,10 +504,10 @@ def logp(theta):
         if comp["PA"] < -180 or comp["PA"] > 180:
             print(f'PA_{idx} out of prior')
             return -np.inf
-        if comp["x0"] < -100 or comp["x0"] > 100:
+        if comp["x0"] < -5 or comp["x0"] > 5:
             print(f'x0_{idx} out of prior')
             return -np.inf
-        if comp["Norm"] < 0.001 or comp["Norm"] > 1e5:
+        if comp["Norm"] < 0.001 or comp["Norm"] > 1e10:
             print(f'Norm_{idx} out of prior')
             return -np.inf
 

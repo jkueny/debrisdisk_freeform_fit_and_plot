@@ -52,9 +52,9 @@ HP_MAX: 32
 # MCMC PARAMETERS
 NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
-NWALKERS: 30 #Number of walkers (should be at least twice the # parameters)
+NWALKERS: 188 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
-N_ITER_MCMC: 200 #Number of interation
+N_ITER_MCMC: 1000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
 # There is no burn-in phase here, the burnin only intervened when reading the data
 
@@ -111,7 +111,7 @@ hbeta2_init: 0.5
 ha_r2_init: 0.29270564274473104
 hsig2_init: 30.0
 hpa2_init: 93.8
-hdx2_init: 15.736274318840326
+hdx2_init: -1.736274318840326
 hdy2_init: 2.7432967701360966
 hdz2_init: 0.01
 hN2_init: 161.752741323
@@ -120,7 +120,7 @@ hbeta3_init: 0.5
 ha_r3_init: 0.9278058937026628
 hsig3_init: 30.0
 hpa3_init: 147.2
-hdx3_init: 15.736274318840326
+hdx3_init: 1.736274318840326
 hdy3_init: 1.2852098741333626
 hN3_init: 134.862950151
 # hoffset_init: -2
@@ -217,140 +217,47 @@ sigma: 1 # the number of sigma used to measure the error bars.
 VSCALING_MIN: 0.1
 VSCALING_MAX: 0.1
 
+# MCMC vector tokens (order matches windfit_mcmc.arr_free_params with current *_state flags)
 NAMES:
-# - rscale
-- Beta
-- a_r
-- sig
-- PA
-- dx
-- dy
-- dz
-- Norm
-- dtheta
-- Beta2
-- a_r2
-- sig2
-# - PA2
-- dx2
-- dy2
-- dz2
-# - offset
-- Norm2
-- a_r3
-- PA3
-- dy3
-- Norm3
-# - Omega
-# - ekowa
-# - ikowa
-# - RA
-# - Decl
-# - RAp
-# - Declp
-# - Rkowa
-
+  - beta_1
+  - h0_1
+  - sigma_1
+  - x0_1
+  - Norm_1
+  - x0_2
+  - Norm_2
+  - x0_3
+  - Norm_3
 
 LABELS:
-  Alph1: $\alpha$1[%]
-  Alph2: $\alpha$2[%]
-  alpha_in: $\alpha_{in}$
-  alpha_out: $\alpha_{out}$
-  Beta: $\beta$
-  Beta2: $\beta$2
-  offset: $dz$
-  Norm: $N$[ADU]
-  Norm2: $N$2[ADU]
-  Norm3: $N$3[ADU]
-  a_r: a_r
-  a_r2: a_r2
-  a_r3: a_r3
-  dtheta: $d\theta$
-  sig: $\sigma$
-  sig2: $\sigma$2
-  PA: $pa[^{\circ}]$
-  PA2: $pa2[^{\circ}]$
-  PA3: $pa3[^{\circ}]$
-  R1: R1[au]
-  R2: R2[au]
-  RC: $R_c$[au]
-  dx: $dx$
-  dx2: $dx$2
-  dy: $dy$
-  dy2: $dy$2
-  dy3: $dy$3
-  dz: $dz$
-  dz2: $dz$2
-  g1: g1[%]
-  g2: g2[%]
-  g3: g3[%]
-  inc: $i[^{\circ}]$
-  rscale: rscale[ADU]
-  amin: $a_{min}$[um]
-  amax: amax[um]
-  aexp: aexp
+  beta_1: $\beta$ (shared)
+  h0_1: $h_0$ / $a_r$ (shared)
+  sigma_1: $\sigma$ (shared)
+  x0_1: $x_0$, layer 1
+  Norm_1: Norm, layer 1
+  x0_2: $x_0$, layer 2
+  Norm_2: Norm, layer 2
+  x0_3: $x_0$, layer 3
+  Norm_3: Norm, layer 3
 
 VARIABLES:
-  Alph1: $\alpha$1
-  Alph2: $\alpha$2
-  alpha_in: $\alpha_{in}$
-  alpha_out: $\alpha_{out}$
-  Beta: $\beta$
-  Beta2: $\beta$2
-  Norm: $N$
-  Norm2: $N$2
-  a_r: a_r
-  a_r2: a_r2
-  dtheta: $d\theta$
-  PA: $pa$
-  PA2: $pa$2
-  R1: R1
-  R2: R2
-  RC: $R_c$
-  dx: $dx$
-  dx2: $dx$2
-  dy: $dy$
-  dy2: $dy$2
-  dz: $dz$
-  g1: g1
-  g2: g2
-  g3: g3
-  inc: $i$
-  amin: $a_{min}$
-  amax: amax
-  aexp: aexp
+  beta_1: beta_1
+  h0_1: h0_1
+  sigma_1: sigma_1
+  x0_1: x0_1
+  Norm_1: Norm_1
+  x0_2: x0_2
+  Norm_2: Norm_2
+  x0_3: x0_3
+  Norm_3: Norm_3
 
 COMMENTS:
-  Argpe: ' deg, argument of pericentre'
-  Alph1: ' %, first relative HG weight'
-  Alph2: ' %, second relative HG weight'
-  alpha_in: ' inner radial power law'
-  alpha_out: ' outer radial power law'
-  Beta: ' radial power law'
-  Norm: ' ADU, normalisation'
-  a_r: ' aspect ratio'
-  PA: ' degree, principal angle'
-  R1: ' AU, inner radius'
-  R2: ' AU, outer radius'
-  RC: ' AU, max density radius'
-  dx: ' au, + -> NW offset disk plane Minor Axis'
-  dy: ' au, + -> SW offset disk plane Major Axis'
-  g1: ' %, 1st HG param'
-  g2: ' %, 2nd HG param'
-  g3: ' %, 3rd HG param'
-  inc: ' degree, inclination'
-  R1mas: ' mas, inner radius'
-  ecc: ' eccentricity (deprojected, or disk plane)'
-  amin: ' um, min grain size'
-  amax: ' um, max grain size'
-  aexp: ' power grain size distribution'
-
-  # R2mas: 'mas, outer radius'
-  # ekowa: deproj. (true) eccentricity (Kowalsky)
-  # ikowa: degree, deproj. (true) inclination (Kowalsky)
-  #RA: mas, ->E right ascension
-  # RAp: pix, ->E right ascension
-  # Rkowa: mas, deproj. (true) semi major axis (Kowalsky)
-  # Decl: mas, ->N declination
-  # Declp: pix, -> N declination
-  # Omega: deg, longitude of the ascending node
+  beta_1: 'WDH radial exponent beta (shared across layers)'
+  h0_1: 'WDH scale h0 / a_r (shared)'
+  sigma_1: 'WDH sigma, arc opening (shared)'
+  x0_1: 'Offset x0 along rotated axis, layer 1'
+  Norm_1: 'Amplitude Norm, layer 1'
+  x0_2: 'Offset x0, layer 2'
+  Norm_2: 'Amplitude Norm, layer 2'
+  x0_3: 'Offset x0, layer 3'
+  Norm_3: 'Amplitude Norm, layer 3'
