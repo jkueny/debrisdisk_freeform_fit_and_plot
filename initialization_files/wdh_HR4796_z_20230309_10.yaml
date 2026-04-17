@@ -97,11 +97,11 @@ hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
 rscale_init: 1.01
-hbeta_init: 0.5
-ha_r_init: 0.3
-hsig_init: 30.0
+hbeta_init: 0.35
+ha_r_init: 0.22
+hsig_init: 35.0
 hfwhm_init: 3.0
-hpa_init: 69.5
+hpa_init: 66.1
 hdx_init: 1.45
 hdy_init: 0.007
 hN_init: 13460
@@ -163,7 +163,7 @@ dx3_state: 1
 dy3_state: 1
 Norm3_state: 1
 
-ADD_WDH: 0
+N_WINDLAYERS: 2
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
 RPROFSUB: True
@@ -215,8 +215,8 @@ BURNIN: 600   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
-VSCALING_MIN: 0.1
-VSCALING_MAX: 0.1
+VSCALING_MIN: 0.33
+VSCALING_MAX: 0.33
 
 # MCMC vector tokens (order matches windfit_mcmc.arr_free_params with current *_state flags)
 NAMES:
@@ -237,15 +237,15 @@ LABELS:
   beta_1: $\beta$ (shared)
   h0_1: $h_0$ / $a_r$ (shared)
   sigma_1: $\sigma$ (shared)
-  PA_1: $PA$, layer 1
-  PA_2: $PA$, layer 2
-  PA_3: $PA$, layer 3
-  x0_1: $x_0$, layer 1
-  Norm_1: Norm, layer 1
-  x0_2: $x_0$, layer 2
-  Norm_2: Norm, layer 2
-  x0_3: $x_0$, layer 3
-  Norm_3: Norm, layer 3
+  PA_1: $PA$, L1
+  PA_2: $PA$, L2
+  PA_3: $PA$, L3
+  x0_1: $x_0$, L1
+  Norm_1: Norm, L1
+  x0_2: $x_0$, L2
+  Norm_2: Norm, L2
+  x0_3: $x_0$, L3
+  Norm_3: Norm, L3
 
 VARIABLES:
   beta_1: beta_1

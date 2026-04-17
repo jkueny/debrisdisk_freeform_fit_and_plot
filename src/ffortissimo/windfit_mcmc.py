@@ -519,7 +519,7 @@ def logp(theta):
         pa0 = float(COMPONENT_INIT[idx - 1]["PA"])
         dpa = _wrapped_angle_delta_deg(comp["PA"], pa0)
         lp_reg += -0.5 * (dpa / float(PA_PRIOR_SIGMA))**2
-        if comp["x0"] < -5 or comp["x0"] > 5:
+        if comp["x0"] < -7.5 or comp["x0"] > 7.5:
             print(f'x0_{idx} out of prior')
             return -np.inf
         if comp["Norm"] < 0.001 or comp["Norm"] > 1e10:
