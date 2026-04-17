@@ -571,7 +571,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
     cax = plt.imshow(
         intrinsic_crop, origin='lower', vmin=0, vmax=vmax_model, cmap='bone'
     )
-    ax1.set_title('Intrinsic WDH (sum)', fontsize=caracsize, pad=caracsize / 3.0)
+    ax1.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
     cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
     pos_star = plt.Circle(
@@ -582,7 +582,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
 
     ax1 = fig.add_subplot(234)
     cax = plt.imshow(pre_fm_crop, origin='lower', cmap="magma")
-    ax1.set_title('Into WindFM (pre-KL)', fontsize=caracsize, pad=caracsize / 3.0)
+    ax1.set_title('Best Model (pre-FM)', fontsize=caracsize, pad=caracsize / 3.0)
     cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
     plt.axis('off')
@@ -595,7 +595,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
         vmax=int(np.round(vmax)),
         cmap="magma",
     )
-    ax1.set_title('KL forward model', fontsize=caracsize, pad=caracsize / 3.0)
+    ax1.set_title('Best Model (FM)', fontsize=caracsize, pad=caracsize / 3.0)
     cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
     plt.axis('off')

@@ -84,7 +84,7 @@ alpha1_init: 0.3184
 
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 3
+N_WIND_LAYERS: 2
 gamma_fixed: 1.0
 beta_shared_state: true
 a_r_shared_state: true
@@ -163,7 +163,6 @@ dx3_state: 1
 dy3_state: 1
 Norm3_state: 1
 
-N_WINDLAYERS: 2
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
 RPROFSUB: True
