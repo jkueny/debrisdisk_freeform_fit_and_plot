@@ -1054,6 +1054,17 @@ if __name__ == '__main__':
                         type=int,
                         required=False,
                         help='override MCMC iteration count from parameter file')
+    _ft = parser.add_mutually_exclusive_group()
+    _ft.add_argument(
+        '--first-time',
+        action='store_true',
+        help='override FIRST_TIME in parameter file (force true: rebuild FM inputs)',
+    )
+    _ft.add_argument(
+        '--do-mcmc',
+        action='store_true',
+        help='override FIRST_TIME in parameter file (force false: reuse existing wind_fm_files)',
+    )
     args = parser.parse_args()
 
     # Parallel processing stuff.
@@ -1093,6 +1104,12 @@ if __name__ == '__main__':
     if args.niter is not None:
         N_ITER_MCMC = int(args.niter)
         print(f"CLI override: N_ITER_MCMC={N_ITER_MCMC}")
+    if args.first_time:
+        params_mcmc_yaml['FIRST_TIME'] = True
+        print("CLI override: FIRST_TIME=True")
+    elif args.do_mcmc:
+        params_mcmc_yaml['FIRST_TIME'] = False
+        print("CLI override: FIRST_TIME=False")
     DISK_MODEL = params_mcmc_yaml['DISK_MODEL']
 
     FILE_PREFIX = params_mcmc_yaml['FILE_PREFIX']
