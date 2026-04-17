@@ -89,6 +89,37 @@ def wdh_plot_axis_labels(params_mcmc_yaml):
     return [labels_map.get(tok, tok) for tok in wfm.FREE_PARAMS]
 
 
+def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
+    """Infer token order for an existing backend, including pre-PA chains."""
+    current = list(wfm.FREE_PARAMS)
+    if n_dim_mcmc == len(current):
+        return current
+    no_pa = [tok for tok in current if not tok.startswith('PA_')]
+    if n_dim_mcmc == len(no_pa):
+        return no_pa
+    names = list(params_mcmc_yaml.get('NAMES', []))
+    if len(names) >= n_dim_mcmc:
+        return names[:n_dim_mcmc]
+    return [f'theta_{i + 1}' for i in range(n_dim_mcmc)]
+
+
+def _axis_labels_for_tokens(tokens, params_mcmc_yaml):
+    labels_map = params_mcmc_yaml.get('LABELS', {})
+    return [labels_map.get(tok, tok) for tok in tokens]
+
+
+def _theta_init_for_tokens(tokens):
+    component_lookup = {idx + 1: comp for idx, comp in enumerate(wfm.COMPONENT_INIT)}
+    theta = []
+    for token in tokens:
+        try:
+            p_name, idx_str = token.split('_')
+            theta.append(float(component_lookup[int(idx_str)][p_name]))
+        except Exception:
+            theta.append(np.nan)
+    return np.asarray(theta, dtype=float)
+
+
 def crop_center_odd(img, crop):
     img[img != img] = 0.
     y, x = img.shape
@@ -123,7 +154,6 @@ def make_chain_plot(params_mcmc_yaml):
     thin = params_mcmc_yaml['THIN']
     burnin = params_mcmc_yaml['BURNIN']
     quality_plot = params_mcmc_yaml['QUALITY_PLOT']
-    axis_labels = wdh_plot_axis_labels(params_mcmc_yaml)
 
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
     name_h5 = file_prefix + '_backend_file_mcmc'
@@ -158,16 +188,19 @@ def make_chain_plot(params_mcmc_yaml):
     print('burn-in: {0}'.format(burnin))
     print('chain shape: {0}'.format(chain.shape))
 
-    print('Best-fit model params (theta at max log-prob)...')
-    for i, tok in enumerate(wfm.FREE_PARAMS):
-        print(f'{tok}: {theta_ml[i]}')
-
     n_dim_mcmc = chain.shape[2]
     nwalkers = chain.shape[1]
+    tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
+    axis_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
+
+    print('Best-fit model params (theta at max log-prob)...')
+    for i, tok in enumerate(tokens):
+        print(f'{tok}: {theta_ml[i]}')
+
     if n_dim_mcmc != len(axis_labels):
         raise ValueError(
             f'LABELS count ({len(axis_labels)}) != chain dim ({n_dim_mcmc}). '
-            'Add LABELS keys for every entry in FREE_PARAMS (see YAML).'
+            'Add LABELS keys for every entry in backend parameter tokens (see YAML).'
         )
 
     _, axarr = plt.subplots(
@@ -197,7 +230,6 @@ def make_corner_plot(params_mcmc_yaml):
     burnin = params_mcmc_yaml['BURNIN']
     sigma = params_mcmc_yaml['sigma']
     nwalkers = params_mcmc_yaml['NWALKERS']
-    axis_labels = wdh_plot_axis_labels(params_mcmc_yaml)
 
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
     name_h5 = file_prefix + '_backend_file_mcmc'
@@ -208,6 +240,8 @@ def make_corner_plot(params_mcmc_yaml):
     chain = reader.get_chain(discard=burnin, thin=thin)
     chain_flat = reader.get_chain(discard=burnin, thin=thin, flat=True)
     n_dim_mcmc = chain_flat.shape[1]
+    tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
+    axis_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
 
     for j in range(n_dim_mcmc):
         chain4thatparam = chain_flat[:, j]
@@ -220,7 +254,7 @@ def make_corner_plot(params_mcmc_yaml):
     if n_dim_mcmc != len(axis_labels):
         raise ValueError(
             f'LABELS count ({len(axis_labels)}) != chain dim ({n_dim_mcmc}). '
-            'Add LABELS keys for every entry in FREE_PARAMS (see YAML).'
+            'Add LABELS keys for every entry in backend parameter tokens (see YAML).'
         )
 
     rcParams['axes.labelsize'] = 19
@@ -246,7 +280,8 @@ def make_corner_plot(params_mcmc_yaml):
         verbose=False,
     )
 
-    if shouldweplotalldatapoints and len(wfm.FREE_PARAMS) == len(wfm.THETA_INIT):
+    truth = _theta_init_for_tokens(tokens)
+    if shouldweplotalldatapoints and np.all(np.isfinite(truth)):
         green_line = mlines.Line2D(
             [], [], color='red', label='Initial theta (YAML)'
         )
@@ -257,7 +292,6 @@ def make_corner_plot(params_mcmc_yaml):
             fontsize=30,
         )
         axes = np.array(fig.axes).reshape((n_dim_mcmc, n_dim_mcmc))
-        truth = np.asarray(wfm.THETA_INIT, dtype=float)
         for i in range(n_dim_mcmc):
             axes[i, i].axvline(truth[i], color='r')
         for yi in range(n_dim_mcmc):
@@ -331,12 +365,7 @@ def create_header(params_mcmc_yaml):
         chain_flat = chainflatnonan
         log_prob_samples_flat = log_prob_samples_flat[wherenotnan]
 
-    free_tokens = list(wfm.FREE_PARAMS)
-    if n_dim_mcmc != len(free_tokens):
-        raise ValueError(
-            f'Backend dim {n_dim_mcmc} != len(FREE_PARAMS) {len(free_tokens)}. '
-            'Re-run MCMC or fix YAML free-parameter state flags.'
-        )
+    free_tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
 
     samples_dict = {free_tokens[i]: chain_flat[:, i] for i in range(n_dim_mcmc)}
 
@@ -409,6 +438,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
     wheremin = np.where(log_prob_samples_flat == np.nanmax(log_prob_samples_flat))
     wheremin0 = np.array(wheremin).flatten()[0]
     theta_ml = chain_flat[wheremin0, :]
+    tokens = _backend_param_tokens(chain_flat.shape[1], params_mcmc_yaml)
 
     reduced_data = fits.getdata(
         os.path.join(klipdir, file_prefix + '-klipped-KLmodes-all.fits')
@@ -420,7 +450,12 @@ def best_model_plot(params_mcmc_yaml, hdr):
     total_noise_spatial = np.sqrt(np.nansum(variance_for_stats))
     noise[noise == 0.0] = np.nan
 
-    model_list = wfm.call_gen_disk(theta_ml)
+    free_params_backup = list(wfm.FREE_PARAMS)
+    try:
+        wfm.FREE_PARAMS = list(tokens)
+        model_list = wfm.call_gen_disk(theta_ml)
+    finally:
+        wfm.FREE_PARAMS = free_params_backup
     intrinsic_sum = np.nansum(np.asarray(model_list), axis=0)
 
     if wfm.RPROFSUB:

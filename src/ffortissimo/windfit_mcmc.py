@@ -102,6 +102,7 @@ NOISE = None
 USE_NOISE = None
 RPROFSUB = False
 RADIAL_INDS = None
+PA_PRIOR_SIGMA = 20.0
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -117,6 +118,11 @@ def subtract_radial_profile_np(image, radial_inds, radii):
     )
     profile_2d = medians[radial_inds]
     return image - profile_2d
+
+
+def _wrapped_angle_delta_deg(angle_deg, center_deg):
+    """Shortest signed angular distance in degrees."""
+    return ((float(angle_deg) - float(center_deg) + 180.0) % 360.0) - 180.0
     
 def prep_image_frames_parangs(filelist):
     derot_angs = []
@@ -225,6 +231,8 @@ def _shared_component_flags(params_mcmc_yaml):
         "beta": bool(_cfg_first_match(cfg, ["beta_shared_state"], default=False)),
         "h0": bool(_cfg_first_match(cfg, ["h0_shared_state", "a_r_shared_state"], default=False)),
         "sigma": bool(_cfg_first_match(cfg, ["sigma_shared_state", "sig_shared_state"], default=False)),
+        # Keep PA component-specific by design (sharing PA would collapse components).
+        "PA": False,
         "x0": bool(_cfg_first_match(cfg, ["x0_shared_state", "dx_shared_state"], default=False)),
         "Norm": bool(_cfg_first_match(cfg, ["Norm_shared_state"], default=False)),
     }
@@ -268,6 +276,7 @@ def _init_mcmc_worker(
     free_params,
     n_wdh_components,
     gamma_fixed,
+    pa_prior_sigma,
     theta_init,
     basis_filename,
     initial_model_list,
@@ -287,7 +296,7 @@ def _init_mcmc_worker(
     global DIMENSION, ALIGNED_CENTER, WHEREMASK2GENERATEHALO
     global DISKOBJ, REDUCED_DATA, NOISE, USE_NOISE, RPROFSUB, RADIAL_INDS
     global COMPONENT_INIT, SHARED_COMPONENT_FLAGS, FREE_PARAMS, RADII
-    global N_WDH_COMPONENTS, GAMMA_FIXED, THETA_INIT
+    global N_WDH_COMPONENTS, GAMMA_FIXED, PA_PRIOR_SIGMA, THETA_INIT
 
     DIMENSION = dimension
     ALIGNED_CENTER = aligned_center
@@ -303,6 +312,7 @@ def _init_mcmc_worker(
     FREE_PARAMS = free_params
     N_WDH_COMPONENTS = n_wdh_components
     GAMMA_FIXED = gamma_fixed
+    PA_PRIOR_SIGMA = pa_prior_sigma
     THETA_INIT = theta_init
 
     DISKOBJ = WindFM(
@@ -327,7 +337,7 @@ def arr_free_params(params_mcmc_yaml):
     shared_flags = _shared_component_flags(params_mcmc_yaml)
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
 
-    for p_name in ("beta", "h0", "sigma", "x0", "Norm"):
+    for p_name in ("beta", "h0", "sigma", "PA", "x0", "Norm"):
         if shared_flags[p_name]:
             init_candidates, state_candidates = _param_candidates(p_name, 1, "")
             is_free = bool(_cfg_first_match(cfg, state_candidates, default=True))
@@ -359,7 +369,7 @@ def from_theta_to_params(theta):
         )
 
     free_idx = 0
-    for p_name in ("beta", "h0", "sigma", "x0", "Norm"):
+    for p_name in ("beta", "h0", "sigma", "PA", "x0", "Norm"):
         if SHARED_COMPONENT_FLAGS[p_name]:
             token = f"{p_name}_1"
             if token in FREE_PARAMS:
@@ -491,6 +501,7 @@ def logp(theta):
         log of priors
     """
     param_disk, _ = from_theta_to_params(theta)
+    lp_reg = 0.0
     for idx, comp in enumerate(param_disk["components"], start=1):
         if comp["beta"] < -50 or comp["beta"] > 50:
             print(f'beta_{idx} out of prior.')
@@ -504,6 +515,9 @@ def logp(theta):
         if comp["PA"] < -180 or comp["PA"] > 180:
             print(f'PA_{idx} out of prior')
             return -np.inf
+        pa0 = float(COMPONENT_INIT[idx - 1]["PA"])
+        dpa = _wrapped_angle_delta_deg(comp["PA"], pa0)
+        lp_reg += -0.5 * (dpa / float(PA_PRIOR_SIGMA))**2
         if comp["x0"] < -5 or comp["x0"] > 5:
             print(f'x0_{idx} out of prior')
             return -np.inf
@@ -511,7 +525,7 @@ def logp(theta):
             print(f'Norm_{idx} out of prior')
             return -np.inf
 
-    return 0.0
+    return lp_reg
 
 
 ########################################################
@@ -1215,6 +1229,13 @@ if __name__ == '__main__':
         for idx in range(1, N_WDH_COMPONENTS + 1)
     ]
     GAMMA_FIXED = float(_cfg_first_match(wdh_cfg, ["gamma_fixed"], default=1.0))
+    PA_PRIOR_SIGMA = float(
+        _cfg_first_match(
+            wdh_cfg,
+            ["pa_prior_sigma", "PA_PRIOR_SIGMA", "hpa_prior_sigma"],
+            default=20.0,
+        )
+    )
     FREE_PARAMS = arr_free_params(params_mcmc_yaml)
     THETA_INIT = from_param_to_theta_init(params_mcmc_yaml)
 
@@ -1340,6 +1361,7 @@ if __name__ == '__main__':
         FREE_PARAMS,
         N_WDH_COMPONENTS,
         GAMMA_FIXED,
+        PA_PRIOR_SIGMA,
         THETA_INIT,
         _worker_basis_filename,
         _worker_initial_models,

@@ -91,6 +91,7 @@ a_r_shared_state: true
 sig_shared_state: true
 dx_shared_state: false
 Norm_shared_state: false
+pa_prior_sigma: 15.0
 
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
@@ -140,7 +141,7 @@ dtheta_state: 1
 hbeta2_state: 1
 ha_r2_state: 1
 hsig2_state: 1
-hpa2_state: 0
+hpa2_state: 1
 hdx2_state: 1
 hdy2_state: 1
 hdz2_state: 1
@@ -222,6 +223,9 @@ NAMES:
   - beta_1
   - h0_1
   - sigma_1
+  - PA_1
+  - PA_2
+  - PA_3
   - x0_1
   - Norm_1
   - x0_2
@@ -233,6 +237,9 @@ LABELS:
   beta_1: $\beta$ (shared)
   h0_1: $h_0$ / $a_r$ (shared)
   sigma_1: $\sigma$ (shared)
+  PA_1: $PA$, layer 1
+  PA_2: $PA$, layer 2
+  PA_3: $PA$, layer 3
   x0_1: $x_0$, layer 1
   Norm_1: Norm, layer 1
   x0_2: $x_0$, layer 2
@@ -244,6 +251,9 @@ VARIABLES:
   beta_1: beta_1
   h0_1: h0_1
   sigma_1: sigma_1
+  PA_1: PA_1
+  PA_2: PA_2
+  PA_3: PA_3
   x0_1: x0_1
   Norm_1: Norm_1
   x0_2: x0_2
@@ -255,6 +265,9 @@ COMMENTS:
   beta_1: 'WDH radial exponent beta (shared across layers)'
   h0_1: 'WDH scale h0 / a_r (shared)'
   sigma_1: 'WDH sigma, arc opening (shared)'
+  PA_1: 'Position angle, layer 1 (Gaussian-regularized around init)'
+  PA_2: 'Position angle, layer 2 (Gaussian-regularized around init)'
+  PA_3: 'Position angle, layer 3 (Gaussian-regularized around init)'
   x0_1: 'Offset x0 along rotated axis, layer 1'
   Norm_1: 'Amplitude Norm, layer 1'
   x0_2: 'Offset x0, layer 2'
