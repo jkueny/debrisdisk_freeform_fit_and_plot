@@ -65,7 +65,8 @@ import yaml
 
 from emcee import EnsembleSampler
 from emcee import backends
-from emcee.moves import StretchMove, DEMove, KDEMove
+# from emcee.moves import StretchMove, DEMove, KDEMove
+from emcee.moves import DEMove, DESnookerMove
 
 from numba.core.errors import NumbaWarning
 
