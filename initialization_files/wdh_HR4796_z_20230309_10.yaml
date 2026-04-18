@@ -84,14 +84,14 @@ alpha1_init: 0.3184
 
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 3
+N_WIND_LAYERS: 2
 gamma_fixed: 1.0
 beta_shared_state: true
 a_r_shared_state: true
-sig_shared_state: true
+sig_shared_state: false
 dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 15.0
+pa_prior_sigma: 5.0
 
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
@@ -102,7 +102,7 @@ ha_r_init: 0.2
 hsig_up_init: 35.0
 hsig_down_init: 35.0
 hfwhm_init: 3.0
-hpa_init: 71.3
+hpa_init: 40.0
 hdx_init: 0.0
 hdy_init: 0.007
 hN_init: 2000
@@ -113,7 +113,7 @@ hbeta2_init: 0.16
 ha_r2_init: 0.2
 hsig2_up_init: 30.0
 hsig2_down_init: 50.0
-hpa2_init: 93.4
+hpa2_init: 114.0
 hdx2_init: 0.0
 hdy2_init: 0.0
 hN2_init: 2000
