@@ -2,11 +2,11 @@
 FIRST_TIME: True
 FIRST_TIME_GS: False #first time doing pyklip gridsearch
 #if FIRST_TIME=True the masks, reduced data, noise map, PSF lib, KL vectors are (re)calculated.
-DISK_MODEL: original # original or modified Max MB model code
+DISK_MODEL: wdh # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 3  # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 2  # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 9 # pixels
@@ -26,7 +26,7 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 # The images where the disk is on the satspots are autonatically remove to measure the PSF
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
-BAND_DIR: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+BAND_DIR: HR4796_rg_smlyot_20230312_13/raws_rg_smlyot_20230313T043914/camsci1/lite_wdhlib  # name of folder where are the data (from basedir)
 KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
 #                         # Carefull, this dir must also contains the data
@@ -75,33 +75,17 @@ N_init: 420.50
 # amax_init: 10000. #microns, let's fix this for now
 # aexp_init: 3.5 #radial pwer law for size distribution of grains
 
-r_inner: 65
-r_outer: 110
+# WIND PARAMETERS
+N_WIND_LAYERS: 1
+gamma_fixed: 1.0
+beta_shared_state: true
+a_r_shared_state: true
+sig_shared_state: true
+dx_shared_state: false
+Norm_shared_state: false
+pa_prior_sigma: 15.0
 
-# MODEL PARAMETER STATES [0,1] --> [fixed, free]
-r1_state: 1
-r2_state: 1
-rc_state: 0
-alpha_in_state: 0
-alpha_out_state: 0
-beta_state: 1
-a_r_state: 0
-inc_state: 1
-pa_state: 1
-dx_state: 1
-dy_state: 1
-N_state: 1
-# amin: 0
-# amax: 0
-# aexp: 0
-g1_state: 1
-g2_state: 1
-alpha1_state: 1
-g3_state: 0
-alpha2_state: 0
 
-# The wind may have changed direction over time
-ADD_WDH: 0
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
 RPROFSUB: False
@@ -110,44 +94,78 @@ RPROFSUB: False
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-rscale_init: 1.09310789130065178
-hbeta_init: -1.6585584348642288
-ha_r_init:   0.9000613901674691
-hsig_init: 2.840257440825939
-hpa_init: 130.20485859336142
-hdx_init: 8.127534129069154
-hdy_init: 1.7617510173383188
-hN_init: 280.5966332267
+hbeta_init: 0.35
+ha_r_init: 0.22
+hsig_up_init: 35.0
+hsig_down_init: 35.0
+hfwhm_init: 3.0
+hpa_init: 67.5
+hdx_init: 0.0
+hdy_init: 0.007
+hN_init: 13460
+dtheta_init: 1.0
+fwhm_init: 3.0
 
-ha_r2_init: 0.4203855181237018
-hpa2_init: -21.95054765553028
-hdy2_init: 0.20717873532148967
-hN2_init: 844.5022445209
+hbeta2_init: 0.5
+ha_r2_init: 0.29270564274473104
+hsig2_up_init: 30.0
+hsig2_down_init: 50.0
+hpa2_init: 93.8
+hdx2_init: 0.0
+hdy2_init: 0.0
+hdz2_init: 0.01
+hN2_init: 161.752741323
 
-ha_r3_init: 0.8202922920911813
-hpa3_init:  3.318050530741967
-hdy3_init: -0.4934328294164241
-hN3_init: 314.4865798723
+hbeta3_init: 0.5
+ha_r3_init: 0.9278058937026628
+hsig3_init: 30.0
+hsig3_up_init: 30.0
+hsig3_down_init: 30.0
+hpa3_init: 147.2
+hdx3_init: 1.736274318840326
+hdy3_init: 1.2852098741333626
+hN3_init: 134.862950151
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 
-rscale_state: 1
+# WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 1
 ha_r_state: 1
 hsig_state: 1
+# hdx_init / hdxN_init: fixed offset x0 (not sampled; lobe asymmetry via sigma_up/down)
+hdx_state: 0
 hpa_state: 1
-hdx_state: 1
 hdy_state: 1
+hdz_state: 1
 # hoffset_state: 1
 hN_state: 1
+dtheta_state: 1
+
+hbeta2_state: 1
 ha_r2_state: 1
+hsig2_state: 1
 hpa2_state: 1
+hdx2_state: 0
 hdy2_state: 1
+hdz2_state: 1
 hN2_state: 1
+dtheta2_state: 0
+
+hbeta3_state: 1
 ha_r3_state: 1
 hpa3_state: 1
+hdx3_state: 0
 hdy3_state: 1
 hN3_state: 1
+
+# Added explicit third-component aliases used by the refactored parser.
+beta3_state: 1
+a_r3_state: 1
+sig3_state: 1
+pa3_state: 0
+dx3_state: 0
+dy3_state: 1
+Norm3_state: 1
 
 
 # MASKING PARAMETERS

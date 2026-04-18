@@ -128,7 +128,7 @@ hpa3_init: 147.2
 hdx3_init: 1.736274318840326
 hdy3_init: 1.2852098741333626
 hN3_init: 134.862950151
-# hoffset_init: -2
+
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 rscale_state: 0
 hbeta_state: 1
