@@ -91,7 +91,7 @@ a_r_shared_state: true
 sig_shared_state: true
 dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 5.0
+pa_prior_sigma: 10.0
 
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
