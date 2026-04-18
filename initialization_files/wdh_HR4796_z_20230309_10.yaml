@@ -134,7 +134,7 @@ ha_r_state: 1
 hsig_state: 1
 # hdx_init / hdxN_init: fixed offset x0 (not sampled; lobe asymmetry via sigma_up/down)
 hdx_state: 0
-hpa_state: 0
+hpa_state: 1
 hdy_state: 1
 # hoffset_state: 1
 hN_state: 1
@@ -142,7 +142,7 @@ hN_state: 1
 hbeta2_state: 1
 ha_r2_state: 1
 hsig2_state: 1
-hpa2_state: 0
+hpa2_state: 1
 hdx2_state: 0
 hdy2_state: 1
 hN2_state: 1
