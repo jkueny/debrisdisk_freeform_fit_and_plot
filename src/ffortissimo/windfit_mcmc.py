@@ -568,7 +568,7 @@ def logp(theta):
         if comp["sigma_down"] < 0.1 or comp["sigma_down"] > 100:
             print(f'sigma_down_{idx} out of prior')
             return -np.inf
-        if comp["PA"] < -180 or comp["PA"] > 180:
+        if comp["PA"] < -360 or comp["PA"] > 360:
             print(f'PA_{idx} out of prior')
             return -np.inf
         pa0 = float(COMPONENT_INIT[idx - 1]["PA"])
