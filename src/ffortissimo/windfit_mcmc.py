@@ -557,7 +557,7 @@ def logp(theta):
     param_disk, _ = from_theta_to_params(theta)
     lp_reg = 0.0
     for idx, comp in enumerate(param_disk["components"], start=1):
-        if comp["beta"] < -50 or comp["beta"] > 50:
+        if comp["beta"] < 0.001 or comp["beta"] > 50:
             print(f'beta_{idx} out of prior.')
             return -np.inf
         if comp["h0"] < 0.01 or comp["h0"] > 10:
