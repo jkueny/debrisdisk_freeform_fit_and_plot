@@ -86,8 +86,8 @@ alpha1_init: 0.3184
 # WIND PARAMETERS
 N_WIND_LAYERS: 2
 gamma_fixed: 1.0
-beta_shared_state: true
-a_r_shared_state: true
+beta_shared_state: false
+a_r_shared_state: false
 sig_shared_state: true
 dx_shared_state: false
 Norm_shared_state: false
