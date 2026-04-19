@@ -104,9 +104,9 @@ alpha2_state: 0
 # WIND PARAMETERS
 N_WIND_LAYERS: 2
 gamma_fixed: 1.0
-beta_shared_state: true
-a_r_shared_state: true
-sig_shared_state: true
+beta_shared_state: false
+a_r_shared_state: false
+sig_shared_state: false
 dx_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 10.0
@@ -130,7 +130,8 @@ hbeta2_init: 0.16
 ha_r2_init: 0.2
 hsig2_up_init: 30.0
 hsig2_down_init: 30.0
-hpa2_init: 176.0
+# hpa2_init: 176.0
+hpa2_init: 220.0
 hdx2_init: 0.0
 hdy2_init: 0.0
 hN2_init: 2337.7
@@ -231,8 +232,8 @@ BURNIN: 500   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
-VSCALING_MIN: 0.33
-VSCALING_MAX: 0.33
+VSCALING_MIN: 0.2
+VSCALING_MAX: 0.2
 
 NAMES:
 # - rscale
