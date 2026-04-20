@@ -27,8 +27,8 @@ import ffortissimo.windfit_mcmc as wfm
 
 basedir = get_basedir()
 
-# default_parameter_file = 'wdh_HR4796_z_20230309_10.yaml'
-default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
+default_parameter_file = 'wdh_HR4796_z_20230309_10.yaml'
+# default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
 # default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
 
 # Populated by bootstrap_windfit_plot_runtime before plotting.
@@ -102,6 +102,15 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
 def _axis_labels_for_tokens(tokens, params_mcmc_yaml):
     labels_map = params_mcmc_yaml.get('LABELS', {})
     return [labels_map.get(tok, tok) for tok in tokens]
+
+
+def _short_chain_axis_label(token, fallback_label):
+    """Compact y-axis names for chain plot (sigma_up / sigma_down are long in LaTeX)."""
+    if token.startswith('sigma_up_'):
+        return 'sig_up_' + token[len('sigma_up_'):]
+    if token.startswith('sigma_down_'):
+        return 'sig_dn_' + token[len('sigma_down_'):]
+    return fallback_label
 
 
 def _theta_init_for_tokens(tokens):
@@ -187,7 +196,10 @@ def make_chain_plot(params_mcmc_yaml):
     n_dim_mcmc = chain.shape[2]
     nwalkers = chain.shape[1]
     tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
-    axis_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
+    base_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
+    axis_labels = [
+        _short_chain_axis_label(tok, lab) for tok, lab in zip(tokens, base_labels)
+    ]
 
     print('Best-fit model params (theta at max log-prob)...')
     for i, tok in enumerate(tokens):

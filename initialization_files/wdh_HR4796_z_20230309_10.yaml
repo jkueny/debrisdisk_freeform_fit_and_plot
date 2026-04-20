@@ -101,7 +101,7 @@ ha_r_init: 0.24
 hsig_up_init: 27.0
 hsig_down_init: 29.0
 hfwhm_init: 3.0
-hpa_init: 239.0
+hpa_init: 251.0
 hdx_init: 0.0
 hdy_init: 0.007
 hN_init: 9309.62
@@ -112,7 +112,7 @@ hbeta2_init: 0.33
 ha_r2_init: 0.11
 hsig2_up_init: 27.0
 hsig2_down_init: 29.0
-hpa2_init: 169.5
+hpa2_init: 220.0
 hdx2_init: 0.0
 hdy2_init: 0.0
 hN2_init: 1837.79
