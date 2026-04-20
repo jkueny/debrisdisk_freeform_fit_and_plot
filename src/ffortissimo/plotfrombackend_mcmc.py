@@ -583,7 +583,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
     cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
     pos_star = plt.Circle(
-        (dim_crop_image // 2, dim_crop_image // 2), 2, color='r', alpha=0.8
+        (dim_crop_image / 2, dim_crop_image / 2), 2, color='r', alpha=0.8
     )
     ax1.add_artist(pos_star)
     plt.axis('off')
