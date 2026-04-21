@@ -88,7 +88,7 @@ pa_prior_sigma: 30.0
 
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
-RPROFSUB: False
+RPROFSUB: True
 
 # WIND PARAMETERS
 hr1_init: 0.1 #include just for initializing the mask function
@@ -108,7 +108,7 @@ hbeta2_init: 1.40
 ha_r2_init: 0.59
 hsig2_up_init: 68.0
 hsig2_down_init: 52.0
-hpa2_init: 135.0
+hpa2_init: 145.0
 hN2_init: 50291.79
 
 hbeta3_init: 1.4
