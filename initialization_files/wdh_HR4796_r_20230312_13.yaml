@@ -76,14 +76,14 @@ N_init: 420.50
 # aexp_init: 3.5 #radial pwer law for size distribution of grains
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 1
+N_WIND_LAYERS: 2
 gamma_fixed: 1.0
 beta_shared_state: true
 a_r_shared_state: true
 sig_shared_state: true
 dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 15.0
+pa_prior_sigma: 30.0
 
 
 USE_NOISE: True
@@ -94,27 +94,26 @@ RPROFSUB: False
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-hbeta_init: 0.35
-ha_r_init: 0.22
-hsig_up_init: 35.0
-hsig_down_init: 35.0
+hbeta_init: 0.70
+ha_r_init: 0.17
+hsig_up_init: 39.0
+hsig_down_init: 44.0
 hfwhm_init: 3.0
-hpa_init: 67.5
+hpa_init: 248.0
 hdx_init: 0.0
 hdy_init: 0.007
-hN_init: 13460
+hN_init: 45437.62
 dtheta_init: 1.0
 fwhm_init: 3.0
 
-hbeta2_init: 0.5
-ha_r2_init: 0.29270564274473104
-hsig2_up_init: 30.0
-hsig2_down_init: 50.0
-hpa2_init: 93.8
+hbeta2_init: 1.40
+ha_r2_init: 0.59
+hsig2_up_init: 68.0
+hsig2_down_init: 52.0
+hpa2_init: 125.0
 hdx2_init: 0.0
 hdy2_init: 0.0
-hdz2_init: 0.01
-hN2_init: 161.752741323
+hN2_init: 50291.79
 
 hbeta3_init: 0.5
 ha_r3_init: 0.9278058937026628
