@@ -314,7 +314,41 @@ class WindFM(NoFM):
         n_frames = int(self.inputs_shape[0])
         self.model_wdhs = np.zeros(self.inputs_shape)
 
-        wind_pa_list = self.wdhPAs
+        # Historical basis files can contain wdhPAs/validPAs measured with a
+        # different number of components than the current model list (e.g. 2 in
+        # basis, 3 in current run). Normalize both arrays to shape
+        # (num_components, n_frames) so indexing is always safe.
+        wind_pa_list = np.asarray(self.wdhPAs)
+        valid_pa_mask = np.asarray(self.validPAs)
+
+        if wind_pa_list.ndim == 1:
+            wind_pa_list = np.tile(wind_pa_list[None, :], (num_components, 1))
+        if valid_pa_mask.ndim == 1:
+            valid_pa_mask = np.tile(valid_pa_mask[None, :], (num_components, 1))
+
+        if wind_pa_list.shape[1] != n_frames:
+            raise ValueError(
+                "wdhPAs frame dimension does not match dataset frame count: "
+                f"{wind_pa_list.shape[1]} vs {n_frames}"
+            )
+        if valid_pa_mask.shape[1] != n_frames:
+            raise ValueError(
+                "validPAs frame dimension does not match dataset frame count: "
+                f"{valid_pa_mask.shape[1]} vs {n_frames}"
+            )
+
+        if wind_pa_list.shape[0] < num_components:
+            pad = np.tile(
+                wind_pa_list[0:1, :],
+                (num_components - wind_pa_list.shape[0], 1),
+            )
+            wind_pa_list = np.vstack([wind_pa_list, pad])
+        if valid_pa_mask.shape[0] < num_components:
+            pad = np.ones(
+                (num_components - valid_pa_mask.shape[0], n_frames),
+                dtype=bool,
+            )
+            valid_pa_mask = np.vstack([valid_pa_mask.astype(bool), pad])
 
         # Hoist the float64 cast out of the inner loop. There are only
         # `num_components` unique input arrays, but the inner loop runs
@@ -328,7 +362,7 @@ class WindFM(NoFM):
             model_sum = np.zeros(model_shape)
 
             for j in range(num_components):
-                if not self.validPAs[j][i]:
+                if not valid_pa_mask[j][i]:
                     # Adding zeros is a no-op; skip the rotation and the
                     # zeros allocation we used to do here.
                     continue
