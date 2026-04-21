@@ -6,7 +6,7 @@ DISK_MODEL: wdh # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 1 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 2 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 10 # pixels
@@ -96,7 +96,7 @@ pa_prior_sigma: 10.0
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-hbeta_init: 0.69
+hbeta_init: 0.70
 ha_r_init: 0.17
 hsig_up_init: 39.0
 hsig_down_init: 44.0
@@ -104,7 +104,7 @@ hfwhm_init: 3.0
 hpa_init: 248.0
 hdx_init: 0.0
 hdy_init: 0.007
-hN_init: 44437.62
+hN_init: 45437.62
 dtheta_init: 1.0
 fwhm_init: 3.0
 
@@ -115,7 +115,7 @@ hsig2_down_init: 52.0
 hpa2_init: 125.0
 hdx2_init: 0.0
 hdy2_init: 0.0
-hN2_init: 49575.79
+hN2_init: 50291.79
 
 hbeta3_init: 0.16
 ha_r3_init: 0.2
@@ -209,12 +209,12 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 1200   #We remove the first BURNIN iteration
+BURNIN: 1800   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
-VSCALING_MIN: 0.2
-VSCALING_MAX: 0.2
+VSCALING_MIN: 0.15
+VSCALING_MAX: 0.15
 
 # MCMC vector tokens (order matches windfit_mcmc.arr_free_params with current *_state flags)
 NAMES:
