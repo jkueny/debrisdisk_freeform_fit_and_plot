@@ -100,8 +100,6 @@ hsig_up_init: 39.0
 hsig_down_init: 44.0
 hfwhm_init: 3.0
 hpa_init: 248.0
-hdx_init: 0.0
-hdy_init: 0.007
 hN_init: 45437.62
 dtheta_init: 1.0
 
@@ -111,18 +109,14 @@ ha_r2_init: 0.59
 hsig2_up_init: 68.0
 hsig2_down_init: 52.0
 hpa2_init: 135.0
-hdx2_init: 0.0
-hdy2_init: 0.0
 hN2_init: 50291.79
 
 hbeta3_init: 1.4
-ha_r2_init: 0.59
-hsig2_up_init: 68.0
-hsig2_down_init: 52.0
+ha_r3_init: 0.59
+hsig3_up_init: 68.0
+hsig3_down_init: 52.0
 hpa3_init: 180.0
-hdx2_init: 0.0
-hdy2_init: 0.0
-hN2_init: 50291.79
+hN3_init: 50291.79
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 
