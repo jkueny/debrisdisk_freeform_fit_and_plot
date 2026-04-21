@@ -9,6 +9,7 @@ import numpy as np
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+from matplotlib.colors import LogNorm
 import matplotlib.lines as mlines
 import yaml
 
@@ -575,7 +576,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
     plt.axis('off')
 
     ax1 = fig.add_subplot(231)
-    vmax_model = int(np.round(np.max(intrinsic_crop) / 1.5))
+    vmax_model = int(np.round(np.max(intrinsic_crop) / 2.0))
     cax = plt.imshow(
         intrinsic_crop, origin='lower', vmin=0, vmax=vmax_model, cmap='bone'
     )
@@ -588,8 +589,16 @@ def best_model_plot(params_mcmc_yaml, hdr):
     ax1.add_artist(pos_star)
     plt.axis('off')
 
+    vmax_pre_fm = int(np.round(np.max(pre_fm_crop) / 3.0))
+    vmin_pre_fm = int(np.round(np.min(pre_fm_crop) / 1.5))
     ax1 = fig.add_subplot(234)
-    cax = plt.imshow(pre_fm_crop, origin='lower', cmap="magma")
+    cax = plt.imshow(
+        pre_fm_crop,
+        origin='lower',
+        vmin=vmin_pre_fm,
+        vmax=vmax_pre_fm,
+        cmap="magma",
+    )
     ax1.set_title('Best Model (pre-FM)', fontsize=caracsize, pad=caracsize / 3.0)
     cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
