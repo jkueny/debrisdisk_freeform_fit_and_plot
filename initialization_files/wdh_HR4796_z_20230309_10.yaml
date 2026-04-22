@@ -146,9 +146,7 @@ hN2_state: 1
 
 hbeta3_state: 1
 ha_r3_state: 1
-hpa3_state: 0
-hdx3_state: 0
-hdy3_state: 1
+hpa3_state: 1
 hN3_state: 1
 
 # Added explicit third-component aliases used by the refactored parser.
