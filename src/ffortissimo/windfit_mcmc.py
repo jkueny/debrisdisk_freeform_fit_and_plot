@@ -428,9 +428,18 @@ def from_theta_to_params(theta):
             else:
                 raw_value = float(comp_params[0][p_name])
                 if p_name == "Norm":
-                    raw_value = np.log10(max(raw_value, 1e-300))
+                    raw_value = mt.log(max(raw_value, 1e-300))
 
-            value = float(10.0 ** raw_value) if p_name == "Norm" else raw_value
+            if p_name == "Norm":
+                # Guard against overflow for out-of-prior proposals; logp rejects these.
+                if raw_value > 700:
+                    value = np.inf
+                elif raw_value < -700:
+                    value = 0.0
+                else:
+                    value = float(mt.exp(raw_value))
+            else:
+                value = raw_value
             for comp in comp_params:
                 comp[p_name] = value
                 vector_param.append(value)
@@ -441,7 +450,16 @@ def from_theta_to_params(theta):
             if token in FREE_PARAMS:
                 raw_value = float(theta[free_idx])
                 free_idx += 1
-                value = float(10.0 ** raw_value) if p_name == "Norm" else raw_value
+                if p_name == "Norm":
+                    # Guard against overflow for out-of-prior proposals; logp rejects these.
+                    if raw_value > 700:
+                        value = np.inf
+                    elif raw_value < -700:
+                        value = 0.0
+                    else:
+                        value = float(mt.exp(raw_value))
+                else:
+                    value = raw_value
                 comp_params[idx][p_name] = value
                 vector_param.append(value)
 
@@ -559,6 +577,21 @@ def logp(theta):
     Returns:
         log of priors
     """
+    # Norm is sampled in natural-log space. Enforce the prior directly on theta
+    # to avoid any overflow in exp(theta) conversion for extreme proposals.
+    norm_min = 1e-3
+    norm_max = 1e7  
+    log_norm_min = mt.log(norm_min)
+    log_norm_max = mt.log(norm_max)
+    for i, token in enumerate(FREE_PARAMS):
+        if token.startswith("Norm_"):
+            log_norm_val = float(theta[i])
+            if (not np.isfinite(log_norm_val)
+                    or log_norm_val < log_norm_min
+                    or log_norm_val > log_norm_max):
+                print(f'{token} out of prior')
+                return -np.inf
+
     param_disk, _ = from_theta_to_params(theta)
     lp_reg = 0.0
     for idx, comp in enumerate(param_disk["components"], start=1):
@@ -580,7 +613,7 @@ def logp(theta):
         pa0 = float(COMPONENT_INIT[idx - 1]["PA"])
         dpa = _wrapped_angle_delta_deg(comp["PA"], pa0)
         lp_reg += -0.5 * (dpa / float(PA_PRIOR_SIGMA))**2
-        if comp["Norm"] < 0.001 or comp["Norm"] > 1e10:
+        if comp["Norm"] < norm_min or comp["Norm"] > norm_max:
             print(f'Norm_{idx} out of prior')
             return -np.inf
 
@@ -1176,7 +1209,7 @@ def from_param_to_theta_init(params_mcmc_yaml):
         idx = int(idx_str)
         val = float(component_lookup[idx][p_name])
         if p_name == "Norm":
-            val = np.log10(max(val, 1e-300))
+            val = mt.log(max(val, 1e-300))
         theta_init.append(val)
 
     return np.asarray(theta_init, dtype=float)

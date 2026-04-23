@@ -3,6 +3,7 @@
 ####### MCMC plotting for wind-driven halo (WDH) runs from windfit_mcmc #######
 import os
 import sys
+import math
 from datetime import datetime
 
 import numpy as np
@@ -120,6 +121,13 @@ def _compact_axis_label(token, fallback_label):
     return f'{compact_base}_{idx_str}'
 
 
+def _reported_param_value(token, value):
+    """Convert sampled theta values to human-reported values."""
+    if token.startswith('Norm_'):
+        return float(math.exp(float(value)))
+    return float(value)
+
+
 def _theta_init_for_tokens(tokens):
     component_lookup = {idx + 1: comp for idx, comp in enumerate(wfm.COMPONENT_INIT)}
     theta = []
@@ -210,7 +218,7 @@ def make_chain_plot(params_mcmc_yaml):
 
     print('Best-fit model params (theta at max log-prob)...')
     for i, tok in enumerate(tokens):
-        print(f'{tok}: {theta_ml[i]}')
+        print(f'{tok}: {_reported_param_value(tok, theta_ml[i])}')
 
     if n_dim_mcmc != len(axis_labels):
         raise ValueError(
@@ -385,7 +393,12 @@ def create_header(params_mcmc_yaml):
 
     free_tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
 
-    samples_dict = {free_tokens[i]: chain_flat[:, i] for i in range(n_dim_mcmc)}
+    samples_dict = {}
+    for i, tok in enumerate(free_tokens):
+        vals = np.asarray(chain_flat[:, i], dtype=float)
+        if tok.startswith('Norm_'):
+            vals = np.exp(vals)
+        samples_dict[tok] = vals
 
     MLval_mcmc_val_mcmc_err_dict = {}
     wheremin = np.where(log_prob_samples_flat == np.max(log_prob_samples_flat))
