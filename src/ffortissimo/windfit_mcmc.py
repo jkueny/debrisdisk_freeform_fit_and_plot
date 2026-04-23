@@ -423,10 +423,14 @@ def from_theta_to_params(theta):
         if SHARED_COMPONENT_FLAGS[p_name]:
             token = f"{p_name}_1"
             if token in FREE_PARAMS:
-                value = float(theta[free_idx])
+                raw_value = float(theta[free_idx])
                 free_idx += 1
             else:
-                value = float(comp_params[0][p_name])
+                raw_value = float(comp_params[0][p_name])
+                if p_name == "Norm":
+                    raw_value = np.log10(max(raw_value, 1e-300))
+
+            value = float(10.0 ** raw_value) if p_name == "Norm" else raw_value
             for comp in comp_params:
                 comp[p_name] = value
                 vector_param.append(value)
@@ -435,8 +439,9 @@ def from_theta_to_params(theta):
         for idx in range(N_WDH_COMPONENTS):
             token = f"{p_name}_{idx + 1}"
             if token in FREE_PARAMS:
-                value = float(theta[free_idx])
+                raw_value = float(theta[free_idx])
                 free_idx += 1
+                value = float(10.0 ** raw_value) if p_name == "Norm" else raw_value
                 comp_params[idx][p_name] = value
                 vector_param.append(value)
 
@@ -1139,9 +1144,11 @@ def initialize_walkers_backend(nwalkers,
     if new_backend:
         p0 = np.zeros((1, nwalkers, n_dim_mcmc))
         for i in range(n_dim_mcmc):
-            p0[:, :, i] = np.random.uniform(theta_init[i] * 0.999,
-                                            theta_init[i] * 1.001,
-                                            size=(nwalkers))
+            lo = theta_init[i] * 0.999
+            hi = theta_init[i] * 1.001
+            if lo > hi:
+                lo, hi = hi, lo
+            p0[:, :, i] = np.random.uniform(lo, hi, size=(nwalkers))
 
         backend_ini.reset(nwalkers, n_dim_mcmc)
         return p0[0], backend_ini
@@ -1167,7 +1174,10 @@ def from_param_to_theta_init(params_mcmc_yaml):
     for token in FREE_PARAMS:
         p_name, idx_str = token.rsplit("_", 1)
         idx = int(idx_str)
-        theta_init.append(component_lookup[idx][p_name])
+        val = float(component_lookup[idx][p_name])
+        if p_name == "Norm":
+            val = np.log10(max(val, 1e-300))
+        theta_init.append(val)
 
     return np.asarray(theta_init, dtype=float)
 
