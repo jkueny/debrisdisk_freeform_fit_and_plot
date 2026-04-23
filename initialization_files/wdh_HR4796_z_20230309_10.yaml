@@ -209,8 +209,8 @@ BURNIN: 1800   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
-VSCALING_MIN: 0.2
-VSCALING_MAX: 0.2
+VSCALING_MIN: 0.25
+VSCALING_MAX: 0.25
 
 # MCMC vector tokens (order matches windfit_mcmc.arr_free_params with current *_state flags)
 NAMES:
@@ -222,12 +222,12 @@ NAMES:
   - Norm_1
 
 LABELS:
-  beta_1: $\beta$ (shared)
-  h0_1: $h_0$ / $a_r$ (shared)
-  sigma_up_1: $\sigma_+$ (shared)
-  sigma_down_1: $\sigma_-$ (shared)
-  PA_1: $PA$, L1
-  Norm_1: Norm, L1
+  beta_1: $\beta_1$
+  h0_1: $h0_1$
+  sigma_up_1: $\sigma_+ 1$
+  sigma_down_1: $\sigma_- 1$
+  PA_1: $PA_1$
+  Norm_1: $N_1$
 
 VARIABLES:
   beta_1: beta_1

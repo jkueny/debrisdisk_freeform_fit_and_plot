@@ -105,13 +105,19 @@ def _axis_labels_for_tokens(tokens, params_mcmc_yaml):
     return [labels_map.get(tok, tok) for tok in tokens]
 
 
-def _short_chain_axis_label(token, fallback_label):
-    """Compact y-axis names for chain plot (sigma_up / sigma_down are long in LaTeX)."""
-    if token.startswith('sigma_up_'):
-        return 'sig_up_' + token[len('sigma_up_'):]
-    if token.startswith('sigma_down_'):
-        return 'sig_dn_' + token[len('sigma_down_'):]
-    return fallback_label
+def _compact_axis_label(token, fallback_label):
+    """Compact parameter labels for dense chain/corner plots."""
+    try:
+        p_name, idx_str = token.rsplit('_', 1)
+    except ValueError:
+        return fallback_label
+
+    compact_base = {
+        'sigma_up': 'sig_up',
+        'sigma_down': 'sig_dn',
+        'Norm': 'N',
+    }.get(p_name, p_name)
+    return f'{compact_base}_{idx_str}'
 
 
 def _theta_init_for_tokens(tokens):
@@ -199,7 +205,7 @@ def make_chain_plot(params_mcmc_yaml):
     tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
     base_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
     axis_labels = [
-        _short_chain_axis_label(tok, lab) for tok, lab in zip(tokens, base_labels)
+        _compact_axis_label(tok, lab) for tok, lab in zip(tokens, base_labels)
     ]
 
     print('Best-fit model params (theta at max log-prob)...')
@@ -250,7 +256,10 @@ def make_corner_plot(params_mcmc_yaml):
     chain_flat = reader.get_chain(discard=burnin, thin=thin, flat=True)
     n_dim_mcmc = chain_flat.shape[1]
     tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
-    axis_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
+    base_labels = _axis_labels_for_tokens(tokens, params_mcmc_yaml)
+    axis_labels = [
+        _compact_axis_label(tok, lab) for tok, lab in zip(tokens, base_labels)
+    ]
 
     for j in range(n_dim_mcmc):
         chain4thatparam = chain_flat[:, j]

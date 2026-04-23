@@ -6,7 +6,7 @@ DISK_MODEL: wdh # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 3  # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 4  # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 9 # pixels
@@ -78,12 +78,12 @@ N_init: 420.50
 # WIND PARAMETERS
 N_WIND_LAYERS: 3
 gamma_fixed: 1.0
-beta_shared_state: true
-a_r_shared_state: true
-sig_shared_state: true
+beta_shared_state: false
+a_r_shared_state: false
+sig_shared_state: false
 dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 30.0
+pa_prior_sigma: 10.0
 
 
 USE_NOISE: True
@@ -99,7 +99,7 @@ ha_r_init: 0.17
 hsig_up_init: 39.0
 hsig_down_init: 44.0
 hfwhm_init: 3.0
-hpa_init: 248.0
+hpa_init: 250.0
 hN_init: 45437.62
 dtheta_init: 1.0
 
@@ -108,14 +108,14 @@ hbeta2_init: 1.40
 ha_r2_init: 0.59
 hsig2_up_init: 68.0
 hsig2_down_init: 52.0
-hpa2_init: 145.0
+hpa2_init: 150.0
 hN2_init: 50291.79
 
 hbeta3_init: 1.4
 ha_r3_init: 0.59
 hsig3_up_init: 68.0
 hsig3_down_init: 52.0
-hpa3_init: 180.0
+hpa3_init: 120.0
 hN3_init: 50291.79
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
@@ -202,12 +202,12 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 600   #We remove the first BURNIN iteration
+BURNIN: 1000   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
-VSCALING_MIN: 0.1
-VSCALING_MAX: 0.1
+VSCALING_MIN: 0.2
+VSCALING_MAX: 0.2
 
 NAMES:
 - rscale
