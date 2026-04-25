@@ -600,7 +600,11 @@ def best_model_plot(params_mcmc_yaml, hdr):
     ax1 = fig.add_subplot(231)
     vmax_model = int(np.round(np.max(intrinsic_crop) / 2.0))
     cax = plt.imshow(
-        intrinsic_crop, origin='lower', vmin=0, vmax=vmax_model, cmap='bone'
+        intrinsic_crop + 0.1,
+        origin='lower',
+        # vmin=0, vmax=vmax_model,
+        norm=LogNorm(),
+        cmap='bone'
     )
     ax1.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
     cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
