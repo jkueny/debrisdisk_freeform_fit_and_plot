@@ -83,7 +83,7 @@ a_r_shared_state: false
 sig_shared_state: false
 dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 30.0
+pa_prior_sigma: 90.0
 
 
 USE_NOISE: True
@@ -114,7 +114,7 @@ hbeta3_init: 1.18
 ha_r3_init: 0.74
 hsig3_up_init: 52.0
 hsig3_down_init: 52.0
-hpa3_init: 250.0
+hpa3_init: 120.0
 hN3_init: 529.79
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
