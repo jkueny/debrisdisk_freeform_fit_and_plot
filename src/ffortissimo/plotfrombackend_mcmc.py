@@ -506,6 +506,15 @@ def best_model_plot(params_mcmc_yaml, hdr):
         overwrite=True,
     )
 
+    # Save each intrinsic best-fit WDH component for per-layer inspection.
+    for i, model_comp in enumerate(model_list, start=1):
+        fits.writeto(
+            os.path.join(mcmcresultdir, f'{name_h5}_BestModel_comp{i}.fits'),
+            np.asarray(model_comp, dtype=np.float32),
+            header=hdr,
+            overwrite=True,
+        )
+
     pre_fm = np.nansum(np.asarray(model_list_fm, dtype=np.float64), axis=0)
 
     fits.writeto(
@@ -651,6 +660,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
     )
     fig.tight_layout()
     plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_BestModel_Plot.jpg'))
+    plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_BestModel_Plot.pdf'))
     plt.close()
 
 
