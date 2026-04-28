@@ -35,8 +35,8 @@ basedir = f'{os.environ["HOME"]}/data'  # the base directory where is
 # default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = 'HR4796_i_camsci1_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = "wdh_HR4796_z_20230309_10.yaml"
-default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
-# default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
+# default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
+default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
 # you can also call it with the python function argument -p
 
 

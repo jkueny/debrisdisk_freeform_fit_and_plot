@@ -6,7 +6,7 @@ DISK_MODEL: wdh # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 3  # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 1  # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 9 # pixels
@@ -76,8 +76,12 @@ N_init: 420.50
 # amax_init: 10000. #microns, let's fix this for now
 # aexp_init: 3.5 #radial pwer law for size distribution of grains
 
+USE_NOISE: True
+# If the radial prof was subtracted during the image preprocessing + registration
+RPROFSUB: True
+
 # WIND PARAMETERS
-N_WIND_LAYERS: 2
+N_WIND_LAYERS: 3
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
@@ -87,9 +91,6 @@ Norm_shared_state: false
 pa_prior_sigma: 90.0
 
 
-USE_NOISE: True
-# If the radial prof was subtracted during the image preprocessing + registration
-RPROFSUB: True
 
 # WIND PARAMETERS
 hr1_init: 0.1 #include just for initializing the mask function
@@ -145,9 +146,7 @@ hN3_state: 1
 beta3_state: 1
 a_r3_state: 1
 sig3_state: 1
-pa3_state: 0
-dx3_state: 0
-dy3_state: 1
+pa3_state: 1
 Norm3_state: 1
 
 
