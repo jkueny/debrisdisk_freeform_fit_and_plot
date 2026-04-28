@@ -104,7 +104,7 @@ g3_state: 0
 alpha2_state: 0
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 2
+N_WIND_LAYERS: 3
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
@@ -140,10 +140,10 @@ ha_r3_init: 0.2
 hsig3_init: 30.0
 hsig3_up_init: 30.0
 hsig3_down_init: 30.0
-hpa3_init: 148.5
+hpa3_init: 230.0
 hdx3_init: 0.0
 hdy3_init: 0.0
-hN3_init: 2000
+hN3_init: 2000.0
 
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 1
