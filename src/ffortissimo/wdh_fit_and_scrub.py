@@ -9,6 +9,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import numpy as np
+from scipy.optimize import nnls
 import scipy.ndimage as ndi
 import yaml
 from astropy.io import fits
@@ -164,7 +165,8 @@ def fit_wdh_components(science_frame, rotated_components):
 
     design_matrix = np.column_stack([vector[finite_mask] for vector in component_vectors])
     target_vector = science_vector[finite_mask]
-    return np.linalg.lstsq(design_matrix, target_vector, rcond=None)
+    # return np.linalg.lstsq(design_matrix, target_vector, rcond=None)
+    return nnls(design_matrix, target_vector)
 
 
 def zero_negative_coefficients(coefficients):
@@ -332,7 +334,11 @@ def process_science_frame(
             subtracted_component = component
         subtracted_components.append(subtracted_component)
     rel_weights = determine_relative_weights(rotated_components)
-    coefficients, residuals, rank, singular_values = fit_wdh_components(
+    # coefficients, residuals, rank, singular_values = fit_wdh_components(
+    #     science_frame,
+    #     rotated_components,
+    # )
+    coefficients, residuals = fit_wdh_components(
         science_frame,
         rotated_components,
     )
@@ -346,14 +352,14 @@ def process_science_frame(
     # exit()
     cleaned = subtract_wdh_components(science_frame, rotated_components, coefficients)
     header_out = add_history(header, science_path, component_files, coefficients)
-    header_out["WDHRANK"] = (int(rank), "Rank of WDH least-squares design matrix")
+    # header_out["WDHRANK"] = (int(rank), "Rank of WDH least-squares design matrix")
     if residuals.size:
         header_out["WDHSSR"] = (float(residuals[0]), "WDH least-squares residual sum of squares")
-    if singular_values.size and singular_values[-1] != 0:
-        header_out["WDHSCOND"] = (
-            float(singular_values[0] / singular_values[-1]),
-            "WDH design matrix condition estimate",
-        )
+    # if singular_values.size and singular_values[-1] != 0:
+    #     header_out["WDHSCOND"] = (
+    #         float(singular_values[0] / singular_values[-1]),
+    #         "WDH design matrix condition estimate",
+    #     )
 
     output_path = output_filename(science_path, output_dir)
     fits.writeto(output_path, cleaned.astype(np.float32), header=header_out, overwrite=True)
