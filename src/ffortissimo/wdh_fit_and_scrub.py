@@ -324,7 +324,7 @@ def process_science_frame(science_path, components, component_files, output_dir)
     rel_weights = determine_relative_weights(rotated_components)
     coefficients, residuals, rank, singular_values = fit_wdh_components(
         science_frame,
-        subtracted_components,
+        rotated_components,
     )
     coefficients = zero_negative_coefficients(coefficients)
     weighted_coefficients = np.asarray(coefficients) * np.asarray(rel_weights)
