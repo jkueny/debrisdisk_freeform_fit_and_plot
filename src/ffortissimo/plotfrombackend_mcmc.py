@@ -30,8 +30,8 @@ import ffortissimo.windfit_mcmc as wfm
 basedir = get_basedir()
 
 # default_parameter_file = 'wdh_HR4796_z_20230309_10.yaml'
-default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
-# default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
+# default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
+default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
 
 # Populated by bootstrap_windfit_plot_runtime before plotting.
 klipdir = None
