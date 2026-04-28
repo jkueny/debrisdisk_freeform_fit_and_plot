@@ -187,13 +187,13 @@ def make_chain_plot(params_mcmc_yaml):
         params_mcmc_yaml['BURNIN'] = 0
 
     chain = reader.get_chain(discard=0, thin=thin)
-    chain_flat = reader.get_chain(flat=True)
+    chain_flat_for_ml = reader.get_chain(discard=burnin, thin=thin, flat=True)
     log_prob_samples_flat = reader.get_log_prob(
         discard=burnin, flat=True, thin=thin
     )
     wheremin = np.where(log_prob_samples_flat == np.nanmax(log_prob_samples_flat))
     wheremin0 = np.array(wheremin).flatten()[0]
-    theta_ml = chain_flat[wheremin0, :]
+    theta_ml = chain_flat_for_ml[wheremin0, :]
 
     tau = autocorr.integrated_time(chain[:, :, :], tol=5)
     if burnin > reader.iteration - 1:
