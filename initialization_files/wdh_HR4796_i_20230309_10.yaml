@@ -6,7 +6,7 @@ DISK_MODEL: wdh # original or modified Max MB model code
 MODE: ADI  #ADI or  RDI (probably also work for SDI and ADI + SDI but too slow to be usefull)
 DO_RDI_CORRELATION: False # Measure the correlation matrix of the RDI PSF lib. Very long.
 # KL mode number optimized for z-band, 2x2 binning, minor axis flux 02/20/24 JKK
-KLMODE_NUMBER: 3 # number of KL modes used in the reduction < nb images in the basis
+KLMODE_NUMBER: 2 # number of KL modes used in the reduction < nb images in the basis
 ANNULI: 1 # number of annuli in the KLIP reduction
 # IWA optimized for z-band speckles, 2x2 binning, minor axis flux 03/20/24 JKK
 IWA: 10 # pixels
@@ -27,7 +27,9 @@ RM_FILE_DISK_CROSS_SATSPOTS: False
 # The images where the disk is on the satspots are autonatically remove to measure the PSF
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
+# BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_wdhlib/wdh_subtracted  # name of folder where are the data (from basedir)
 BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_wdhlib  # name of folder where are the data (from basedir)
+WDHSUB_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
 KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 SPARKLE_COORDS_FILE: stacked/sparkle_coords_coron_thumbnail.txt # from BAND_DIR
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
@@ -114,26 +116,24 @@ pa_prior_sigma: 10.0
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-hbeta_init: 0.36
-ha_r_init: 0.15
+hbeta_init: 0.44
+ha_r_init: 0.16
 hsig_up_init: 29.0
 hsig_down_init: 30.0
 hpa_init: 250.0
 hdx_init: 0.0
 hdy_init: 0.007
-hN_init: 32985.36
-dtheta_init: 1.0
-fwhm_init: 3.0
+hN_init: 27317.36
 
-hbeta2_init: 0.002
-ha_r2_init: 0.28
+hbeta2_init: 0.06
+ha_r2_init: 0.29
 hsig2_up_init: 19.0
 hsig2_down_init: 18.0
 # hpa2_init: 176.0
 hpa2_init: 125.0
 hdx2_init: 0.0
 hdy2_init: 0.0
-hN2_init: 2623.7
+hN2_init: 2910.7
 
 hbeta3_init: 0.16
 ha_r3_init: 0.2

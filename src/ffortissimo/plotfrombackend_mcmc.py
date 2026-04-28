@@ -452,7 +452,7 @@ def create_header(params_mcmc_yaml):
 
 ########################################################
 def best_model_plot(params_mcmc_yaml, hdr):
-    """Intrinsic WDH sum, pre-FM input to WindFM, KL FM map, residuals, and SNR."""
+    """2×2 figure: best intrinsic model and FM (left column), KLIP data and residuals (right)."""
     quality_plot = params_mcmc_yaml['QUALITY_PLOT']
     file_prefix = params_mcmc_yaml['FILE_PREFIX']
     band_name = params_mcmc_yaml['BAND_NAME']
@@ -474,12 +474,6 @@ def best_model_plot(params_mcmc_yaml, hdr):
     reduced_data = fits.getdata(
         os.path.join(klipdir, file_prefix + '-klipped-KLmodes-all.fits')
     )[0]
-
-    noise = fits.getdata(os.path.join(klipdir, file_prefix + '_noisemap.fits'))
-    noise = noise.reshape(reduced_data.shape)
-    variance_for_stats = noise**2
-    total_noise_spatial = np.sqrt(np.nansum(variance_for_stats))
-    noise[noise == 0.0] = np.nan
 
     free_params_backup = list(wfm.FREE_PARAMS)
     try:
@@ -545,7 +539,6 @@ def best_model_plot(params_mcmc_yaml, hdr):
     )
 
     residuals = reduced_data - model_fm
-    snr_residuals = (reduced_data - model_fm) / noise
 
     fits.writeto(
         os.path.join(mcmcresultdir, name_h5 + '_BestModel_Res.fits'),
@@ -559,105 +552,80 @@ def best_model_plot(params_mcmc_yaml, hdr):
     dim_crop_image = round(1.75 * params_mcmc_yaml['OWA']) + 1
 
     intrinsic_crop = crop_center_odd(intrinsic_sum, dim_crop_image)
-    pre_fm_crop = crop_center_odd(pre_fm, dim_crop_image)
     fm_crop = crop_center_odd(model_fm, dim_crop_image)
     reduced_data_crop = crop_center_odd(reduced_data, dim_crop_image)
     residuals_crop = crop_center_odd(residuals, dim_crop_image)
-    snr_residuals_crop = crop_center_odd(snr_residuals, dim_crop_image)
 
     caracsize = 40 * quality_plot / 2.0
     fig = plt.figure(figsize=(6.4 * 2 * quality_plot, 4.8 * 2 * quality_plot))
 
-    ax1 = fig.add_subplot(235)
-    cax = plt.imshow(
+    star = plt.Circle(
+        (dim_crop_image / 2, dim_crop_image / 2), 2, color='r', alpha=0.8
+    )
+
+    # Top left: intrinsic best model (summed WDH)
+    ax_bm = fig.add_subplot(2, 2, 1)
+    im_bm = ax_bm.imshow(
+        intrinsic_crop + 0.1, origin='lower', norm=LogNorm(), cmap='bone'
+    )
+    ax_bm.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
+    fig.colorbar(im_bm, ax=ax_bm, fraction=0.046, pad=0.04).ax.tick_params(
+        labelsize=caracsize * 3 / 4.0
+    )
+    ax_bm.add_artist(star)
+    ax_bm.axis('off')
+
+    # Top right: KLIP reduced data
+    ax_dat = fig.add_subplot(2, 2, 2)
+    im_dat = ax_dat.imshow(
         reduced_data_crop + 0.1,
         origin='lower',
         vmin=int(np.round(vmin)),
         vmax=int(np.round(vmax)),
-        cmap="viridis",
+        cmap='viridis',
     )
-    ax1.set_title('KLIP reduced data', fontsize=caracsize, pad=caracsize / 3.0)
-    cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
-    plt.axis('off')
+    ax_dat.set_title('KLIP reduced data', fontsize=caracsize, pad=caracsize / 3.0)
+    fig.colorbar(im_dat, ax=ax_dat, fraction=0.046, pad=0.04).ax.tick_params(
+        labelsize=caracsize * 3 / 4.0
+    )
+    ax_dat.axis('off')
 
-    ax1 = fig.add_subplot(233)
-    cax = plt.imshow(
-        residuals_crop,
-        origin='lower',
-        vmin=int(np.round(vmin)),
-        vmax=int(np.round(vmax)),
-        cmap="viridis",
-    )
-    ax1.set_title('Residuals', fontsize=caracsize, pad=caracsize / 3.0)
-    cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
-    plt.axis('off')
-
-    ax1 = fig.add_subplot(236)
-    cax = plt.imshow(
-        snr_residuals_crop, origin='lower', vmin=-2, vmax=5, cmap='seismic'
-    )
-    ax1.set_title('SNR residuals', fontsize=caracsize, pad=caracsize / 3.0)
-    cbar = fig.colorbar(
-        cax, ticks=[-1, 0, 1, 2, 3, 4, 5], fraction=0.046, pad=0.04
-    )
-    cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
-    cbar.ax.set_yticklabels(['-1', '0', '1', '2', '3', '4', '5'])
-    plt.axis('off')
-
-    ax1 = fig.add_subplot(231)
-    vmax_model = int(np.round(np.max(intrinsic_crop) / 2.0))
-    cax = plt.imshow(
-        intrinsic_crop + 0.1,
-        origin='lower',
-        # vmin=0, vmax=vmax_model,
-        norm=LogNorm(),
-        cmap='bone'
-    )
-    ax1.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
-    cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
-    pos_star = plt.Circle(
-        (dim_crop_image / 2, dim_crop_image / 2), 2, color='r', alpha=0.8
-    )
-    ax1.add_artist(pos_star)
-    plt.axis('off')
-
-    vmax_pre_fm = int(np.round(np.max(pre_fm_crop) / 3.0))
-    vmin_pre_fm = int(np.round(np.min(pre_fm_crop) / 1.5))
-    ax1 = fig.add_subplot(234)
-    cax = plt.imshow(
-        pre_fm_crop,
-        origin='lower',
-        vmin=vmin_pre_fm,
-        vmax=vmax_pre_fm,
-        cmap="magma",
-    )
-    ax1.set_title('Best Model (pre-FM)', fontsize=caracsize, pad=caracsize / 3.0)
-    cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
-    plt.axis('off')
-
-    ax1 = fig.add_subplot(232)
-    cax = plt.imshow(
+    # Bottom left: FM prediction
+    ax_fm = fig.add_subplot(2, 2, 3)
+    im_fm = ax_fm.imshow(
         fm_crop,
         origin='lower',
         vmin=int(np.round(vmin)),
         vmax=int(np.round(vmax)),
-        cmap="magma",
+        cmap='magma',
     )
-    ax1.set_title('Best Model (FM)', fontsize=caracsize, pad=caracsize / 3.0)
-    cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(labelsize=caracsize * 3 / 4.0)
-    plt.axis('off')
+    ax_fm.set_title('Best Model (FM)', fontsize=caracsize, pad=caracsize / 3.0)
+    fig.colorbar(im_fm, ax=ax_fm, fraction=0.046, pad=0.04).ax.tick_params(
+        labelsize=caracsize * 3 / 4.0
+    )
+    ax_fm.axis('off')
 
-    fig.subplots_adjust(hspace=-0.4, wspace=0.2)
-    fig.suptitle(
-        band_name + ': best WDH model and residuals',
-        fontsize=5 / 4.0 * caracsize,
-        y=0.985,
+    # Bottom right: residuals
+    ax_res = fig.add_subplot(2, 2, 4)
+    im_res = ax_res.imshow(
+        residuals_crop,
+        origin='lower',
+        vmin=int(np.round(vmin)),
+        vmax=int(np.round(vmax)),
+        cmap='viridis',
     )
+    ax_res.set_title('Residuals', fontsize=caracsize, pad=caracsize / 3.0)
+    fig.colorbar(im_res, ax=ax_res, fraction=0.046, pad=0.04).ax.tick_params(
+        labelsize=caracsize * 3 / 4.0
+    )
+    ax_res.axis('off')
+
+    fig.subplots_adjust(hspace=0.25, wspace=0.35)
+    # fig.suptitle(
+    #     band_name + ': best WDH model and residuals',
+    #     fontsize=5 / 4.0 * caracsize,
+    #     y=0.985,
+    # )
     fig.tight_layout()
     plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_BestModel_Plot.jpg'))
     plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_BestModel_Plot.pdf'))

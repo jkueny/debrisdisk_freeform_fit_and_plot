@@ -35,8 +35,8 @@ basedir = f'{os.environ["HOME"]}/data'  # the base directory where is
 # default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = 'HR4796_i_camsci1_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = "wdh_HR4796_z_20230309_10.yaml"
-# default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
-default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
+default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
+# default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
 # you can also call it with the python function argument -p
 
 
@@ -121,6 +121,58 @@ def subtract_radial_profile_np(image, radial_inds, radii):
     )
     profile_2d = medians[radial_inds]
     return image - profile_2d
+
+def calculate_radial_distances(image_shape, center=None):
+    """
+    This makes a 2D array with each value being the radial distance from the center.
+
+    image_shape should be a (x,y) or [x,y]
+
+    The center coord is optional.
+    """
+    if center is None:
+        #default true center of the image if no center is provided
+        center = ((image_shape[0] - 1) / 2, (image_shape[1] - 1) / 2)
+    y, x = np.indices(image_shape)
+    center_y, center_x = center
+    return np.sqrt((y - center_y) ** 2 + (x - center_x) ** 2)
+
+def median_radial_profile(image, center=None):
+    """
+    Calculates the median radial profile of the input 2D image.
+
+    image should be a 2D numpy array
+    """
+    distances = calculate_radial_distances(image.shape, center)
+    radial_distances = np.round(distances).astype(int)
+
+    #Grab the maximum radial distance
+    max_distance = np.max(radial_distances)
+
+    #Calculate med for each distance
+    median_profile = np.array([np.median(image[radial_distances == r]) for r in range(max_distance + 1)])
+
+    return median_profile
+
+def subtract_median_profile(image, center=None):
+    """
+    Subtract the median radial profile from an image.
+    """
+    distances = calculate_radial_distances(image.shape, center)
+    radial_distances = np.round(distances).astype(int)
+    # print(radial_distances)
+
+    # Compute the median radial profile
+    median_profile = median_radial_profile(image, center)
+
+    # Create a 2D array from the median profile based on radial distances
+    median_image = median_profile[radial_distances]
+
+    # Subtract the median profile from the original image
+    subtracted_image = image - median_image
+
+
+    return subtracted_image
 
 
 def _wrapped_angle_delta_deg(angle_deg, center_deg):
@@ -540,6 +592,10 @@ def logl(theta):
             RADIAL_INDS,
             RADII,
         )
+        # combined_model_sub2 = subtract_median_profile(
+        #     combined_model,
+        #     ALIGNED_CENTER,
+        # )
         model_list = [np.asarray(combined_model_sub, dtype=np.float32)]
     DISKOBJ.update_wind(model_list)
     model_fm = DISKOBJ.fm_parallelized()[0]
@@ -865,7 +921,7 @@ def initialize_mask_psf_noise(params_mcmc_yaml, quietklip=True):
 
     if first_time:
         if instrument == 'MagAO-X':
-            filelist = sorted(glob.glob(f'{datadir}/*parang.fits'), key=sort_parang_monotonic)
+            filelist = sorted(glob.glob(f'{datadir}/camsci*.fits'), key=sort_parang_monotonic)
             if len(filelist) == 0:
                 raise ValueError(f"Could not find files in the dir: {datadir}")
 
