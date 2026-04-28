@@ -160,24 +160,18 @@ hbeta2_state: 1
 ha_r2_state: 1
 hsig2_state: 1
 hpa2_state: 1
-hdx2_state: 0
-hdy2_state: 1
 hN2_state: 1
 
 hbeta3_state: 1
 ha_r3_state: 1
 hpa3_state: 0
-hdx3_state: 0
-hdy3_state: 1
 hN3_state: 1
 
 # Added explicit third-component aliases used by the refactored parser.
 beta3_state: 1
 a_r3_state: 1
 sig3_state: 1
-pa3_state: 0
-dx3_state: 0
-dy3_state: 1
+pa3_state: 1
 Norm3_state: 1
 
 USE_NOISE: True
