@@ -108,7 +108,7 @@ USE_NOISE: True
 RPROFSUB: False
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 3
+N_WIND_LAYERS: 4
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
@@ -141,13 +141,17 @@ hN2_init: 2910.7
 
 hbeta3_init: 0.01
 ha_r3_init: 0.21
-hsig3_init: 22.0
 hsig3_up_init: 19.0
 hsig3_down_init: 30.0
 hpa3_init: 230.0
-hdx3_init: 0.0
-hdy3_init: 0.0
 hN3_init: 7153.0
+
+hbeta4_init: 0.36
+ha_r4_init: 0.44
+hsig4_up_init: 20.0
+hsig4_down_init: 20.0
+hpa4_init: 90.0
+hN4_init: 1500.0
 
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 1
@@ -219,7 +223,7 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 200   #We remove the first BURNIN iteration
+BURNIN: 600   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
