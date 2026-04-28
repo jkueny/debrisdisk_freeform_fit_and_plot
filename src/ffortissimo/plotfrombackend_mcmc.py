@@ -4,6 +4,7 @@
 import os
 import sys
 import math
+import re
 from datetime import datetime
 
 import numpy as np
@@ -96,7 +97,8 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
     if n_dim_mcmc == len(no_pa):
         return no_pa
     names = list(params_mcmc_yaml.get('NAMES', []))
-    if len(names) >= n_dim_mcmc:
+    token_pat = re.compile(r'^[A-Za-z][A-Za-z0-9_]*_[0-9]+$')
+    if len(names) >= n_dim_mcmc and all(token_pat.match(x) for x in names[:n_dim_mcmc]):
         return names[:n_dim_mcmc]
     return [f'theta_{i + 1}' for i in range(n_dim_mcmc)]
 
@@ -226,24 +228,52 @@ def make_chain_plot(params_mcmc_yaml):
             'Add LABELS keys for every entry in backend parameter tokens (see YAML).'
         )
 
-    _, axarr = plt.subplots(
-        n_dim_mcmc,
-        sharex=True,
-        figsize=(6.4 * quality_plot, 4.8 * quality_plot),
-    )
+    model_param_indices = {}
+    for i, tok in enumerate(tokens):
+        try:
+            _, idx_str = tok.rsplit('_', 1)
+            model_idx = int(idx_str)
+        except ValueError:
+            model_idx = 0
+        model_param_indices.setdefault(model_idx, []).append(i)
 
-    for i in range(n_dim_mcmc):
-        axarr[i].set_ylabel(axis_labels[i], fontsize=5 * quality_plot)
-        axarr[i].tick_params(axis='y', labelsize=4 * quality_plot)
-        for j in range(nwalkers):
-            axarr[i].plot(chain[:, j, i], linewidth=quality_plot)
-        axarr[i].axvline(x=burnin, color='black', linewidth=1.5 * quality_plot)
+    for model_idx in sorted(model_param_indices):
+        param_indices = model_param_indices[model_idx]
+        n_params_model = len(param_indices)
+        _, axarr = plt.subplots(
+            n_params_model,
+            sharex=True,
+            figsize=(
+                max(2 * n_params_model, 3) * quality_plot,
+                3 * quality_plot,
+                ),
+        )
+        axarr = np.atleast_1d(axarr)
 
-    axarr[n_dim_mcmc - 1].tick_params(axis='x', labelsize=6 * quality_plot)
-    axarr[n_dim_mcmc - 1].set_xlabel('Iterations', fontsize=10 * quality_plot)
+        for ax_idx, param_idx in enumerate(param_indices):
+            axarr[ax_idx].set_ylabel(
+                axis_labels[param_idx], fontsize=5 * quality_plot
+            )
+            axarr[ax_idx].tick_params(axis='y', labelsize=4 * quality_plot)
+            for j in range(nwalkers):
+                axarr[ax_idx].plot(chain[:, j, param_idx], linewidth=quality_plot)
+            axarr[ax_idx].axvline(
+                x=burnin, color='black', linewidth=1.5 * quality_plot
+            )
 
-    plt.savefig(os.path.join(mcmcresultdir, name_h5 + '_chains.jpg'))
-    plt.close()
+        axarr[-1].tick_params(axis='x', labelsize=6 * quality_plot)
+        axarr[-1].set_xlabel('Iterations', fontsize=10 * quality_plot)
+
+        if model_idx == 0:
+            suffix = 'misc'
+            title = 'Unindexed parameters'
+        else:
+            suffix = f'model{model_idx}'
+            title = f'WDH model {model_idx}'
+        axarr[0].set_title(title, fontsize=8 * quality_plot)
+
+        plt.savefig(os.path.join(mcmcresultdir, f'{name_h5}_chains_{suffix}.jpg'))
+        plt.close()
 
 
 ########################################################

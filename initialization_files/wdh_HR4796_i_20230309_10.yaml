@@ -105,7 +105,7 @@ alpha2_state: 0
 
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
-RPROFSUB: False
+RPROFSUB: True
 
 # WIND PARAMETERS
 N_WIND_LAYERS: 4
@@ -180,6 +180,19 @@ sig3_state: 1
 pa3_state: 1
 Norm3_state: 1
 
+hbeta4_state: 1
+ha_r4_state: 1
+hsig4_state: 1
+hpa4_state: 1
+hN4_state: 1
+
+# Added explicit fourth-component aliases used by the refactored parser.
+beta4_state: 1
+a_r4_state: 1
+sig4_state: 1
+pa4_state: 1
+Norm4_state: 1
+
 # MASKING PARAMETERS
 MASK_IN_SCALING: 1
 MASK_OUT_SCALING: 1
@@ -231,140 +244,106 @@ VSCALING_MIN: 0.2
 VSCALING_MAX: 0.2
 
 NAMES:
-# - rscale
-- Beta
-- a_r
-- sig
-- PA
-- dx
-- dy
-# - dz
-- Norm
-- dtheta
-# - Beta2
-- a_r2
-- sig2
-- PA2
-- dx2
-- dy2
-# - dz2
-# - offset
-- Norm2
-- dtheta2 
-- a_r3
-- PA3
-- dy3
-- Norm3
-# - Omega
-# - ekowa
-# - ikowa
-# - RA
-# - Decl
-# - RAp
-# - Declp
-# - Rkowa
+  - beta_1
+  - beta_2
+  - beta_3
+  - beta_4
+  - h0_1
+  - h0_2
+  - h0_3
+  - h0_4
+  - sigma_up_1
+  - sigma_up_2
+  - sigma_up_3
+  - sigma_up_4
+  - sigma_down_1
+  - sigma_down_2
+  - sigma_down_3
+  - sigma_down_4
+  - PA_1
+  - PA_2
+  - PA_3
+  - PA_4
+  - Norm_1
+  - Norm_2
+  - Norm_3
+  - Norm_4
 
 
 LABELS:
-  Alph1: $\alpha$1[%]
-  Alph2: $\alpha$2[%]
-  alpha_in: $\alpha_{in}$
-  alpha_out: $\alpha_{out}$
-  Beta: $\beta$
-  Beta2: $\beta$2
-  offset: $dz$
-  Norm: $N$[ADU]
-  Norm2: $N$2[ADU]
-  Norm3: $N$3[ADU]
-  a_r: a_r
-  a_r2: a_r2
-  a_r3: a_r3
-  dtheta: $d\theta$
-  dtheta2: $d\theta$2
-  sig: $\sigma$
-  sig2: $\sigma$2
-  PA: $pa[^{\circ}]$
-  PA2: $pa2[^{\circ}]$
-  PA3: $pa3[^{\circ}]$
-  R1: R1[au]
-  R2: R2[au]
-  RC: $R_c$[au]
-  dx: $dx$
-  dx2: $dx$2
-  dy: $dy$
-  dy2: $dy$2
-  dy3: $dy$3
-  dz: $dz$
-  dz2: $dz$2
-  g1: g1[%]
-  g2: g2[%]
-  g3: g3[%]
-  inc: $i[^{\circ}]$
-  rscale: rscale[ADU]
-  amin: $a_{min}$[um]
-  amax: amax[um]
-  aexp: aexp
+  beta_1: beta_1
+  beta_2: beta_2
+  beta_3: beta_3
+  beta_4: beta_4
+  h0_1: h0_1
+  h0_2: h0_2
+  h0_3: h0_3
+  h0_4: h0_4
+  sigma_up_1: sig_up_1
+  sigma_up_2: sig_up_2
+  sigma_up_3: sig_up_3
+  sigma_up_4: sig_up_4
+  sigma_down_1: sig_dn_1
+  sigma_down_2: sig_dn_2
+  sigma_down_3: sig_dn_3
+  sigma_down_4: sig_dn_4
+  PA_1: PA_1
+  PA_2: PA_2
+  PA_3: PA_3
+  PA_4: PA_4
+  Norm_1: N_1
+  Norm_2: N_2
+  Norm_3: N_3
+  Norm_4: N_4
 
 VARIABLES:
-  Alph1: $\alpha$1
-  Alph2: $\alpha$2
-  alpha_in: $\alpha_{in}$
-  alpha_out: $\alpha_{out}$
-  Beta: $\beta$
-  Beta2: $\beta$2
-  Norm: $N$
-  Norm2: $N$2
-  a_r: a_r
-  a_r2: a_r2
-  dtheta: $d\theta$
-  PA: $pa$
-  PA2: $pa$2
-  R1: R1
-  R2: R2
-  RC: $R_c$
-  dx: $dx$
-  dx2: $dx$2
-  dy: $dy$
-  dy2: $dy$2
-  g1: g1
-  g2: g2
-  g3: g3
-  inc: $i$
-  amin: $a_{min}$
-  amax: amax
-  aexp: aexp
+  beta_1: beta_1
+  beta_2: beta_2
+  beta_3: beta_3
+  beta_4: beta_4
+  h0_1: h0_1
+  h0_2: h0_2
+  h0_3: h0_3
+  h0_4: h0_4
+  sigma_up_1: sigma_up_1
+  sigma_up_2: sigma_up_2
+  sigma_up_3: sigma_up_3
+  sigma_up_4: sigma_up_4
+  sigma_down_1: sigma_down_1
+  sigma_down_2: sigma_down_2
+  sigma_down_3: sigma_down_3
+  sigma_down_4: sigma_down_4
+  PA_1: PA_1
+  PA_2: PA_2
+  PA_3: PA_3
+  PA_4: PA_4
+  Norm_1: Norm_1
+  Norm_2: Norm_2
+  Norm_3: Norm_3
+  Norm_4: Norm_4
 
 COMMENTS:
-  Argpe: ' deg, argument of pericentre'
-  Alph1: ' %, first relative HG weight'
-  Alph2: ' %, second relative HG weight'
-  alpha_in: ' inner radial power law'
-  alpha_out: ' outer radial power law'
-  Beta: ' radial power law'
-  Norm: ' ADU, normalisation'
-  a_r: ' aspect ratio'
-  PA: ' degree, principal angle'
-  R1: ' AU, inner radius'
-  R2: ' AU, outer radius'
-  RC: ' AU, max density radius'
-  dx: ' au, + -> NW offset disk plane Minor Axis'
-  dy: ' au, + -> SW offset disk plane Major Axis'
-  g1: ' %, 1st HG param'
-  g2: ' %, 2nd HG param'
-  g3: ' %, 3rd HG param'
-  inc: ' degree, inclination'
-  R1mas: ' mas, inner radius'
-  ecc: ' eccentricity (deprojected, or disk plane)'
-  amin: ' um, min grain size'
-  amax: ' um, max grain size'
-  aexp: ' power grain size distribution'
-
-  # R2mas: 'mas, outer radius'
-  # ekowa: deproj. (true) eccentricity (Kowalsky)
-  # ikowa: degree, deproj. (true) inclination (Kowalsky)
-  #RA: mas, ->E right ascension
-  # RAp: pix, ->E right ascension
-  # Rkowa: mas, deproj. (true) semi major axis (Kowalsky)
-  # Decl: mas, ->N declination
-  # Declp: pix, -> N declination
-  # Omega: deg, longitude of the ascending node
+  beta_1: 'WDH radial exponent beta, layer 1'
+  beta_2: 'WDH radial exponent beta, layer 2'
+  beta_3: 'WDH radial exponent beta, layer 3'
+  beta_4: 'WDH radial exponent beta, layer 4'
+  h0_1: 'WDH scale h0 / a_r, layer 1'
+  h0_2: 'WDH scale h0 / a_r, layer 2'
+  h0_3: 'WDH scale h0 / a_r, layer 3'
+  h0_4: 'WDH scale h0 / a_r, layer 4'
+  sigma_up_1: 'Lobe width sigma (x_rot>0), layer 1'
+  sigma_up_2: 'Lobe width sigma (x_rot>0), layer 2'
+  sigma_up_3: 'Lobe width sigma (x_rot>0), layer 3'
+  sigma_up_4: 'Lobe width sigma (x_rot>0), layer 4'
+  sigma_down_1: 'Lobe width sigma (x_rot<=0), layer 1'
+  sigma_down_2: 'Lobe width sigma (x_rot<=0), layer 2'
+  sigma_down_3: 'Lobe width sigma (x_rot<=0), layer 3'
+  sigma_down_4: 'Lobe width sigma (x_rot<=0), layer 4'
+  PA_1: 'Position angle, layer 1'
+  PA_2: 'Position angle, layer 2'
+  PA_3: 'Position angle, layer 3'
+  PA_4: 'Position angle, layer 4'
+  Norm_1: 'Amplitude Norm, layer 1 (sampled in ln space)'
+  Norm_2: 'Amplitude Norm, layer 2 (sampled in ln space)'
+  Norm_3: 'Amplitude Norm, layer 3 (sampled in ln space)'
+  Norm_4: 'Amplitude Norm, layer 4 (sampled in ln space)'
