@@ -103,6 +103,10 @@ alpha1_state: 1
 g3_state: 0
 alpha2_state: 0
 
+USE_NOISE: True
+# If the radial prof was subtracted during the image preprocessing + registration
+RPROFSUB: False
+
 # WIND PARAMETERS
 N_WIND_LAYERS: 3
 gamma_fixed: 1.0
@@ -116,34 +120,34 @@ pa_prior_sigma: 10.0
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-hbeta_init: 0.44
-ha_r_init: 0.16
-hsig_up_init: 29.0
-hsig_down_init: 30.0
+hbeta_init: 0.67
+ha_r_init: 0.14
+hsig_up_init: 20.0
+hsig_down_init: 25.0
 hpa_init: 250.0
 hdx_init: 0.0
 hdy_init: 0.007
 hN_init: 27317.36
 
-hbeta2_init: 0.06
-ha_r2_init: 0.29
-hsig2_up_init: 19.0
-hsig2_down_init: 18.0
+hbeta2_init: 0.36
+ha_r2_init: 0.44
+hsig2_up_init: 20.0
+hsig2_down_init: 19.0
 # hpa2_init: 176.0
 hpa2_init: 125.0
 hdx2_init: 0.0
 hdy2_init: 0.0
 hN2_init: 2910.7
 
-hbeta3_init: 0.16
-ha_r3_init: 0.2
-hsig3_init: 30.0
-hsig3_up_init: 30.0
+hbeta3_init: 0.01
+ha_r3_init: 0.21
+hsig3_init: 22.0
+hsig3_up_init: 19.0
 hsig3_down_init: 30.0
 hpa3_init: 230.0
 hdx3_init: 0.0
 hdy3_init: 0.0
-hN3_init: 2000.0
+hN3_init: 7153.0
 
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 1
@@ -171,10 +175,6 @@ a_r3_state: 1
 sig3_state: 1
 pa3_state: 1
 Norm3_state: 1
-
-USE_NOISE: True
-# If the radial prof was subtracted during the image preprocessing + registration
-RPROFSUB: True
 
 # MASKING PARAMETERS
 MASK_IN_SCALING: 1

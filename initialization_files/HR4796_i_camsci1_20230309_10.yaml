@@ -147,7 +147,7 @@ TEST_MASK_DX: 0
 TEST_MASK_DY: 0
 
 
-RPROFSUB: True
+RPROFSUB: False
 
 # APERTURE PHOTOMETRY
 AP_RING_RAD: 90 #circle defining where to plop down apertures, deprojected disk

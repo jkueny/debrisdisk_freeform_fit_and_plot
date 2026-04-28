@@ -264,7 +264,8 @@ def plot_coefficients(coefficients_by_frame, date_obs_values, output_dir, compon
     output_path = output_dir / "wdh_component_coefficients.png"
     n_frames, n_components = coefficient_array.shape
     frame_positions = np.arange(n_frames, dtype=float)
-    bar_width = min(1.0 / max(n_components, 1), 0.5)
+    bar_width = min(0.9 / max(n_components, 1), 0.5)
+    # bar_width = 0.5
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
     fig = plt.figure(figsize=(12, 5.5))
@@ -301,7 +302,13 @@ def determine_relative_weights(components):
         weights.append(np.sum(component) / np.sum(components_arr))
     return weights
 
-def process_science_frame(science_path, components, component_files, output_dir):
+def process_science_frame(
+    science_path,
+    components,
+    component_files,
+    output_dir,
+    subtract_median_profile=False,
+):
     """Fit and subtract WDH components from one science frame."""
     science_frame, header = read_science_frame(science_path)
     parang = float(header["PARANG"])
@@ -319,14 +326,17 @@ def process_science_frame(science_path, components, component_files, output_dir)
     rotated_components = rotate_components(components, parang)
     subtracted_components = []
     for component in rotated_components:
-        subtracted_component, _ = subtract_median_profile_np(component)
+        if subtract_median_profile:
+            subtracted_component, _ = subtract_median_profile_np(component)
+        else:
+            subtracted_component = component
         subtracted_components.append(subtracted_component)
     rel_weights = determine_relative_weights(rotated_components)
     coefficients, residuals, rank, singular_values = fit_wdh_components(
         science_frame,
         rotated_components,
     )
-    coefficients = zero_negative_coefficients(coefficients)
+    # coefficients = zero_negative_coefficients(coefficients)
     weighted_coefficients = np.asarray(coefficients) * np.asarray(rel_weights)
     # print(f"Relative weights: {rel_weights}")
     # print(f"Weighted coefficients: {weighted_coefficients}")
@@ -356,6 +366,7 @@ def run_subtraction(param_file):
     band_dir = resolve_band_dir(params)
     output_dir = band_dir / "wdh_subtracted"
     output_dir.mkdir(parents=True, exist_ok=True)
+    subtract_median_profile = params.get("RPROFSUB", False)
 
     science_frames = find_science_frames(band_dir)
     component_files = find_component_files(band_dir)
@@ -375,6 +386,7 @@ def run_subtraction(param_file):
             components,
             component_files,
             output_dir,
+            subtract_median_profile=subtract_median_profile,
         )
         date_obs_values.append(date_obs)
         coefficients_by_frame.append(weighted_coeffs)
