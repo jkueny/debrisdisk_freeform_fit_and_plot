@@ -1,3 +1,4 @@
+import pathlib
 import os, sys
 import argparse
 import time
@@ -260,7 +261,7 @@ def optimize_model(
                 pass
 
 
-        if step_idx % 100 == 0 and step_idx > 0:
+        if step_idx > 0 and step_idx % 100 == 0:
             abs_loss_history.append(abs(loss_history[-2] - loss_value))
             if len(abs_loss_history) >= 10:
                 rolling_avg = float(np.mean(abs_loss_history[-10:]))
@@ -273,17 +274,23 @@ def optimize_model(
                 abs_loss_history = []
         if not bool(basis_data_unpacked["klparams"]["isRDI"]):
             if step_idx % PLOT_EVERY_N == 0 or step_idx < PLOT_FIRST_N:
+                updates_image = reconstruct_full_image(updates, total_pixels, disk_mask_indices)
                 out_filename = f"{run_dir}/training_{plot_idx:05}.png"
                 plot_training(
                     out_filename,
                     reduced_data,
                     freeform_fm_full,
                     full_model_image,
-                    reconstruct_full_image(updates, total_pixels, disk_mask_indices),
+                    updates_image,
                     opt_mask_indices,
                     ref_disk_median,
                     ref_disk_std,
                 )
+                training_dir = pathlib.Path(run_dir) / f"training_{plot_idx:05}"
+                training_dir.mkdir(exist_ok=True)
+                fits.PrimaryHDU(freeform_fm_full).writeto(training_dir / "freeform_fm_full.fits")
+                fits.PrimaryHDU(full_model_image).writeto(training_dir / "full_model_image.fits")
+                fits.PrimaryHDU(updates_image).writeto(training_dir / "updates_image.fits")
                 plot_idx += 1
 
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
