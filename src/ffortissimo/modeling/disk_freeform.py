@@ -381,7 +381,9 @@ class FreeFormDisk:
         noise_map_local[noise_map_local != noise_map_local] = 1.
         self.noise_map = noise_map_local
         if self.params_file["OPTIMIZE_REFERENCE"]:
+            logging.info("Fitting simple disk model for initialization...")
             reference_model = self.fit_simple_disk_model()
+            logging.info("Finished fitting simple disk model.")
         else:
             reference_model = self.render_initial_disk_model()
         reference_model_outpath = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits")

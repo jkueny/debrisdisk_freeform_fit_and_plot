@@ -38,20 +38,20 @@ logger = logging.getLogger(__name__)
 def verify_prerequisites(ffd_obj):
     """
     Verify that ff_klip.py and ff_setup.py were run successfully.
-    
+
     Args:
         ffd_obj: FreeFormDisk object
-        
+
     Raises:
         FileNotFoundError: If required files are missing
     """
     klipdir = ffd_obj.klipdir
     file_prefix = ffd_obj.file_prefix
-    
+
     # Files from ff_klip.py
     reduced_data_path = os.path.join(klipdir, f"{file_prefix}-klipped-KLmodes-all.fits")
     basis_path = os.path.join(klipdir, f"{file_prefix}_klbasis.h5")
-    
+
     # Files from ff_setup.py
     mask_files = {
         'mask2generatedisk': os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits"),
@@ -60,24 +60,24 @@ def verify_prerequisites(ffd_obj):
         'mask_out_of_bounds': os.path.join(klipdir, f"{file_prefix}_mask_out_of_bounds.fits"),
     }
     noise_map_path = os.path.join(klipdir, f"{file_prefix}_noisemap.fits")
-    
+
     missing_files = []
-    
+
     # Check KLIP files
     if not os.path.exists(reduced_data_path):
         missing_files.append(('KLIP-reduced image', reduced_data_path))
     if not os.path.exists(basis_path):
         missing_files.append(('KL basis file', basis_path))
-    
+
     # Check mask files
     for mask_name, mask_path in mask_files.items():
         if not os.path.exists(mask_path):
             missing_files.append((f'Mask: {mask_name}', mask_path))
-    
+
     # Check noise map
     if not os.path.exists(noise_map_path):
         missing_files.append(('Noise map', noise_map_path))
-    
+
     if missing_files:
         error_msg = (
             f"Error: Prerequisites from ff_klip.py and/or ff_setup.py are missing.\n"
@@ -87,7 +87,7 @@ def verify_prerequisites(ffd_obj):
             error_msg += f"  - {file_type}: {file_path}\n"
         error_msg += "\nPlease run ff_klip.py first, then ff_setup.py before running optimization."
         raise FileNotFoundError(error_msg)
-    
+
     logger.info(" Verified prerequisites:")
     logger.info("  - KLIP-reduced image: %s", reduced_data_path)
     logger.info("  - KL basis file: %s", basis_path)
@@ -98,17 +98,17 @@ def verify_prerequisites(ffd_obj):
 def perform_forward_modeling_dry_run(ffd_obj, init_model_path=None):
     """
     Perform a single forward-modeling dry run for inspection.
-    
+
     Args:
         ffd_obj: FreeFormDisk object
         init_model_path (str, optional): Path to initial model FITS file
     """
     klipdir = ffd_obj.klipdir
     file_prefix = ffd_obj.file_prefix
-    
+
     logger.info("[Forward Modeling Dry Run]")
     logger.info("Performing single forward-modeling computation for inspection...")
-    
+
     # Load mask from disk (created by ff_setup.py)
     mask2generatedisk_path = os.path.join(klipdir, f"{file_prefix}_mask2generatedisk.fits")
     if not os.path.exists(mask2generatedisk_path):
@@ -117,22 +117,22 @@ def perform_forward_modeling_dry_run(ffd_obj, init_model_path=None):
             "Please run ff_setup.py first to create the masks."
         )
     ffd_obj.mask2generatedisk = fits.getdata(mask2generatedisk_path)
-    
+
     # Allocate dataset (needed for get_initial_model)
     ffd_obj.allocate_dataset()
-    
+
     # Get initial model
     logger.info("   Creating/loading initial model...")
     model_init = ffd_obj.get_initial_model(init_model_path)
-    
+
     # Convolve initial model with PSF
     logger.info("   Convolving initial model with PSF...")
     model_convolved = fftconvolve(model_init, ffd_obj.psf, mode="same")
-    
+
     # Run forward modeling
     logger.info("   Running forward modeling (this may take a while)...")
     model_fm_init = ffd_obj.single_fm(np.asarray(model_convolved))
-    
+
     # Save forward model
     model_fm_saveto = os.path.join(klipdir, f"{file_prefix}_DryRun_FM.fits")
     save_fits(model_fm_saveto, model_fm_init)
@@ -149,7 +149,7 @@ def main():
     Main function to run JAX-based optimization for freeform disk fitting.
     """
     multiprocessing.set_start_method('forkserver')
-    
+
     parser = argparse.ArgumentParser(
         description='Run JAX-based optimization for freeform disk fitting',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -174,7 +174,7 @@ Examples:
   ff_optimize -p initialization_files/config.yaml -i 50000 --log-to-file
         """
     )
-    
+
     parser.add_argument('-p', '--param-file',
                         required=True,
                         help='Path to YAML parameter file')
@@ -222,8 +222,8 @@ Examples:
                         help='Write a timestamped log file instead of stdout')
 
     args = parser.parse_args()
-    
-    
+
+
     if not os.path.exists(args.param_file):
         print(f"Error: Configuration file not found: {args.param_file}")
         sys.exit(1)
@@ -244,7 +244,7 @@ Examples:
     init_max = args.init_max
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
-    
+
     # Initialize the freeform disk object
     ffd_obj = FreeFormDisk(config)
 
@@ -263,7 +263,7 @@ Examples:
         if not os.path.exists(injected_dir):
             logger.error("Injected directory not found: %s", injected_dir)
             sys.exit(1)
-        
+
         ffd_obj.inject_recover_mode(injected_dir)
         # assert that the init params have been overridden with the injected test params
         assert ffd_obj.params_init['pa'] == ffd_obj.params_file['pa_test']
@@ -291,11 +291,11 @@ Examples:
     logger.info("Output directory: %s", klipdir)
     logger.info("Results directory: %s", resultsdir)
     logger.info("Mode: %s", ffd_obj.mode)
-    
+
     # Verify prerequisites
     verify_prerequisites(ffd_obj)
-    
-    
+
+
     component_dict = load_diskfit_components(
         ffd_obj=ffd_obj,
         init_model=init_model,
@@ -344,21 +344,30 @@ Examples:
         perform_forward_modeling_dry_run(ffd_obj, init_model_path=init_model)
         logger.info("♪ Dry run complete. Exiting.")
         return
-    
+
     run_dir = get_next_run_dir(resultsdir)
-    
+
     # Run optimization
     logger.info("[6/6] Running optimization (max %s iterations, loss tolerance %s)...", num_iterations, loss_tolerance)
     logger.info("   Output directory: %s", run_dir)
-    
+
     import jax.profiler
     trace_dest = os.environ.get('profileJaxTraceTo', False)
     if trace_dest:
         jax.profiler.start_trace(trace_dest)
         logger.info("   Tracing to %s", trace_dest)
-    
+
+
+    target_image = reduced_flat_interest_no_bkg if ffd_obj.mode == "RDI" else reduced_flat_interest
+    throughput_fudge_factor = 2.0
+    logger.info(f"   Estimating model flux scale from reduced data (target_image) using {throughput_fudge_factor}x throughput fudge factor")
+    param_scale_med = np.median(np.abs(target_image)) * throughput_fudge_factor
+    logger.info(f"      {throughput_fudge_factor} x median(|target_image|) = {param_scale_med}")
+    param_scale_std = np.std(np.abs(target_image)) * throughput_fudge_factor
+    logger.info(f"      {throughput_fudge_factor} x stddev(|target_image|) = {param_scale_std}")
+
     optimized_params, loss_history, weights_nominal = optimize_model(
-        target_image=reduced_flat_interest_no_bkg if ffd_obj.mode == "RDI" else reduced_flat_interest,
+        target_image=target_image,
         model_init=init_model_interest,
         ref_psd=reference_model_psd,
         noise_map=noise_interest,
@@ -380,8 +389,10 @@ Examples:
         aligned_center=aligned_center,
         do_radial_profile_sub=do_radial_profile_sub,
         do_clean_final_fm=do_clean_final_fm,
+        param_scale_med=param_scale_med,
+        param_scale_std=param_scale_std,
     )
-    
+
     try:
         optimized_params.block_until_ready()
     except Exception as e:
@@ -392,7 +403,7 @@ Examples:
         logger.info("   Ended profiler trace")
 
     logger.info("   ♪ Optimization complete")
-    
+
     # Post-process and save results
     logger.info("[Saving] Post-processing and saving results...")
     pyklip_params_dict = record_pyklip_params(
@@ -402,7 +413,7 @@ Examples:
         ffd_obj.minrot,
         ffd_obj.aligned_center
     )
-    
+
     outputs_dict = harness_optimized_model(
         optimized_params,
         ffd_obj,
@@ -425,7 +436,7 @@ Examples:
     injected_model_path = None
     if injected_dir is not None:
         injected_model_path = os.path.join(klipdir, "disk_model_to_inject.fits")
-    
+
     save_ffdfit_outputs(
         run_dir=run_dir,
         file_prefix=file_prefix,
@@ -443,7 +454,7 @@ Examples:
         injected_model_path=injected_model_path,
         learning_rate=learning_rate
     )
-    
+
     logger.info("♪ Optimization and saving complete!")
     logger.info("Results saved to: %s", run_dir)
     logger.info("  - Optimized model")

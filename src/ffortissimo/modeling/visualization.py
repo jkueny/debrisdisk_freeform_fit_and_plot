@@ -12,7 +12,7 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     print('Saving', out_filename, '...', end=' ')
     import matplotlib.pyplot as plt
     from astropy.visualization import simple_norm
-    fig, axs = plt.subplots(ncols=5, figsize=(14, 2.25))
+    fig, axs = plt.subplots(ncols=5, figsize=(15, 2.5))
     fig.subplots_adjust(left=0.05, right=0.95)
     mask_tmp = np.zeros(reduced_data.size)
     mask_tmp[mask_indices] = 1.0
@@ -21,7 +21,8 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     data_vmax = np.percentile(reduced_data[mask_good], max_percent)
     data_vmin = -data_vmax
     # model_vmin, model_vmax = 0, np.percentile(full_model_image[mask_good], max_percent)
-    model_vmin, model_vmax = ref_disk_median - 5 * ref_disk_std, ref_disk_median + 5 * ref_disk_std
+    model_max_val = np.max(full_model_image[mask_good])
+    model_vmin, model_vmax = 0, max(ref_disk_median + 3 * ref_disk_std, model_max_val)
     data_space_norm = simple_norm(reduced_data, 'linear', vmin=data_vmin, vmax=data_vmax)
     reduced_data_masked = np.array(reduced_data)
     reduced_data_masked[mask_bad] = np.nan
@@ -51,6 +52,6 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     plt.colorbar(axs[4].imshow(updates, origin='lower', vmax=updates_vmax, vmin=-updates_vmax, cmap='RdYlBu_r'))
     axs[4].set(title=r'Updates')
     axs[4].axis('off')
-    fig.savefig(out_filename, dpi=128)
+    fig.savefig(out_filename, dpi=256)
     plt.close(fig)
     print('Done.')

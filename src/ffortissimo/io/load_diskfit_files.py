@@ -58,11 +58,12 @@ def load_diskfit_components(ffd_obj, init_model=None, random_seed=0, init_min=-1
         noise_map += 1.  # Get rid of any zeros
         noise_map_flat = noise_map.flatten()
         noise_map_flat[noise_map_flat != noise_map_flat] = 1.
+        logger.info("   ♪ Noise map loaded")
     else:
         noise_map = np.ones_like(reduced_data)
         noise_map_flat = noise_map.flatten()
         noise_map_flat[noise_map_flat != noise_map_flat] = 1.
-    logger.info("   ♪ Noise map loaded")
+        logger.info("   ♪ Noise map set to all 1.0")
 
     # Set processing flags
     logger.info("[3/6] Setting processing flags...")

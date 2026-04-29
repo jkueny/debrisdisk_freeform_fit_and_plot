@@ -69,9 +69,8 @@ def loss_function(mod_pix_params, disk_image, ref_disk_median, ref_disk_std, psf
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
-    pos_mod_pix_params = jnp.abs(mod_pix_params)
-    # pos_mod_pix_params = mod_pix_params
-    rescaled_pixel_model_params = ref_disk_std * mod_pix_params + ref_disk_median
+    # Rescale from param units to model units, ensure positivity
+    rescaled_pixel_model_params = jnp.abs(ref_disk_std * mod_pix_params + ref_disk_median)
     full_model_image = reconstruct_full_image(rescaled_pixel_model_params, total_pixels, disk_mask_inds)
     full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
@@ -158,13 +157,15 @@ def optimize_model(
     radial_inds, delta,
     loss_tolerance,
     aligned_center, do_radial_profile_sub, do_clean_final_fm,
+    param_scale_med,
+    param_scale_std,
     hp_filtersize=None,
 ):
     # JAXify the KLIP image, noise, and apodized fitting region
     target_image = jnp.array(target_image).astype(jnp.float32)
-    ref_disk_median = jnp.median(target_image)
-    ref_disk_std = jnp.std(target_image)
+    ref_disk_median = param_scale_med
     noise_map = jnp.array(noise_map).astype(jnp.float32)
+    ref_disk_std = param_scale_std
     disk_mask_apod = jnp.array(disk_mask_apod).astype(jnp.float32)
 
     basis_data_unpacked = unpack_basis_data(basis_data)
