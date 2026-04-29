@@ -54,7 +54,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: True
+NEW_BACKEND: False
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 94 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
@@ -105,7 +105,7 @@ alpha2_state: 0
 
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
-RPROFSUB: False
+RPROFSUB: True
 
 # WIND PARAMETERS
 N_WIND_LAYERS: 4
