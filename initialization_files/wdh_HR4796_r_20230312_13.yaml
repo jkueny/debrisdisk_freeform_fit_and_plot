@@ -81,7 +81,7 @@ USE_NOISE: True
 RPROFSUB: True
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 3
+N_WIND_LAYERS: 4
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
@@ -117,6 +117,13 @@ hsig3_up_init: 12.0
 hsig3_down_init: 11.0
 hpa3_init: 110.0
 hN3_init: 16943.79
+
+hbeta4_init: 1.33
+ha_r4_init: 0.11
+hsig4_up_init: 20.0
+hsig4_down_init: 20.0
+hpa4_init: 260.0
+hN4_init: 16943.79
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 
@@ -148,6 +155,19 @@ a_r3_state: 1
 sig3_state: 1
 pa3_state: 1
 Norm3_state: 1
+
+hbeta4_state: 1
+ha_r4_state: 1
+hsig4_state: 1
+hpa4_state: 1
+hN4_state: 1
+
+# Added explicit fourth-component aliases used by the refactored parser.
+beta4_state: 1
+a_r4_state: 1
+sig4_state: 1
+pa4_state: 1
+Norm4_state: 1
 
 
 # MASKING PARAMETERS
