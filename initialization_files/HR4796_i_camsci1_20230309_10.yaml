@@ -147,7 +147,7 @@ TEST_MASK_DX: 0
 TEST_MASK_DY: 0
 
 
-RPROFSUB: False
+RPROFSUB: True
 
 # APERTURE PHOTOMETRY
 AP_RING_RAD: 90 #circle defining where to plop down apertures, deprojected disk
@@ -159,8 +159,8 @@ CONV_FACTOR: 1.6192783494243498e-07 # Jy / Ang.
 
 
 # MASKING PARAMETERS
-MASK_IN_SCALING: 4 #bigger means shrink inner bound
-MASK_OUT_SCALING: 10 #bigger means expand outer bound
+MASK_IN_SCALING: 3 #bigger means shrink inner bound; nominally 4
+MASK_OUT_SCALING: 3 #bigger means expand outer bound; nominally 10
 MASK_SPECKLES: 10 #central circle mask
 # Make a tight mask for the noisemap calculation
 MASK_NOISE_IN: 3

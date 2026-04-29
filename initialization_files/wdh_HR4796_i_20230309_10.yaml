@@ -29,7 +29,7 @@ INSTRUMENT: MagAO-X  # SPHERE or GPI
 # LOCATION AND NAME PARAMETERS. Parameters used to save the outputs or plots
 # BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_wdhlib/wdh_subtracted  # name of folder where are the data (from basedir)
 BAND_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_wdhlib  # name of folder where are the data (from basedir)
-WDHSUB_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
+# WDHSUB_DIR: HR4796a_lco2023a_magao-x_20230309_10/raws_20230310T054736_s_lyot_stop/camsci1/lite_psflib  # name of folder where are the data (from basedir)
 KLIP_FM_FILES_PATH: null # location of ff_klip/ff_setup output folder klip_fm_files. Optional. If null, BAND_DIR/klip_fm_files is used.
 SPARKLE_COORDS_FILE: stacked/sparkle_coords_coron_thumbnail.txt # from BAND_DIR
 RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from BAND_DIR). 
@@ -105,7 +105,7 @@ alpha2_state: 0
 
 USE_NOISE: True
 # If the radial prof was subtracted during the image preprocessing + registration
-RPROFSUB: True
+RPROFSUB: False
 
 # WIND PARAMETERS
 N_WIND_LAYERS: 4
@@ -236,7 +236,7 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 600   #We remove the first BURNIN iteration
+BURNIN: 1600   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.

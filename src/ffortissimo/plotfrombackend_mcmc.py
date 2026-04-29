@@ -596,7 +596,12 @@ def best_model_plot(params_mcmc_yaml, hdr):
     # Top left: intrinsic best model (summed WDH)
     ax_bm = fig.add_subplot(2, 2, 1)
     im_bm = ax_bm.imshow(
-        intrinsic_crop + 0.1, origin='lower', norm=LogNorm(), cmap='bone'
+        intrinsic_crop + 0.1,
+        origin='lower',
+        norm=LogNorm(),
+        cmap='bone',
+        # vmin=0,
+        # vmax=int(np.round(vmax)),
     )
     ax_bm.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
     fig.colorbar(im_bm, ax=ax_bm, fraction=0.046, pad=0.04).ax.tick_params(
