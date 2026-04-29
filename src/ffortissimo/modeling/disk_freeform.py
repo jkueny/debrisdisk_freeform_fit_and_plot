@@ -448,7 +448,7 @@ class FreeFormDisk:
         return psd_ref_model_win, window_opt
     
 
-    def get_initial_model(self, loc_init_model=None, random_seed=0):
+    def get_initial_model(self, loc_init_model=None, random_seed=0, init_min=-1.0, init_max=1.0):
         rng = np.random.default_rng(random_seed)
 
         # load in the model unless we're deliberately randomizing
@@ -457,7 +457,6 @@ class FreeFormDisk:
             model_init = fits.getdata(loc_init_model)
             assert model_init.shape == self.image_shape, "Shape mismatch with loaded initial model"
         else:
-            init_min, init_max = 0.0, 1.0
             logging.info(f"Randomizing the model with U~[{init_min}, {init_max}] in {self.image_shape}")
 
             if loc_init_model is not None:

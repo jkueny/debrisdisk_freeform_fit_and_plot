@@ -198,6 +198,14 @@ Examples:
                         type=float,
                         default=1e-1,
                         help='Learning rate for optimizer (default: 0.1)')
+    parser.add_argument('--init-min',
+                        type=float,
+                        default=-1.0,
+                        help='Minimum randomized value (in rescaled units) of freeform disk pixel at initialization')
+    parser.add_argument('--init-max',
+                        type=float,
+                        default=1.0,
+                        help='Maximum randomized value (in rescaled units) of freeform disk pixel at initialization')
     parser.add_argument('--reg',
                         type=float,
                         required=False,
@@ -232,6 +240,8 @@ Examples:
     num_iterations = args.iterations
     loss_tolerance = args.loss_tolerance
     random_seed = args.random_seed
+    init_min = args.init_min
+    init_max = args.init_max
     dry_run = args.dry_run
     injected_dir = args.injected_dir if args.injected_dir is not None else None
     
@@ -290,6 +300,8 @@ Examples:
         ffd_obj=ffd_obj,
         init_model=init_model,
         random_seed=random_seed,
+        init_min=init_min,
+        init_max=init_max,
     )
     psf = component_dict["psf"]
     jax_psf = component_dict["jax_psf"]

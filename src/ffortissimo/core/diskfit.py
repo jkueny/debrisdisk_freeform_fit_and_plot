@@ -43,7 +43,7 @@ def fm_scan_func_adi(_, input_pt, full_sample_refs, full_sample_models):
         full_sample_refs,
         full_sample_models,
     )
-    
+
     return _, jnp.array(flat_postklip_psf_i)
 
 def fm_scan_func_rdi(_, input_pt):
@@ -56,22 +56,23 @@ def fm_scan_func_rdi(_, input_pt):
         flat_model_here,
         klmodes,
     )
-    
+
     return _, jnp.array(flat_postklip_psf_i)
 
 
-def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
-                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, disk_mask_apod, iowa_sec_inds_arr, 
+def loss_function(mod_pix_params, disk_image, ref_disk_median, ref_disk_std, psf, noise_map, ref_model_psd,
+                  aligned_images, PAs, disk_mask_inds, opt_mask_inds, disk_mask_apod, iowa_sec_inds_arr,
                   klmodes_stacked, radial_inds, aligned_center,
                   isRDI, do_radial_profile_sub, do_clean_final_fm,
-                  total_pixels, reg_lambda, 
+                  total_pixels, reg_lambda,
                   evals=None, evecs_stacked=None,
                   delta=1, hp_filtersize=None,
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
     pos_mod_pix_params = jnp.abs(mod_pix_params)
     # pos_mod_pix_params = mod_pix_params
-    full_model_image = reconstruct_full_image(pos_mod_pix_params, total_pixels, disk_mask_inds)
+    rescaled_pixel_model_params = ref_disk_std * mod_pix_params + ref_disk_median
+    full_model_image = reconstruct_full_image(rescaled_pixel_model_params, total_pixels, disk_mask_inds)
     full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
     full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
@@ -93,7 +94,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
     if bool(hp_filtersize):
         freeform_image_profilesub_hp = high_pass_filter(freeform_image_profilesub, filtersize=hp_filtersize)
     else:
-        freeform_image_profilesub_hp = freeform_image_profilesub    
+        freeform_image_profilesub_hp = freeform_image_profilesub
     global_models_prepped = update_disk(model_disk=freeform_image_profilesub_hp,
                                         PAs=PAs,
                                         section_inds=iowa_sec_inds_arr,
@@ -103,7 +104,7 @@ def loss_function(mod_pix_params, disk_image, psf, noise_map, ref_model_psd,
             "models": global_models_prepped,
             "images": aligned_images,
             "modes": klmodes_stacked,
-         
+
         }
         _, flat_postklip_psfs = lax.scan(fm_scan_func_rdi, None, fm_calc_inputs)
     else:
@@ -161,6 +162,8 @@ def optimize_model(
 ):
     # JAXify the KLIP image, noise, and apodized fitting region
     target_image = jnp.array(target_image).astype(jnp.float32)
+    ref_disk_median = jnp.median(target_image)
+    ref_disk_std = jnp.std(target_image)
     noise_map = jnp.array(noise_map).astype(jnp.float32)
     disk_mask_apod = jnp.array(disk_mask_apod).astype(jnp.float32)
 
@@ -211,7 +214,9 @@ def optimize_model(
     @jax.jit
     def step(image_params, opt_state, reg_lambda_here):
         (loss, aux_data), grads = loss_and_grad(
-            image_params, target_image, psf, noise_map, ref_psd,
+            image_params, target_image,
+            ref_disk_median, ref_disk_std,
+            psf, noise_map, ref_psd,
             aligned_image_sections, PAs,
             disk_mask_indices, opt_mask_indices,
             disk_mask_apod_interest, iowa_sec_inds,
@@ -251,7 +256,7 @@ def optimize_model(
                 print(f"Step {step_idx}/{num_steps} - Loss: {loss:.6f} - {dt:.6f} sec elapsed - {dt / (step_idx+1):.6f} sec / step")
             else:
                 pass
-            
+
 
         if step_idx % 100 == 0 and step_idx > 0:
             abs_loss_history.append(abs(loss_history[-2] - loss_value))
@@ -273,12 +278,14 @@ def optimize_model(
                     freeform_fm_full,
                     full_model_image,
                     reconstruct_full_image(updates, total_pixels, disk_mask_indices),
-                    opt_mask_indices
+                    opt_mask_indices,
+                    ref_disk_median,
+                    ref_disk_std,
                 )
                 plot_idx += 1
-    
+
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
     plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
 
-    optimized_model = jnp.abs(image_params)
+    optimized_model = ref_disk_std * image_params + ref_disk_median
     return optimized_model, loss_history, weights_nominal

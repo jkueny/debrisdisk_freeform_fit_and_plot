@@ -8,7 +8,7 @@ viridis_g.set_bad('0.5')
 magma_g = cm.magma.copy()
 magma_g.set_bad('0.5')
 
-def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image, updates, mask_indices, min_percent=1.0, max_percent=99.9):
+def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image, updates, mask_indices, ref_disk_median, ref_disk_std, min_percent=1.0, max_percent=99.9):
     print('Saving', out_filename, '...', end=' ')
     import matplotlib.pyplot as plt
     from astropy.visualization import simple_norm
@@ -20,7 +20,8 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     mask_bad = (mask_tmp == 0.0).reshape(reduced_data.shape)
     data_vmax = np.percentile(reduced_data[mask_good], max_percent)
     data_vmin = -data_vmax
-    model_vmin, model_vmax = 0, np.percentile(full_model_image[mask_good], max_percent)
+    # model_vmin, model_vmax = 0, np.percentile(full_model_image[mask_good], max_percent)
+    model_vmin, model_vmax = ref_disk_median - 5 * ref_disk_std, ref_disk_median + 5 * ref_disk_std
     data_space_norm = simple_norm(reduced_data, 'linear', vmin=data_vmin, vmax=data_vmax)
     reduced_data_masked = np.array(reduced_data)
     reduced_data_masked[mask_bad] = np.nan

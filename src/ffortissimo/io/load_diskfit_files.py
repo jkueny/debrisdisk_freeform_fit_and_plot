@@ -13,7 +13,7 @@ from ffortissimo.io.fits_handling import load_pyklip_reduced_data
 logger = logging.getLogger(__name__)
 
 
-def load_diskfit_components(ffd_obj, init_model=None, random_seed=0):
+def load_diskfit_components(ffd_obj, init_model=None, random_seed=0, init_min=-1.0, init_max=1.0):
     """
     Load data products and build arrays needed for optimization.
 
@@ -101,7 +101,7 @@ def load_diskfit_components(ffd_obj, init_model=None, random_seed=0):
     # Find images, define data shape, arrays, and parangs 
     ffd_obj.allocate_dataset()
     
-    model_firstguess = ffd_obj.get_initial_model(init_model, random_seed=random_seed)
+    model_firstguess = ffd_obj.get_initial_model(init_model, random_seed=random_seed, init_min=init_min, init_max=init_max)
 
     if init_model is None:
         reference_model = ffd_obj.fit_reference_model(noise_map, reduced_data)
