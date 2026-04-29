@@ -384,7 +384,11 @@ class FreeFormDisk:
             reference_model = self.fit_simple_disk_model()
         else:
             reference_model = self.render_initial_disk_model()
-        save_fits(os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits"), reference_model)
+        reference_model_outpath = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits")
+        try:
+            save_fits(reference_model_outpath, reference_model)
+        except Exception as e:
+            logging.warning(f"Failed to write {reference_model_outpath}: {e}")
         return reference_model
 
     def high_pass_reference_model(self, reference_model):
@@ -419,16 +423,28 @@ class FreeFormDisk:
         psd_ref_model_win = window_opt + psd_ref_model
         # psd_ref_model_win_hp = window_opt + psd_ref_model_hp
         ref_model_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel.fits")
-        save_fits(ref_model_saveto, reference_model)
+        try:
+            save_fits(ref_model_saveto, reference_model)
+        except Exception as e:
+            logging.warning(f"Failed to write {ref_model_saveto}: {e}")
         psd_ref_model_win_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Frequencies.fits")
         # psd_ref_model_win_hp_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_PSD_HighPass.fits")
         window_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_ReferenceModel_Window.fits")
         freq_template_saveto = os.path.join(self.klipdir, f"{self.file_prefix}_Reference_FreqTemplate.fits")
         # save_fits(ref_model_hp_saveto, reference_model_hp_clamped)
-        save_fits(psd_ref_model_win_saveto, psd_ref_model)
-        save_fits(freq_template_saveto, psd_ref_model_win)
+        try:
+            save_fits(psd_ref_model_win_saveto, psd_ref_model)
+        except Exception as e:
+            logging.warning(f"Failed to write {psd_ref_model_win_saveto}: {e}")
+        try:
+            save_fits(freq_template_saveto, psd_ref_model_win)
+        except Exception as e:
+            logging.warning(f"Failed to write {freq_template_saveto}: {e}")
         # save_fits(psd_ref_model_win_hp_saveto, psd_ref_model_win_hp)
-        save_fits(window_saveto, window_opt)
+        try:
+            save_fits(window_saveto, window_opt)
+        except Exception as e:
+            logging.warning(f"Failed to write {window_saveto}: {e}")
         return psd_ref_model_win, window_opt
     
 
