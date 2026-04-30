@@ -23,7 +23,8 @@ from ffortissimo.utils.diskfit_tools import convolve_model, \
     penalize_spatial_freq
 from ffortissimo.modeling.visualization import plot_training
 
-PLOT_FIRST_N = 50
+PLOT_FIRST_N = 1000
+PLOT_EVERY_FIRST_N = 10
 PLOT_EVERY_N = 100
 
 # Optimization functions (extracted from diskfit_freeform.py)
@@ -273,7 +274,7 @@ def optimize_model(
                     break
                 abs_loss_history = []
         if not bool(basis_data_unpacked["klparams"]["isRDI"]):
-            if step_idx % PLOT_EVERY_N == 0 or step_idx < PLOT_FIRST_N:
+            if step_idx % PLOT_EVERY_N == 0 or (step_idx < PLOT_FIRST_N and step_idx % PLOT_EVERY_FIRST_N == 0):
                 updates_image = reconstruct_full_image(updates, total_pixels, disk_mask_indices)
                 out_filename = f"{run_dir}/training_{plot_idx:05}.png"
                 plot_training(
