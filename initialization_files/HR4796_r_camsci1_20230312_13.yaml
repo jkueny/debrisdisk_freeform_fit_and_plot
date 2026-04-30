@@ -39,7 +39,7 @@ PIXSCALE_INS: 0.012  #picscale of your data
 FILTER_NAME: $r'$
 INSTRUMENT: MagAO-X  # SPHERE or GPI
 WL: 0.615 #wavelength in microns
-BAND_NAME: 2023 Mar 13, $r'$ band #for plot titles uniquely
+BAND_NAME: 2023 Mar 13, $r'$ band (615 nm) #for plot titles uniquely
 PRIM_MIRROR_SZ: 6.5 #meters
 NORTH_UP_OFFSET: 1.50
 

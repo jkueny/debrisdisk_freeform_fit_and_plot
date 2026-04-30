@@ -36,7 +36,7 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 FILE_PREFIX: camsci1_i_20230309_10 #prefix for all saved files (carefull not to erase your results)
-BAND_NAME: 2023 Mar 9, $i'$ band #for plot titles uniquely
+BAND_NAME: 2023 Mar 9, $i'$ band (762 nm) #for plot titles uniquely
 
 # STAR OBSERVATION PARAMETERS
 DISTANCE_STAR: 72.8   #distance of the disk in pc

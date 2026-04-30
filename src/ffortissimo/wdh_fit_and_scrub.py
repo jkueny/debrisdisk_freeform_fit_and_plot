@@ -158,6 +158,20 @@ def build_median_psf_estimate(science_frames, image_shape):
     return np.nanmedian(np.asarray(frames, dtype=np.float64), axis=0)
 
 
+def build_median_psf_estimate_from_frames(science_frames, image_shape):
+    """Build a detector-frame PSF estimate from science frame arrays."""
+    frames = []
+    for idx, science_frame in enumerate(science_frames):
+        science_frame = np.asarray(science_frame, dtype=np.float64)
+        if science_frame.shape != image_shape:
+            raise ValueError(
+                f"Science frame index {idx} has shape {science_frame.shape}; "
+                f"expected {image_shape}"
+            )
+        frames.append(science_frame)
+    return np.nanmedian(np.asarray(frames, dtype=np.float64), axis=0)
+
+
 def load_noise_map(params, band_dir, image_shape):
     """Load the spatial noise map used to weight the component fit."""
     if "FILE_PREFIX" not in params:
@@ -479,9 +493,10 @@ def image_for_thumbnail(image):
 
 def plot_component_key(fig, grid_slot, components, component_files, colors):
     """Draw a legend-style key with one thumbnail per WDH model component."""
-    subgrid = grid_slot.subgridspec(len(components), 1, hspace=0.35)
+    n_components = len(components)
+    subgrid = grid_slot.subgridspec(1, n_components, wspace=0.10, hspace=-0.30)
     for idx, (component, component_file) in enumerate(zip(components, component_files)):
-        ax_key = fig.add_subplot(subgrid[idx, 0])
+        ax_key = fig.add_subplot(subgrid[0, idx])
         ax_key.imshow(
             # image_for_thumbnail(component),
             component+0.1,
@@ -489,32 +504,55 @@ def plot_component_key(fig, grid_slot, components, component_files, colors):
             norm=LogNorm())
         ax_key.set_xticks([])
         ax_key.set_yticks([])
-        ax_key.set_title(
+        ax_key.set_xlabel(
             f"Component {idx + 1}",
             color=colors[idx],
-            fontsize=7,
+            fontweight="bold",
+            backgroundcolor="black",
+            fontsize=12,
         )
 
 
-def plot_coefficients(coefficients_by_frame, date_obs_values, output_dir, components, component_files):
+def plot_coefficients(
+    coefficients_by_frame,
+    date_obs_values,
+    output_dir,
+    components,
+    component_files,
+    band_name,
+    file_prefix,
+):
     """Plot fitted WDH component coefficients versus minutes from observation start."""
-    if not coefficients_by_frame:
+    if coefficients_by_frame is None or len(coefficients_by_frame) == 0:
         return None
 
     minutes_since_obs_start = date_obs_to_minutes_since_start(date_obs_values)
     coefficient_array = np.asarray(coefficients_by_frame, dtype=np.float64)
-    output_path = output_dir / "wdh_component_coefficients.png"
+    output_path = output_dir / f"{file_prefix}_wdh_component_coefficients"
     n_frames, n_components = coefficient_array.shape
-    frame_positions = np.arange(n_frames, dtype=float)
-    bar_width = min(1.2 / max(n_components, 1), 0.5)
+    frame_spacing = 1.0
+    frame_positions = np.arange(n_frames, dtype=float) * frame_spacing
+    group_width = 0.82 * frame_spacing
+    bar_width = group_width / max(n_components, 1)
     # bar_width = 0.5
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     if n_components > len(colors):
         colors = [plt.cm.tab10(idx % 10) for idx in range(n_components)]
 
-    fig = plt.figure(figsize=(15, max(5.5, 1.4 * n_components)))
-    grid = fig.add_gridspec(1, 2, width_ratios=[5.0, 1.2], wspace=0.18)
-    ax = fig.add_subplot(grid[0, 0])
+    fig = plt.figure(figsize=(18, 7.2))
+    grid = fig.add_gridspec(
+        2,
+        2,
+        height_ratios=[1.0, 4.6],
+        width_ratios=[3.0, 2.0],
+        hspace=0.08,
+        wspace=0.04,
+        top=0.94,
+        bottom=0.09,
+        left=0.055,
+        right=0.99,
+    )
+    ax = fig.add_subplot(grid[1, :])
     for idx in range(n_components):
         offset = (idx - (n_components - 1) / 2.0) * bar_width
         ax.bar(
@@ -538,16 +576,30 @@ def plot_coefficients(coefficients_by_frame, date_obs_values, output_dir, compon
     tick_step = max(1, int(np.ceil(n_frames / 12)))
     tick_indices = np.arange(0, n_frames, tick_step)
     ax.set_xticks(frame_positions[tick_indices])
-    ax.set_xticklabels([str(minutes_since_obs_start[idx]) for idx in tick_indices], rotation=45)
-    ax.set_xlabel("Minutes since observation start")
-    ax.set_ylabel("Coefficient")
-    ax.set_title("WDH Model Components Through Observation")
-    ax.legend(loc="upper right")
+    ax.set_xticklabels(
+        [str(minutes_since_obs_start[idx]) for idx in tick_indices],
+        rotation=0,
+        fontsize=16,
+    )
+    ax.tick_params(axis="y", labelsize=16)
+    ax.set_xlabel("Minutes since observation start", fontsize=16)
+    ax.set_ylabel("Coefficient", fontsize=16)
+    ax.set_title(
+        f"{band_name}",
+        fontsize=36,
+        pad=8,
+        fontweight="bold",
+        loc="left",
+    )
+    # ax.legend(loc="upper right", fontsize=16)
+    ax.grid(True, linestyle="--", alpha=0.4)
+    ax_title_space = fig.add_subplot(grid[0, 0])
+    ax_title_space.axis("off")
     plot_component_key(fig, grid[0, 1], components, component_files, colors)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150)
+    fig.savefig(f"{output_path}.png", dpi=150)
+    fig.savefig(f"{output_path}.pdf", dpi=150)
     plt.close(fig)
-    return output_path
+    return f"{output_path}.png", f"{output_path}.pdf"
 
 def determine_relative_weights(components):
     """Determine the relative weights of the WDH components."""
@@ -573,9 +625,14 @@ def process_science_frame(
     noise_map,
     median_psf_estimate,
     subtract_median_profile=False,
+    science_frame_override=None,
+    iteration_idx=1,
+    n_iterations=1,
 ):
     """Fit and subtract WDH components from one science frame."""
     science_frame, header = read_science_frame(science_path)
+    if science_frame_override is not None:
+        science_frame = np.asarray(science_frame_override, dtype=np.float64)
     parang = float(header["PARANG"])
     if "DATE-OBS" not in header:
         raise KeyError(f"Science frame is missing DATE-OBS header keyword: {science_path}")
@@ -602,7 +659,7 @@ def process_science_frame(
         subtracted_component #- median_psf_estimate
         for subtracted_component in subtracted_components
     ]
-    rel_weights = determine_relative_weights(rotated_components)
+    # rel_weights = determine_relative_weights(rotated_components)
     coefficients, psf_scaling, residuals, rank, singular_values = fit_wdh_components(
         science_for_fit,
         fit_components,
@@ -631,6 +688,8 @@ def process_science_frame(
     cleaned, _ = subtract_median_profile_np(cleaned)
     header_out = add_history(header, science_path, component_files, coefficients, psf_scaling)
     header_out["RADPROF"] = (True, "Median radial profile subtracted after WDH subtraction")
+    header_out["WDHITER"] = (int(iteration_idx), "WDH subtraction iteration for this output")
+    header_out["WDHNITER"] = (int(n_iterations), "Total WDH subtraction iterations requested")
     header_out["WDHRANK"] = (int(rank), "Rank of WDH least-squares design matrix")
     if residuals.size:
         header_out["WDHSSR"] = (float(residuals[0]), "WDH least-squares residual sum of squares")
@@ -642,7 +701,7 @@ def process_science_frame(
 
     output_path = output_filename(science_path, output_dir)
     fits.writeto(output_path, cleaned.astype(np.float32), header=header_out, overwrite=True)
-    return output_path, coefficients, psf_scaling, date_obs, weighted_coefficients
+    return output_path, coefficients, psf_scaling, date_obs, weighted_coefficients, cleaned
 
 
 def run_subtraction(args):
@@ -652,11 +711,13 @@ def run_subtraction(args):
     output_dir = band_dir / "wdh_subtracted"
     output_dir.mkdir(parents=True, exist_ok=True)
     subtract_median_profile = params.get("RPROFSUB", False)
+    n_iterations = int(args.n_iterations)
+    if n_iterations < 1:
+        raise ValueError("--n-iterations must be at least 1")
 
     science_frames = find_science_frames(band_dir)
     component_files = find_component_files(band_dir)
     components = read_components(component_files)
-    median_psf_estimate = build_median_psf_estimate(science_frames, components[0].shape)
     noise_map, noise_path = load_noise_map(params, band_dir, components[0].shape)
     # noise_map = make_noise_map(median_psf_estimate)
     speckle_ellipses = load_speckle_ellipses(args.sparkle_coords_file)
@@ -675,48 +736,83 @@ def run_subtraction(args):
         disk_exclusion_mask.astype(np.float32),
         overwrite=True,
     )
-    fits.writeto(
-        output_dir / "median_science_psf_estimate.fits",
-        median_psf_estimate.astype(np.float32),
-        overwrite=True,
-    )
-
     print(f"Read parameter file: {yaml_path}")
     print(f"Science frames: {len(science_frames)}")
     print(f"WDH components: {len(component_files)}")
     print(f"Noise map: {noise_path}")
     print(f"Output directory: {output_dir}")
+    print(f"WDH subtraction iterations: {n_iterations}")
 
     outputs = []
     date_obs_values = []
-    coefficients_by_frame = []
-    for science_path in science_frames:
-        output_path, coeffs, psf_scaling, date_obs, weighted_coeffs = process_science_frame(
-            science_path,
-            components,
-            component_files,
-            output_dir,
-            static_fitting_mask,
-            disk_exclusion_mask,
-            noise_map,
-            median_psf_estimate,
-            subtract_median_profile=subtract_median_profile,
+    accumulated_coefficients_by_frame = None
+    current_science_frames = [read_science_frame(science_path)[0] for science_path in science_frames]
+    for iteration_idx in range(1, n_iterations + 1):
+        print(f"\nWDH subtraction iteration {iteration_idx}/{n_iterations}")
+        median_psf_estimate = build_median_psf_estimate_from_frames(
+            current_science_frames,
+            components[0].shape,
         )
-        date_obs_values.append(date_obs)
-        coefficients_by_frame.append(weighted_coeffs)
-        coeff_str = ", ".join(f"{value:.6g}" for value in coeffs)
-        print(
-            f"{science_path.name} -> {output_path.name}; "
-            f"coeffs=[{coeff_str}], psf_scaling={psf_scaling:.6g}"
+        fits.writeto(
+            output_dir / f"median_science_psf_estimate_iter{iteration_idx}.fits",
+            median_psf_estimate.astype(np.float32),
+            overwrite=True,
         )
-        outputs.append(output_path)
+        fits.writeto(
+            output_dir / "median_science_psf_estimate.fits",
+            median_psf_estimate.astype(np.float32),
+            overwrite=True,
+        )
+
+        outputs = []
+        next_science_frames = []
+        iteration_coefficients_by_frame = []
+        if iteration_idx == 1:
+            date_obs_values = []
+        for frame_idx, science_path in enumerate(science_frames):
+            output_path, coeffs, psf_scaling, date_obs, weighted_coeffs, cleaned = process_science_frame(
+                science_path,
+                components,
+                component_files,
+                output_dir,
+                static_fitting_mask,
+                disk_exclusion_mask,
+                noise_map,
+                median_psf_estimate,
+                subtract_median_profile=subtract_median_profile,
+                science_frame_override=current_science_frames[frame_idx],
+                iteration_idx=iteration_idx,
+                n_iterations=n_iterations,
+            )
+            if iteration_idx == 1:
+                date_obs_values.append(date_obs)
+            iteration_coefficients_by_frame.append(weighted_coeffs)
+            next_science_frames.append(cleaned)
+            coeff_str = ", ".join(f"{value:.6g}" for value in coeffs)
+            print(
+                f"{science_path.name} -> {output_path.name}; "
+                f"coeffs=[{coeff_str}], psf_scaling={psf_scaling:.6g}"
+            )
+            outputs.append(output_path)
+
+        iteration_coefficients_by_frame = np.asarray(iteration_coefficients_by_frame, dtype=np.float64)
+        if accumulated_coefficients_by_frame is None:
+            accumulated_coefficients_by_frame = iteration_coefficients_by_frame
+        else:
+            accumulated_coefficients_by_frame += iteration_coefficients_by_frame
+        current_science_frames = next_science_frames
+    
+    band_name = params.get("BAND_NAME")
+    file_prefix = params.get("FILE_PREFIX")
 
     plot_path = plot_coefficients(
-        coefficients_by_frame,
+        accumulated_coefficients_by_frame,
         date_obs_values,
         output_dir,
         components,
         component_files,
+        band_name,
+        file_prefix,
     )
     if plot_path is not None:
         print(f"Coefficient plot: {plot_path}")
@@ -740,6 +836,13 @@ def parse_args():
         required=False,
         default=None,
         help="Optional text file with rows: x y major_axis minor_axis theta_deg.",
+    )
+    parser.add_argument(
+        "--n-iterations",
+        type=int,
+        required=False,
+        default=1,
+        help="Number of iterative WDH fit/subtraction passes to run.",
     )
     return parser.parse_args()
 

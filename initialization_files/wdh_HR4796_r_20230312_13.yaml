@@ -33,7 +33,7 @@ RDI_DIR: lite_psflib       # name of folder where are the RDI lib (starting from
 #                         # Carefull, this dir must also contains the data
 # FILE_PREFIX: Ls_clio_20140411_12 #prefix for all saved files (carefull not to erase your results)
 FILE_PREFIX: camsci1_r_20230312_13 #prefix for all saved files (carefull not to erase your results)
-BAND_NAME: 2023 Mar 12, $r'$ band #for plot titles uniquely
+BAND_NAME: 2023 Mar 12, $r'$ band (615 nm) #for plot titles uniquely
 
 # STAR OBSERVATION PARAMETERS
 DISTANCE_STAR: 72.8   #distance of the disk in pc
@@ -51,7 +51,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: True
+NEW_BACKEND: False
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 94 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
