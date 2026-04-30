@@ -359,7 +359,7 @@ Examples:
 
 
     target_image = reduced_flat_interest_no_bkg if ffd_obj.mode == "RDI" else reduced_flat_interest
-    throughput_fudge_factor = 2.0
+    throughput_fudge_factor = 5.0
     logger.info(f"   Estimating model flux scale from reduced data (target_image) using {throughput_fudge_factor}x throughput fudge factor")
     param_scale_med = np.median(np.abs(target_image)) * throughput_fudge_factor
     logger.info(f"      {throughput_fudge_factor} x median(|target_image|) = {param_scale_med}")

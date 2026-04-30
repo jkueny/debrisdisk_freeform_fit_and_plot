@@ -22,7 +22,7 @@ def plot_training(out_filename, reduced_data, freeform_fm_full, full_model_image
     data_vmin = -data_vmax
     # model_vmin, model_vmax = 0, np.percentile(full_model_image[mask_good], max_percent)
     model_max_val = np.percentile(full_model_image[mask_good], 99.9)
-    model_vmin, model_vmax = 0, max(ref_disk_median + 3 * ref_disk_std, model_max_val)
+    model_vmin, model_vmax = 0, max(ref_disk_median + 5 * ref_disk_std, model_max_val)
     data_space_norm = simple_norm(reduced_data, 'linear', vmin=data_vmin, vmax=data_vmax)
     reduced_data_masked = np.array(reduced_data)
     reduced_data_masked[mask_bad] = np.nan
