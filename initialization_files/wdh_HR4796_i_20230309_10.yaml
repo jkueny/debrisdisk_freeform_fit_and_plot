@@ -54,7 +54,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: False
+NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 94 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
@@ -120,38 +120,36 @@ pa_prior_sigma: 90.0
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
-hbeta_init: 0.67
-ha_r_init: 0.14
-hsig_up_init: 20.0
-hsig_down_init: 25.0
-hpa_init: 250.0
-hdx_init: 0.0
-hdy_init: 0.007
-hN_init: 27317.36
+hbeta_init: 0.64
+ha_r_init: 0.09
+hsig_up_init: 23.0
+hsig_down_init: 26.0
+hpa_init: 264.0
+hN_init: 1018002.36
 
-hbeta2_init: 0.36
-ha_r2_init: 0.44
-hsig2_up_init: 20.0
+hbeta2_init: 0.04
+ha_r2_init: 0.49
+hsig2_up_init: 18.0
 hsig2_down_init: 19.0
 # hpa2_init: 176.0
-hpa2_init: 125.0
+hpa2_init: 136.0
 hdx2_init: 0.0
 hdy2_init: 0.0
-hN2_init: 2910.7
+hN2_init: 1697.7
 
-hbeta3_init: 0.01
-ha_r3_init: 0.21
-hsig3_up_init: 19.0
-hsig3_down_init: 30.0
-hpa3_init: 230.0
-hN3_init: 7153.0
+hbeta3_init: 0.005
+ha_r3_init: 0.17
+hsig3_up_init: 21.0
+hsig3_down_init: 18.0
+hpa3_init: 226.0
+hN3_init: 16812.0
 
-hbeta4_init: 0.36
-ha_r4_init: 0.44
-hsig4_up_init: 20.0
-hsig4_down_init: 20.0
-hpa4_init: 90.0
-hN4_init: 1500.0
+hbeta4_init: 0.006
+ha_r4_init: 0.66
+hsig4_up_init: 14.0
+hsig4_down_init: 13.0
+hpa4_init: 101.0
+hN4_init: 1111.13
 
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 1
@@ -236,7 +234,7 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 3800   #We remove the first BURNIN iteration
+BURNIN: 300   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
