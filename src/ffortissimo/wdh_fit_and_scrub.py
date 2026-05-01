@@ -392,8 +392,18 @@ def fit_wdh_components(science_frame, rotated_components, psf_estimate, fitting_
     if not np.any(finite_mask):
         raise ValueError("No finite pixels are available for the WDH component fit.")
 
+    component_columns = [vector[finite_mask] for vector in component_vectors]
+    component_l1_norms = np.asarray(
+        [np.nansum(np.abs(column)) for column in component_columns],
+        dtype=np.float64,
+    )
+    safe_component_l1_norms = np.where(component_l1_norms > 0.0, component_l1_norms, 1.0)
+    normalized_component_columns = [
+        column / norm
+        for column, norm in zip(component_columns, safe_component_l1_norms)
+    ]
     design_matrix = np.column_stack(
-        [vector[finite_mask] for vector in component_vectors]
+        normalized_component_columns
         # + [np.ones(np.count_nonzero(finite_mask), dtype=np.float64)]
         + [psf_est_vec[finite_mask]]
     )
@@ -407,7 +417,14 @@ def fit_wdh_components(science_frame, rotated_components, psf_estimate, fitting_
     singular_values = np.linalg.svd(weighted_design_matrix, compute_uv=False)
     residuals = np.asarray([residual**2], dtype=np.float64)
 
-    return solution[:-1], float(solution[-1]), residuals, rank, singular_values# , delta_chi2
+    return (
+        solution[:-1],
+        safe_component_l1_norms,
+        float(solution[-1]),
+        residuals,
+        rank,
+        singular_values,
+    )# , delta_chi2
     # return solution, float(0.0), residuals, rank, singular_values, delta_chi2
 
 
@@ -451,10 +468,11 @@ def add_history(header, science_path, component_files, coefficients, background)
     header["WDHSRC"] = (science_path.name[:68], "Input science frame")
     header["WDHBG"] = (float(background), "Fitted background/intercept term")
     header["WDHPSF"] = (True, "Median PSF subtracted during WDH coefficient fit")
+    header["WDHL1"] = (True, "WDH coefficients fit with L1-normalized components")
     for idx, coefficient in enumerate(coefficients, start=1):
         header[f"WDHCO{idx}"] = (
             float(coefficient),
-            f"Least-squares coefficient for WDH component {idx}",
+            f"L1-normalized coefficient for WDH component {idx}",
         )
     for idx, component_file in enumerate(component_files, start=1):
         header.add_history(f"WDH component {idx}: {component_file.name}")
@@ -509,7 +527,8 @@ def plot_component_key(fig, grid_slot, components, component_files, colors):
             color=colors[idx],
             fontweight="bold",
             backgroundcolor="black",
-            fontsize=12,
+            fontsize=15,
+            labelpad=-22,
         )
 
 
@@ -525,7 +544,8 @@ def plot_coefficients(
     """Plot fitted WDH component coefficients versus minutes from observation start."""
     if coefficients_by_frame is None or len(coefficients_by_frame) == 0:
         return None
-
+    fig_min_fontsize = 20
+    fig_maj_fontsize = 36
     minutes_since_obs_start = date_obs_to_minutes_since_start(date_obs_values)
     coefficient_array = np.asarray(coefficients_by_frame, dtype=np.float64)
     output_path = output_dir / f"{file_prefix}_wdh_component_coefficients"
@@ -543,8 +563,8 @@ def plot_coefficients(
     grid = fig.add_gridspec(
         2,
         2,
-        height_ratios=[1.0, 4.6],
-        width_ratios=[3.0, 2.0],
+        height_ratios=[2.0, 4.6],
+        width_ratios=[2.0, 1.8],
         hspace=0.08,
         wspace=0.04,
         top=0.94,
@@ -579,14 +599,14 @@ def plot_coefficients(
     ax.set_xticklabels(
         [str(minutes_since_obs_start[idx]) for idx in tick_indices],
         rotation=0,
-        fontsize=16,
+        fontsize=fig_min_fontsize,
     )
-    ax.tick_params(axis="y", labelsize=16)
-    ax.set_xlabel("Minutes since observation start", fontsize=16)
-    ax.set_ylabel("Coefficient", fontsize=16)
+    ax.tick_params(axis="y", labelsize=fig_min_fontsize)
+    ax.set_xlabel("Minutes since observation start", fontsize=fig_min_fontsize)
+    ax.set_ylabel("Normalized Coefficient", fontsize=fig_min_fontsize)
     ax.set_title(
         f"{band_name}",
-        fontsize=36,
+        fontsize=fig_maj_fontsize,
         pad=8,
         fontweight="bold",
         loc="left",
@@ -660,7 +680,7 @@ def process_science_frame(
         for subtracted_component in subtracted_components
     ]
     # rel_weights = determine_relative_weights(rotated_components)
-    coefficients, psf_scaling, residuals, rank, singular_values = fit_wdh_components(
+    coefficients, component_l1_norms, psf_scaling, residuals, rank, singular_values = fit_wdh_components(
         science_for_fit,
         fit_components,
         median_psf_estimate,
@@ -684,7 +704,14 @@ def process_science_frame(
     # print(f"Sum of model component 3: {np.sum(rotated_components[2])}")
     # exit()
     # cleaned = subtract_wdh_components(science_frame, rotated_components, coefficients)
-    cleaned = subtract_wdh_components(science_for_fit, rotated_components, coefficients, psf_scaling, median_psf_estimate)
+    subtraction_coefficients = coefficients / component_l1_norms
+    cleaned = subtract_wdh_components(
+        science_for_fit,
+        rotated_components,
+        subtraction_coefficients,
+        psf_scaling,
+        median_psf_estimate,
+    )
     cleaned, _ = subtract_median_profile_np(cleaned)
     header_out = add_history(header, science_path, component_files, coefficients, psf_scaling)
     header_out["RADPROF"] = (True, "Median radial profile subtracted after WDH subtraction")
@@ -804,9 +831,12 @@ def run_subtraction(args):
     
     band_name = params.get("BAND_NAME")
     file_prefix = params.get("FILE_PREFIX")
+    # Normalize the coefficients by the global peak
+    normalized_coefficients_by_frame = accumulated_coefficients_by_frame / np.max(accumulated_coefficients_by_frame)
+    # normalized_coefficients_by_frame = accumulated_coefficients_by_frame
 
     plot_path = plot_coefficients(
-        accumulated_coefficients_by_frame,
+        normalized_coefficients_by_frame,
         date_obs_values,
         output_dir,
         components,

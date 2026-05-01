@@ -18,6 +18,7 @@ import yaml
 import corner
 from emcee import backends, autocorr
 from numba.core.errors import NumbaWarning
+from scipy.signal.windows import tukey
 import warnings
 
 def get_basedir():
@@ -128,6 +129,46 @@ def _reported_param_value(token, value):
     if token.startswith('Norm_'):
         return float(math.exp(float(value)))
     return float(value)
+
+
+def _outer_edge_tukey_window(exclude_mask, width_pix, alpha=0.2):
+    """Tukey taper only at the outer radial boundary of the model region."""
+    if width_pix is None or float(width_pix) <= 0:
+        return None
+
+    allowed = ~np.asarray(exclude_mask, dtype=bool)
+    if not np.any(allowed):
+        return allowed.astype(np.float32)
+
+    y, x = np.indices(allowed.shape)
+    center_x, center_y = wfm.ALIGNED_CENTER
+    radius = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
+    outer_radius = float(np.nanmax(radius[allowed]))
+    dist_from_outer_edge = outer_radius - radius
+
+    taper_width = max(int(round(float(width_pix))), 1)
+    tukey_len = max(int(np.ceil(2 * taper_width / float(alpha))) + 1, 3)
+    taper_profile = tukey(tukey_len, alpha=alpha)[: taper_width + 1]
+
+    dist_clip = np.clip(dist_from_outer_edge, 0, taper_width)
+    window = np.interp(dist_clip, np.arange(taper_width + 1), taper_profile)
+    window[~allowed] = 0.0
+    window[dist_from_outer_edge >= taper_width] = 1.0
+    return window.astype(np.float32, copy=False)
+
+
+def _apodize_model_components(model_list, params_mcmc_yaml):
+    width_pix = params_mcmc_yaml.get(
+        'WDH_TUKEY_WIDTH',
+        params_mcmc_yaml.get('MODEL_EDGE_TUKEY_WIDTH', 10.0),
+    )
+    window = _outer_edge_tukey_window(wfm.WHEREMASK2GENERATEHALO, width_pix)
+    if window is None:
+        return model_list
+    return [
+        (np.asarray(model, dtype=np.float32) * window).astype(np.float32, copy=False)
+        for model in model_list
+    ]
 
 
 def _theta_init_for_tokens(tokens):
@@ -511,6 +552,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
         model_list = wfm.call_gen_disk(theta_ml)
     finally:
         wfm.FREE_PARAMS = free_params_backup
+    model_list = _apodize_model_components(model_list, params_mcmc_yaml)
     intrinsic_sum = np.nansum(np.asarray(model_list), axis=0)
 
     if wfm.RPROFSUB:
@@ -598,10 +640,10 @@ def best_model_plot(params_mcmc_yaml, hdr):
     im_bm = ax_bm.imshow(
         intrinsic_crop + 0.1,
         origin='lower',
-        norm=LogNorm(),
+        # norm=LogNorm(),
         cmap='bone',
-        # vmin=0,
-        # vmax=int(np.round(vmax)),
+        vmin=0,
+        vmax=np.percentile(intrinsic_crop, 98.0),
     )
     ax_bm.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
     fig.colorbar(im_bm, ax=ax_bm, fraction=0.046, pad=0.04).ax.tick_params(
