@@ -635,8 +635,8 @@ def logp(theta):
     """
     # Norm is sampled in natural-log space. Enforce the prior directly on theta
     # to avoid any overflow in exp(theta) conversion for extreme proposals.
-    norm_min = 1e-3
-    norm_max = 1e7  
+    norm_min = 1e-10
+    norm_max = 1e10  
     log_norm_min = mt.log(norm_min)
     log_norm_max = mt.log(norm_max)
     for i, token in enumerate(FREE_PARAMS):
