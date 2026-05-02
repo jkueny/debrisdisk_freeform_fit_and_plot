@@ -35,8 +35,8 @@ basedir = f'{os.environ["HOME"]}/data'  # the base directory where is
 # default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = 'HR4796_i_camsci1_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = "wdh_HR4796_z_20230309_10.yaml"
-default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
-# default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
+# default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
+default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
 # you can also call it with the python function argument -p
 
 
@@ -651,10 +651,10 @@ def logp(theta):
     param_disk, _ = from_theta_to_params(theta)
     lp_reg = 0.0
     for idx, comp in enumerate(param_disk["components"], start=1):
-        if comp["beta"] < 0.001 or comp["beta"] > 50:
+        if comp["beta"] < 1e-4 or comp["beta"] > 50:
             print(f'beta_{idx} out of prior.')
             return -np.inf
-        if comp["h0"] < 0.01 or comp["h0"] > 10:
+        if comp["h0"] < 0.01 or comp["h0"] > 100:
             print(f'h0_{idx} out of prior')
             return -np.inf
         if comp["sigma_up"] < 0.1 or comp["sigma_up"] > 100:
