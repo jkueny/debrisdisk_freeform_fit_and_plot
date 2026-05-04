@@ -106,6 +106,7 @@ USE_NOISE = None
 RPROFSUB = False
 RADIAL_INDS = None
 PA_PRIOR_SIGMA = 20.0
+PA_PRIOR_BOUNDS = None
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -319,6 +320,43 @@ def _n_wdh_components(params_mcmc_yaml):
     return int(_cfg_first_match(cfg, ["N_WIND_LAYERS", "N_WDH_COMPONENTS"], default=3))
 
 
+def _pa_prior_bounds(params_mcmc_yaml, n_components=None):
+    """Return per-component PA hard-prior bounds from YAML."""
+    cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
+    if n_components is None:
+        n_components = _n_wdh_components(params_mcmc_yaml)
+    bounds = _cfg_first_match(
+        cfg,
+        ["pa_prior_bounds", "PA_PRIOR_BOUNDS", "hpa_prior_bounds"],
+        default=[90.0, 270.0],
+    )
+
+    if (
+            isinstance(bounds, (list, tuple))
+            and len(bounds) == 2
+            and not isinstance(bounds[0], (list, tuple))
+    ):
+        bounds = [bounds for _ in range(n_components)]
+
+    if not isinstance(bounds, (list, tuple)) or len(bounds) != n_components:
+        raise ValueError(
+            "pa_prior_bounds must be [min, max] or a list of one [min, max] "
+            f"pair per WDH component ({n_components})."
+        )
+
+    out = []
+    for idx, pair in enumerate(bounds, start=1):
+        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+            raise ValueError(f"pa_prior_bounds entry {idx} must be [min, max].")
+        lo, hi = float(pair[0]), float(pair[1])
+        if lo >= hi:
+            raise ValueError(
+                f"pa_prior_bounds entry {idx} has min >= max: {pair}"
+            )
+        out.append((lo, hi))
+    return out
+
+
 def _shared_component_flags(params_mcmc_yaml):
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
     sig_sh = bool(
@@ -348,6 +386,7 @@ def validate_mcmc_runtime_globals():
         "DISKOBJ": DISKOBJ,
         "REDUCED_DATA": REDUCED_DATA,
         "USE_NOISE": USE_NOISE,
+        "PA_PRIOR_BOUNDS": PA_PRIOR_BOUNDS,
     }
     if USE_NOISE:
         required["NOISE"] = NOISE
@@ -378,6 +417,7 @@ def _init_mcmc_worker(
     n_wdh_components,
     gamma_fixed,
     pa_prior_sigma,
+    pa_prior_bounds,
     theta_init,
     basis_filename,
     initial_model_list,
@@ -397,7 +437,7 @@ def _init_mcmc_worker(
     global DIMENSION, ALIGNED_CENTER, WHEREMASK2GENERATEHALO
     global DISKOBJ, REDUCED_DATA, NOISE, USE_NOISE, RPROFSUB, RADIAL_INDS
     global COMPONENT_INIT, SHARED_COMPONENT_FLAGS, FREE_PARAMS, RADII
-    global N_WDH_COMPONENTS, GAMMA_FIXED, PA_PRIOR_SIGMA, THETA_INIT
+    global N_WDH_COMPONENTS, GAMMA_FIXED, PA_PRIOR_SIGMA, PA_PRIOR_BOUNDS, THETA_INIT
 
     DIMENSION = dimension
     ALIGNED_CENTER = aligned_center
@@ -414,6 +454,7 @@ def _init_mcmc_worker(
     N_WDH_COMPONENTS = n_wdh_components
     GAMMA_FIXED = gamma_fixed
     PA_PRIOR_SIGMA = pa_prior_sigma
+    PA_PRIOR_BOUNDS = pa_prior_bounds
     THETA_INIT = theta_init
 
     DISKOBJ = WindFM(
@@ -663,8 +704,9 @@ def logp(theta):
         if comp["sigma_down"] < 0.1 or comp["sigma_down"] > 100:
             print(f'sigma_down_{idx} out of prior')
             return -np.inf
-        if comp["PA"] < 90 or comp["PA"] > 270:
-            print(f'PA_{idx} out of prior')
+        pa_min, pa_max = PA_PRIOR_BOUNDS[idx - 1]
+        if comp["PA"] < pa_min or comp["PA"] > pa_max:
+            print(f'PA_{idx} out of prior [{pa_min}, {pa_max}]')
             return -np.inf
         pa0 = float(COMPONENT_INIT[idx - 1]["PA"])
         dpa = _wrapped_angle_delta_deg(comp["PA"], pa0)
@@ -1389,6 +1431,7 @@ if __name__ == '__main__':
             default=20.0,
         )
     )
+    PA_PRIOR_BOUNDS = _pa_prior_bounds(params_mcmc_yaml, N_WDH_COMPONENTS)
     FREE_PARAMS = arr_free_params(params_mcmc_yaml)
     THETA_INIT = from_param_to_theta_init(params_mcmc_yaml)
 
@@ -1515,6 +1558,7 @@ if __name__ == '__main__':
         N_WDH_COMPONENTS,
         GAMMA_FIXED,
         PA_PRIOR_SIGMA,
+        PA_PRIOR_BOUNDS,
         THETA_INIT,
         _worker_basis_filename,
         _worker_initial_models,

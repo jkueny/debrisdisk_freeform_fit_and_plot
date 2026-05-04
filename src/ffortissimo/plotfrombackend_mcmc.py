@@ -97,6 +97,20 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
     no_pa = [tok for tok in current if not tok.startswith('PA_')]
     if n_dim_mcmc == len(no_pa):
         return no_pa
+
+    n_components = wfm._n_wdh_components(params_mcmc_yaml)
+    canonical_params = ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm')
+    canonical = [
+        f'{p_name}_{idx}'
+        for p_name in canonical_params
+        for idx in range(1, n_components + 1)
+    ]
+    if n_dim_mcmc == len(canonical):
+        return canonical
+    canonical_no_pa = [tok for tok in canonical if not tok.startswith('PA_')]
+    if n_dim_mcmc == len(canonical_no_pa):
+        return canonical_no_pa
+
     names = list(params_mcmc_yaml.get('NAMES', []))
     token_pat = re.compile(r'^[A-Za-z][A-Za-z0-9_]*_[0-9]+$')
     if len(names) >= n_dim_mcmc and all(token_pat.match(x) for x in names[:n_dim_mcmc]):
@@ -169,6 +183,113 @@ def _apodize_model_components(model_list, params_mcmc_yaml):
         (np.asarray(model, dtype=np.float32) * window).astype(np.float32, copy=False)
         for model in model_list
     ]
+
+
+def _format_summary_value(value):
+    if value is None:
+        return 'None'
+    try:
+        return f'{float(value):.8g}'
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _format_summary_param(value, err_minus=None, err_plus=None):
+    text = _format_summary_value(value)
+    if err_minus is None or err_plus is None:
+        return text
+    return (
+        f'{text} '
+        f'-{_format_summary_value(abs(err_minus))}'
+        f'/+{_format_summary_value(abs(err_plus))}'
+    )
+
+
+def _write_end_of_run_summary(
+    params_mcmc_yaml,
+    name_h5,
+    reader,
+    chain_shape,
+    chain_flat,
+    log_prob_samples_flat,
+    tokens,
+    theta_ml,
+    component_params,
+    model_list,
+):
+    """Write a text summary matching terminal output plus per-component sums."""
+    raw_sums = [float(np.nansum(model)) for model in model_list]
+    largest_sum = max(raw_sums) if raw_sums else np.nan
+    if not np.isfinite(largest_sum) or largest_sum == 0.0:
+        norm_sums = [np.nan for _ in raw_sums]
+    else:
+        norm_sums = [val / largest_sum for val in raw_sums]
+
+    tau_line = 'Max Tau times 50: unavailable'
+    try:
+        tau_chain = reader.get_chain(discard=0, thin=params_mcmc_yaml['THIN'])
+        tau = autocorr.integrated_time(tau_chain[:, :, :], tol=5)
+        tau_line = f'Max Tau times 50: {50 * np.min(tau):.8g}'
+    except Exception as exc:
+        tau_line = f'Max Tau times 50: unavailable ({exc})'
+
+    ml_log_prob = float(np.nanmax(log_prob_samples_flat))
+    whereml = np.where(log_prob_samples_flat == np.nanmax(log_prob_samples_flat))
+    whereml0 = np.array(whereml).flatten()[0]
+    param_stats = {}
+    for i, token in enumerate(tokens):
+        samples = np.asarray(chain_flat[:, i], dtype=float)
+        if token.startswith('Norm_'):
+            samples = np.exp(samples)
+        percent = np.percentile(samples, [15.9, 50.0, 84.1])
+        ml_val = samples[whereml0]
+        param_stats[token] = {
+            'ml': float(ml_val),
+            'err_minus': float(percent[1] - percent[0]),
+            'err_plus': float(percent[2] - percent[1]),
+        }
+
+    summary_path = os.path.join(mcmcresultdir, name_h5 + '_summary.txt')
+    with open(summary_path, 'w', encoding='utf-8') as handle:
+        handle.write('WDH MCMC end-of-run summary\n')
+        handle.write('===========================\n\n')
+        handle.write('Run information\n')
+        handle.write('---------------\n')
+        handle.write(f'Backend: {name_h5}.h5\n')
+        handle.write(f'Band: {params_mcmc_yaml["BAND_NAME"]}\n')
+        handle.write(
+            f'# of iteration in the backend chain initially: {reader.iteration}\n'
+        )
+        handle.write(f'{tau_line}\n')
+        handle.write(f'Maximum Likelihood: {ml_log_prob:.12g}\n')
+        handle.write(f'burn-in: {params_mcmc_yaml["BURNIN"]}\n')
+        handle.write(f'thin: {params_mcmc_yaml["THIN"]}\n')
+        handle.write(f'chain shape: {chain_shape}\n')
+        handle.write(f'n walkers: {params_mcmc_yaml["NWALKERS"]}\n')
+        handle.write(f'n parameters: {len(tokens)}\n\n')
+
+        for idx, comp in enumerate(component_params, start=1):
+            raw_sum = raw_sums[idx - 1] if idx <= len(raw_sums) else np.nan
+            norm_sum = norm_sums[idx - 1] if idx <= len(norm_sums) else np.nan
+            handle.write(f'WDH component {idx}\n')
+            handle.write('-' * (14 + len(str(idx))) + '\n')
+            handle.write(f'raw model sum: {_format_summary_value(raw_sum)}\n')
+            handle.write(
+                'normalized model sum (to largest component sum): '
+                f'{_format_summary_value(norm_sum)}\n'
+            )
+            handle.write('best-fit parameters:\n')
+            for key in ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'x0', 'Norm'):
+                token = f'{key}_{idx}'
+                stats = param_stats.get(token)
+                if stats is None:
+                    handle.write(f'  {key}: {_format_summary_value(comp.get(key))}\n')
+                else:
+                    handle.write(
+                        f'  {key}: '
+                        f'{_format_summary_param(stats["ml"], stats["err_minus"], stats["err_plus"])}\n'
+                    )
+            handle.write('\n')
 
 
 def _theta_init_for_tokens(tokens):
@@ -534,6 +655,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
     burnin = params_mcmc_yaml['BURNIN']
 
     reader = backends.HDFBackend(os.path.join(mcmcresultdir, name_h5 + '.h5'))
+    chain_shape = reader.get_chain(discard=0, thin=thin).shape
     chain_flat = reader.get_chain(discard=burnin, thin=thin, flat=True)
     log_prob_samples_flat = reader.get_log_prob(
         discard=burnin, flat=True, thin=thin
@@ -550,11 +672,25 @@ def best_model_plot(params_mcmc_yaml, hdr):
     free_params_backup = list(wfm.FREE_PARAMS)
     try:
         wfm.FREE_PARAMS = list(tokens)
+        param_disk, _ = wfm.from_theta_to_params(theta_ml)
+        component_params = param_disk['components']
         model_list = wfm.call_gen_disk(theta_ml)
     finally:
         wfm.FREE_PARAMS = free_params_backup
     model_list = _apodize_model_components(model_list, params_mcmc_yaml)
     intrinsic_sum = np.nansum(np.asarray(model_list), axis=0)
+    _write_end_of_run_summary(
+        params_mcmc_yaml,
+        name_h5,
+        reader,
+        chain_shape,
+        chain_flat,
+        log_prob_samples_flat,
+        tokens,
+        theta_ml,
+        component_params,
+        model_list,
+    )
 
     if wfm.RPROFSUB:
         combined = np.nansum(np.asarray(model_list), axis=0)

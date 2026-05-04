@@ -81,14 +81,18 @@ USE_NOISE: True
 RPROFSUB: True
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 3
+N_WIND_LAYERS: 4
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
 sig_shared_state: false
-dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 22.5
+pa_prior_sigma: 10.0
+pa_prior_bounds:
+  - [90.0, 130.0]  # WDH component 1
+  - [130.0, 150.0]  # WDH component 2
+  - [160.0, 200.0]  # WDH component 3
+  - [190.0, 230.0]  # WDH component 4
 
 
 
@@ -100,7 +104,7 @@ hbeta_init: 0.006
 ha_r_init: 0.06
 hsig_up_init: 15.0
 hsig_down_init: 15.0
-hpa_init: 225.0
+hpa_init: 180.0
 hN_init: 35990516.25
 
 
@@ -115,7 +119,7 @@ hbeta3_init: 0.004
 ha_r3_init: 0.21
 hsig3_up_init: 15.0
 hsig3_down_init: 15.0
-hpa3_init: 155.0
+hpa3_init: 140.0
 hN3_init: 26087.79
 
 hbeta4_init: 0.006
@@ -131,10 +135,8 @@ hN4_init: 35990516.79
 hbeta_state: 1
 ha_r_state: 1
 hsig_state: 1
-hpa_state: 0
-
+hpa_state: 1
 hN_state: 1
-dtheta_state: 1
 
 hbeta2_state: 1
 ha_r2_state: 1
@@ -212,7 +214,7 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 600   #We remove the first BURNIN iteration
+BURNIN: 1200   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
