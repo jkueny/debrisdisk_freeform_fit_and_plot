@@ -309,7 +309,7 @@ def build_fitting_masks(params, image_shape, speckle_ellipses=None):
     reselem = eff_wl * 1e-6 / apdiam * 180 / np.pi * 3600
     reselem_pix = reselem / pixscale_ins
     coron_reg = lyot_sm_rad * reselem_pix
-    seeing_limited = ctrl_rad * reselem_pix# * np.sqrt(2)
+    seeing_limited = ctrl_rad * reselem_pix * np.sqrt(2)
 
     mask2generatehalo = control_region_mask(
         image_shape,
@@ -644,6 +644,7 @@ def process_science_frame(
     disk_exclusion_mask,
     noise_map,
     median_psf_estimate,
+    save_frame=False,
     subtract_median_profile=False,
     science_frame_override=None,
     iteration_idx=1,
@@ -727,7 +728,8 @@ def process_science_frame(
         )
 
     output_path = output_filename(science_path, output_dir)
-    fits.writeto(output_path, cleaned.astype(np.float32), header=header_out, overwrite=True)
+    if save_frame:
+        fits.writeto(output_path, science_frame.astype(np.float32), header=header, overwrite=True)
     return output_path, coefficients, psf_scaling, date_obs, weighted_coefficients, cleaned
 
 
@@ -797,6 +799,7 @@ def run_subtraction(args):
         if iteration_idx == 1:
             date_obs_values = []
         for frame_idx, science_path in enumerate(science_frames):
+            save_frame = (iteration_idx == n_iterations)
             output_path, coeffs, psf_scaling, date_obs, weighted_coeffs, cleaned = process_science_frame(
                 science_path,
                 components,
@@ -806,6 +809,7 @@ def run_subtraction(args):
                 disk_exclusion_mask,
                 noise_map,
                 median_psf_estimate,
+                save_frame=save_frame,
                 subtract_median_profile=subtract_median_profile,
                 science_frame_override=current_science_frames[frame_idx],
                 iteration_idx=iteration_idx,
