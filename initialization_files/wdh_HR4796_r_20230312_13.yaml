@@ -88,7 +88,7 @@ a_r_shared_state: false
 sig_shared_state: false
 dx_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 10.0
+pa_prior_sigma: 22.5
 
 
 
@@ -131,7 +131,7 @@ hN4_init: 35990516.79
 hbeta_state: 1
 ha_r_state: 1
 hsig_state: 1
-hpa_state: 1
+hpa_state: 0
 
 hN_state: 1
 dtheta_state: 1
