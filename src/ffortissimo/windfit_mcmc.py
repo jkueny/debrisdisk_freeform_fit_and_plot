@@ -557,7 +557,8 @@ def from_theta_to_params(theta):
                 vector_param.append(value)
 
     for i in range(N_WDH_COMPONENTS):
-        comp_params[i]["x0"] = float(COMPONENT_INIT[i]["x0"])
+        # comp_params[i]["x0"] = float(COMPONENT_INIT[i]["x0"])
+        comp_params[i]["x0"] = 0.0
 
     return {"components": comp_params, "gamma": GAMMA_FIXED}, vector_param
 
