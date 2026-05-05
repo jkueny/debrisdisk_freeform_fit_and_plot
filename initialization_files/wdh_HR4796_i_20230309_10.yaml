@@ -54,7 +54,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: True
+NEW_BACKEND: False
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 94 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
@@ -237,7 +237,7 @@ alpha2_init: 0.1
 
 
 # MCMC PLOTTING PARAMETERS
-BURNIN: 3000   #We remove the first BURNIN iteration
+BURNIN: 1200   #We remove the first BURNIN iteration
 THIN: 1       #thin (bin) the chains
 QUALITY_PLOT: 4 # usefull because corner plots can be huge. When paper, QUALITY_PLOT: 4
 sigma: 1 # the number of sigma used to measure the error bars.
