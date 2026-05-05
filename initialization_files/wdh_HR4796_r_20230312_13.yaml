@@ -81,18 +81,18 @@ USE_NOISE: True
 RPROFSUB: True
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 3
+N_WIND_LAYERS: 4
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
 sig_shared_state: false
 Norm_shared_state: false
-pa_prior_sigma: 10.0
+pa_prior_sigma: 22.5
 pa_prior_bounds:
-  - [100.0, 120.0]  # WDH component 1
-  - [110.0, 160.0]  # WDH component 2
-  - [150.0, 225.0]  # WDH component 3
-  # - [190.0, 230.0]  # WDH component 4
+  - [90.0, 120.0]  # WDH component 1
+  - [105.0, 140.0]  # WDH component 2
+  - [120.0, 160.0]  # WDH component 3
+  - [160.0, 230.0]  # WDH component 4
 
 
 
@@ -119,7 +119,7 @@ hbeta3_init: 0.05
 ha_r3_init: 0.08
 hsig3_up_init: 19.0
 hsig3_down_init: 21.0
-hpa3_init: 180.0
+hpa3_init: 150  .0
 hN3_init: 343407.53
 
 hbeta4_init: 0.006

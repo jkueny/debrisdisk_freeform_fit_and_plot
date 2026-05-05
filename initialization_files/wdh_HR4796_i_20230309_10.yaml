@@ -118,9 +118,9 @@ Norm_shared_state: false
 pa_prior_sigma: 10.0
 pa_prior_bounds:
   - [80.0, 110.0]  # WDH component 1
-  - [110.0, 130.0]  # WDH component 2
+  - [100.0, 130.0]  # WDH component 2
   - [180.0, 210.0]  # WDH component 3
-  - [200.0, 240.0]  # WDH component 4
+  - [200.0, 225.0]  # WDH component 4
 
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
