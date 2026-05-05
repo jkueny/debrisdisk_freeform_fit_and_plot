@@ -89,10 +89,10 @@ sig_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 10.0
 pa_prior_bounds:
-  - [90.0, 130.0]  # WDH component 1
-  - [130.0, 150.0]  # WDH component 2
-  - [160.0, 200.0]  # WDH component 3
-  - [190.0, 230.0]  # WDH component 4
+  - [100.0, 120.0]  # WDH component 1
+  - [110.0, 160.0]  # WDH component 2
+  - [150.0, 225.0]  # WDH component 3
+  # - [190.0, 230.0]  # WDH component 4
 
 
 
