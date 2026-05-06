@@ -198,7 +198,6 @@ def gen_wdh_image(
     sigma_up: float,
     sigma_down: float,
     PA_deg: float,
-    x0: float,
     gamma: float,
 ) -> np.ndarray:
     """
@@ -209,19 +208,17 @@ def gen_wdh_image(
     model (no inner IWA/r1 cutoff — the control-region mask defines extent).
 
     ``PA_deg`` rotates the halo axis. ``sigma_up`` / ``sigma_down`` set the Gaussian
-    width on the two sides of the rotated x-axis (lobe asymmetry). ``x0`` is a fixed
-    radial offset (from YAML init; not sampled in MCMC).
+    width on the two sides of the rotated x-axis (lobe asymmetry).
     """
     pa_rad = -np.deg2rad(PA_deg)
     x_rot = np.sin(pa_rad) * x + np.cos(pa_rad) * y
     y_rot = np.cos(pa_rad) * x - np.sin(pa_rad) * y
 
-    dx = x_rot - x0
-    r = np.sqrt(dx**2 + y_rot**2)
+    r = np.sqrt(x_rot**2 + y_rot**2)
     r_safe = np.maximum(r, 1e-6)
 
     power_law = (1.0 / r_safe) ** beta
-    denom = h0 * (dx**2)
+    denom = h0 * (x_rot**2)
     denom = np.where(np.abs(denom) < 1e-12, np.copysign(1e-12, denom + 1e-30), denom)
     radial_term = (r**2 / denom) ** gamma
     sigma_safe = np.where(x_rot > 0, np.maximum(sigma_up, 1e-6), np.maximum(sigma_down, 1e-6))
@@ -262,7 +259,6 @@ def _param_candidates(base_name, comp_idx, suffix):
             f"sig_down{suffix}_init",
         ],
         "PA": [f"hpa{suffix}_init", f"pa{suffix}_init"],
-        "x0": [f"hdx{suffix}_init", f"dx{suffix}_init"],
         "Norm": [f"hN{suffix}_init", f"Norm{suffix}_init"],
     }
     state_keys = {
@@ -283,8 +279,6 @@ def _param_candidates(base_name, comp_idx, suffix):
             f"sig{suffix}_state",
         ],
         "PA": [f"hpa{suffix}_state", f"pa{suffix}_state"],
-        # x0 is fixed to init in MCMC; state keys kept for YAML compatibility.
-        "x0": [f"hdx{suffix}_state", f"dx{suffix}_state"],
         "Norm": [f"hN{suffix}_state", f"Norm{suffix}_state"],
     }
     return init_keys[base_name], state_keys[base_name]
@@ -294,7 +288,7 @@ def _component_init_from_yaml(params_mcmc_yaml, comp_idx):
     suffix = "" if comp_idx == 1 else str(comp_idx)
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
     params = {}
-    for p_name in ("beta", "h0", "PA", "x0", "Norm"):
+    for p_name in ("beta", "h0", "PA", "Norm"):
         init_candidates, _ = _param_candidates(p_name, comp_idx, suffix)
         default_val = 1.0 if p_name == "Norm" else 0.0
         params[p_name] = float(_cfg_first_match(cfg, init_candidates, default=default_val))
@@ -479,7 +473,6 @@ def arr_free_params(params_mcmc_yaml):
     shared_flags = _shared_component_flags(params_mcmc_yaml)
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
 
-    # x0 (offset along rotated axis) is fixed to YAML init; not sampled.
     for p_name in ("beta", "h0", "sigma_up", "sigma_down", "PA", "Norm"):
         if shared_flags[p_name]:
             init_candidates, state_candidates = _param_candidates(p_name, 1, "")
@@ -556,10 +549,6 @@ def from_theta_to_params(theta):
                 comp_params[idx][p_name] = value
                 vector_param.append(value)
 
-    for i in range(N_WDH_COMPONENTS):
-        # comp_params[i]["x0"] = float(COMPONENT_INIT[i]["x0"])
-        comp_params[i]["x0"] = 0.0
-
     return {"components": comp_params, "gamma": GAMMA_FIXED}, vector_param
 
 
@@ -597,7 +586,6 @@ def call_gen_disk(theta):
             sigma_up=comp["sigma_up"],
             sigma_down=comp["sigma_down"],
             PA_deg=comp["PA"],
-            x0=comp["x0"],
             gamma=param_disk["gamma"],
         )
         model = model * comp["Norm"]

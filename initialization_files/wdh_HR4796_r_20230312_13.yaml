@@ -53,7 +53,7 @@ HP_MAX: 32
 # MCMC PARAMETERS
 NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
-NWALKERS: 94 #Number of walkers (should be at least twice the # parameters)
+NWALKERS: 141 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
 N_ITER_MCMC: 1500 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
@@ -81,7 +81,7 @@ USE_NOISE: True
 RPROFSUB: True
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 4
+N_WIND_LAYERS: 5
 gamma_fixed: 1.0
 beta_shared_state: false
 a_r_shared_state: false
@@ -92,7 +92,8 @@ pa_prior_bounds:
   - [100.0, 120.0]  # WDH component 1
   - [105.0, 140.0]  # WDH component 2
   - [120.0, 160.0]  # WDH component 3
-  - [160.0, 230.0]  # WDH component 4
+  - [160.0, 200.0]  # WDH component 4
+  - [185.0, 230.0]  # WDH component 5
 
 
 
@@ -128,6 +129,13 @@ hsig4_up_init: 20.0
 hsig4_down_init: 22.0
 hpa4_init: 180.0
 hN4_init: 2912562.21
+
+hbeta5_init: 0.005
+ha_r5_init: 0.06
+hsig5_up_init: 20.0
+hsig5_down_init: 22.0
+hpa5_init: 220.0
+hN5_init: 2912562.21
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 
@@ -170,6 +178,19 @@ a_r4_state: 1
 sig4_state: 1
 pa4_state: 1
 Norm4_state: 1
+
+hbeta5_state: 1
+ha_r5_state: 1
+hsig5_state: 1
+hpa5_state: 1
+hN5_state: 1
+
+# Added explicit fifth-component aliases used by the refactored parser.
+beta5_state: 1
+a_r5_state: 1
+sig5_state: 1
+pa5_state: 1
+Norm5_state: 1
 
 
 # MASKING PARAMETERS

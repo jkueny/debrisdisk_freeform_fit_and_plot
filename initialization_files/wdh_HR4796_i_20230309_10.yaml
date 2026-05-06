@@ -121,6 +121,7 @@ pa_prior_bounds:
   - [100.0, 130.0]  # WDH component 2
   - [180.0, 210.0]  # WDH component 3
   - [200.0, 230.0]  # WDH component 4
+  # - [230.0, 260.0]  # WDH component 5
 
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
@@ -153,6 +154,13 @@ hsig4_up_init: 21.0
 hsig4_down_init: 20.0
 hpa4_init: 220.0
 hN4_init: 5710.31
+
+hbeta5_init: 0.1
+ha_r5_init: 0.24
+hsig5_up_init: 21.0
+hsig5_down_init: 20.0
+hpa5_init: 245.0
+hN5_init: 5710.31
 
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 1
@@ -193,6 +201,19 @@ a_r4_state: 1
 sig4_state: 1
 pa4_state: 1
 Norm4_state: 1
+
+hbeta5_state: 1
+ha_r5_state: 1
+hsig5_state: 1
+hpa5_state: 1
+hN5_state: 1
+
+# Added explicit fifth-component aliases used by the refactored parser.
+beta5_state: 1
+a_r5_state: 1
+sig5_state: 1
+pa5_state: 1
+Norm5_state: 1
 
 # MASKING PARAMETERS
 MASK_IN_SCALING: 1
@@ -249,26 +270,32 @@ NAMES:
   - beta_2
   - beta_3
   - beta_4
+  - beta_5
   - h0_1
   - h0_2
   - h0_3
   - h0_4
+  - h0_5
   - sigma_up_1
   - sigma_up_2
   - sigma_up_3
   - sigma_up_4
+  - sigma_up_5
   - sigma_down_1
   - sigma_down_2
   - sigma_down_3
   - sigma_down_4
+  - sigma_down_5
   - PA_1
   - PA_2
   - PA_3
   - PA_4
+  - PA_5
   - Norm_1
   - Norm_2
   - Norm_3
   - Norm_4
+  - Norm_5
 
 
 LABELS:
@@ -276,75 +303,93 @@ LABELS:
   beta_2: beta_2
   beta_3: beta_3
   beta_4: beta_4
+  beta_5: beta_5
   h0_1: h0_1
   h0_2: h0_2
   h0_3: h0_3
   h0_4: h0_4
+  h0_5: h0_5
   sigma_up_1: sig_up_1
   sigma_up_2: sig_up_2
   sigma_up_3: sig_up_3
   sigma_up_4: sig_up_4
+  sigma_up_5: sig_up_5
   sigma_down_1: sig_dn_1
   sigma_down_2: sig_dn_2
   sigma_down_3: sig_dn_3
   sigma_down_4: sig_dn_4
+  sigma_down_5: sig_dn_5
   PA_1: PA_1
   PA_2: PA_2
   PA_3: PA_3
   PA_4: PA_4
+  PA_5: PA_5
   Norm_1: N_1
   Norm_2: N_2
   Norm_3: N_3
   Norm_4: N_4
+  Norm_5: N_5
 
 VARIABLES:
   beta_1: beta_1
   beta_2: beta_2
   beta_3: beta_3
   beta_4: beta_4
+  beta_5: beta_5
   h0_1: h0_1
   h0_2: h0_2
   h0_3: h0_3
   h0_4: h0_4
+  h0_5: h0_5
   sigma_up_1: sigma_up_1
   sigma_up_2: sigma_up_2
   sigma_up_3: sigma_up_3
   sigma_up_4: sigma_up_4
+  sigma_up_5: sigma_up_5
   sigma_down_1: sigma_down_1
   sigma_down_2: sigma_down_2
   sigma_down_3: sigma_down_3
   sigma_down_4: sigma_down_4
+  sigma_down_5: sigma_down_5
   PA_1: PA_1
   PA_2: PA_2
   PA_3: PA_3
   PA_4: PA_4
+  PA_5: PA_5
   Norm_1: Norm_1
   Norm_2: Norm_2
   Norm_3: Norm_3
   Norm_4: Norm_4
+  Norm_5: Norm_5
 
 COMMENTS:
   beta_1: 'WDH radial exponent beta, layer 1'
   beta_2: 'WDH radial exponent beta, layer 2'
   beta_3: 'WDH radial exponent beta, layer 3'
   beta_4: 'WDH radial exponent beta, layer 4'
+  beta_5: 'WDH radial exponent beta, layer 5'
   h0_1: 'WDH scale h0 / a_r, layer 1'
   h0_2: 'WDH scale h0 / a_r, layer 2'
   h0_3: 'WDH scale h0 / a_r, layer 3'
   h0_4: 'WDH scale h0 / a_r, layer 4'
+  h0_5: 'WDH scale h0 / a_r, layer 5'
   sigma_up_1: 'Lobe width sigma (x_rot>0), layer 1'
   sigma_up_2: 'Lobe width sigma (x_rot>0), layer 2'
   sigma_up_3: 'Lobe width sigma (x_rot>0), layer 3'
   sigma_up_4: 'Lobe width sigma (x_rot>0), layer 4'
+  sigma_up_5: 'Lobe width sigma (x_rot>0), layer 5'
   sigma_down_1: 'Lobe width sigma (x_rot<=0), layer 1'
   sigma_down_2: 'Lobe width sigma (x_rot<=0), layer 2'
   sigma_down_3: 'Lobe width sigma (x_rot<=0), layer 3'
   sigma_down_4: 'Lobe width sigma (x_rot<=0), layer 4'
+  sigma_down_5: 'Lobe width sigma (x_rot<=0), layer 5'
   PA_1: 'Position angle, layer 1'
   PA_2: 'Position angle, layer 2'
   PA_3: 'Position angle, layer 3'
   PA_4: 'Position angle, layer 4'
+  PA_5: 'Position angle, layer 5'
   Norm_1: 'Amplitude Norm, layer 1 (sampled in ln space)'
   Norm_2: 'Amplitude Norm, layer 2 (sampled in ln space)'
   Norm_3: 'Amplitude Norm, layer 3 (sampled in ln space)'
   Norm_4: 'Amplitude Norm, layer 4 (sampled in ln space)'
+  Norm_5: 'Amplitude Norm, layer 5 (sampled in ln space)'

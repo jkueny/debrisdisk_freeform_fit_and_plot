@@ -32,8 +32,8 @@ import ffortissimo.windfit_mcmc as wfm
 basedir = get_basedir()
 
 # default_parameter_file = 'wdh_HR4796_z_20230309_10.yaml'
-default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
-# default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
+# default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
+default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
 
 # Populated by bootstrap_windfit_plot_runtime before plotting.
 klipdir = None
@@ -219,11 +219,16 @@ def _write_end_of_run_summary(
 ):
     """Write a text summary matching terminal output plus per-component sums."""
     raw_sums = [float(np.nansum(model)) for model in model_list]
+    total_sum = float(np.nansum(raw_sums)) if raw_sums else np.nan
     largest_sum = max(raw_sums) if raw_sums else np.nan
     if not np.isfinite(largest_sum) or largest_sum == 0.0:
         norm_sums = [np.nan for _ in raw_sums]
     else:
         norm_sums = [val / largest_sum for val in raw_sums]
+    if not np.isfinite(total_sum) or total_sum == 0.0:
+        norm_to_total_sums = [np.nan for _ in raw_sums]
+    else:
+        norm_to_total_sums = [val / total_sum for val in raw_sums]
 
     tau_line = 'Max Tau times 50: unavailable'
     try:
@@ -267,10 +272,19 @@ def _write_end_of_run_summary(
         handle.write(f'chain shape: {chain_shape}\n')
         handle.write(f'n walkers: {params_mcmc_yaml["NWALKERS"]}\n')
         handle.write(f'n parameters: {len(tokens)}\n\n')
+        handle.write('Component sum normalization reference\n')
+        handle.write('-----------------------------------\n')
+        handle.write(f'total agglomerated best-fit model sum: {_format_summary_value(total_sum)}\n')
+        handle.write(f'largest component model sum: {_format_summary_value(largest_sum)}\n\n')
 
         for idx, comp in enumerate(component_params, start=1):
             raw_sum = raw_sums[idx - 1] if idx <= len(raw_sums) else np.nan
             norm_sum = norm_sums[idx - 1] if idx <= len(norm_sums) else np.nan
+            norm_total_sum = (
+                norm_to_total_sums[idx - 1]
+                if idx <= len(norm_to_total_sums)
+                else np.nan
+            )
             handle.write(f'WDH component {idx}\n')
             handle.write('-' * (14 + len(str(idx))) + '\n')
             handle.write(f'raw model sum: {_format_summary_value(raw_sum)}\n')
@@ -278,8 +292,12 @@ def _write_end_of_run_summary(
                 'normalized model sum (to largest component sum): '
                 f'{_format_summary_value(norm_sum)}\n'
             )
+            handle.write(
+                'normalized model sum (to agglomerated best-fit model sum): '
+                f'{_format_summary_value(norm_total_sum)}\n'
+            )
             handle.write('best-fit parameters:\n')
-            for key in ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'x0', 'Norm'):
+            for key in ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm'):
                 token = f'{key}_{idx}'
                 stats = param_stats.get(token)
                 if stats is None:
