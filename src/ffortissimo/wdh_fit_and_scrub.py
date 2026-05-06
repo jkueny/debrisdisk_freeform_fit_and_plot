@@ -531,6 +531,29 @@ def plot_component_key(fig, grid_slot, components, component_files, colors):
             labelpad=-22,
         )
 
+def _average_every_2_elements(array):
+    """Average every n elements of an array."""
+    #check if the array is divisible by 2
+    n = 2
+    if len(array.shape) == 1:
+        if len(array) % 2 != 0:
+            last_element = array[-1]
+            array = array[:-1]
+        reduced_array = np.mean(array.reshape(-1, n), axis=1)
+        if last_element is not None:
+            return np.concatenate([reduced_array, [last_element]])
+        else:
+            return reduced_array
+    else:
+        if array.shape[0] % 2 != 0:
+            last_element = array[-1]
+            array = array[:-1]
+        reduced_array = np.mean(array.reshape(-1, n), axis=0)
+        if last_element is not None:
+            return np.concatenate([reduced_array, [last_element]])
+        else:
+            return reduced_array
+
 
 def plot_coefficients(
     coefficients_by_frame,
@@ -547,7 +570,15 @@ def plot_coefficients(
     fig_min_fontsize = 20
     fig_maj_fontsize = 36
     minutes_since_obs_start = date_obs_to_minutes_since_start(date_obs_values)
+    minutes_since_obs_start_arr = np.asarray(minutes_since_obs_start, dtype=np.float64)
+    reduced_minutes_since_obs_start_arr = _average_every_2_elements(minutes_since_obs_start_arr)
+    print(f"len(reduced_minutes_since_obs_start_arr): {len(reduced_minutes_since_obs_start_arr)}")
     coefficient_array = np.asarray(coefficients_by_frame, dtype=np.float64)
+    reduced_coefficient_array = _average_every_2_elements(coefficient_array)
+    print(f"len(reduced_coefficient_array): {len(reduced_coefficient_array)}")
+    print(f"len(minutes_since_obs_start): {len(minutes_since_obs_start)}")
+    print(f"coefficient_array.shape: {coefficient_array.shape}")
+    exit()
     output_path = output_dir / f"{file_prefix}_wdh_component_coefficients"
     n_frames, n_components = coefficient_array.shape
     frame_spacing = 1.0

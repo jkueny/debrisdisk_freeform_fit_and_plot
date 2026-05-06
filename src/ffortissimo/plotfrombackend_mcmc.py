@@ -470,7 +470,7 @@ def make_corner_plot(params_mcmc_yaml):
 
     reader = backends.HDFBackend(os.path.join(mcmcresultdir, name_h5 + '.h5'))
 
-    chain = reader.get_chain(discard=burnin, thin=thin)
+    # chain = reader.get_chain(discard=burnin, thin=thin)
     chain_flat = reader.get_chain(discard=burnin, thin=thin, flat=True)
     n_dim_mcmc = chain_flat.shape[1]
     tokens = _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml)
@@ -478,18 +478,26 @@ def make_corner_plot(params_mcmc_yaml):
     axis_labels = [
         _compact_axis_label(tok, lab) for tok, lab in zip(tokens, base_labels)
     ]
-
-    for j in range(n_dim_mcmc):
-        chain4thatparam = chain_flat[:, j]
+    #remove the flux norm params from the corner plot
+    n_dim_mcmc_no_norm = n_dim_mcmc - wfm.N_WDH_COMPONENTS
+    chain_flat_no_norm = chain_flat[:, :n_dim_mcmc_no_norm]
+    axis_labels_no_norm = axis_labels[:n_dim_mcmc_no_norm]
+    tokens_no_norm = tokens[:n_dim_mcmc_no_norm]
+    base_labels_no_norm = base_labels[:n_dim_mcmc_no_norm]
+    compact_axis_labels_no_norm = [
+        _compact_axis_label(tok, lab) for tok, lab in zip(tokens_no_norm, base_labels_no_norm)
+    ]
+    for j in range(n_dim_mcmc_no_norm):
+        chain4thatparam = chain_flat_no_norm[:, j]
         wherenotnan = np.where(~np.isnan(chain4thatparam))
-        chainflatnonan = np.zeros((len(chain4thatparam[wherenotnan]), n_dim_mcmc))
-        for i in range(n_dim_mcmc):
+        chainflatnonan = np.zeros((len(chain4thatparam[wherenotnan]), n_dim_mcmc_no_norm))
+        for i in range(n_dim_mcmc_no_norm):
             chainflatnonan[:, i] = chain_flat[wherenotnan, i]
-        chain_flat = chainflatnonan
+        chain_flat_no_norm = chainflatnonan
 
-    if n_dim_mcmc != len(axis_labels):
+    if n_dim_mcmc_no_norm != len(axis_labels_no_norm):
         raise ValueError(
-            f'LABELS count ({len(axis_labels)}) != chain dim ({n_dim_mcmc}). '
+            f'LABELS count ({len(axis_labels_no_norm)}) != chain dim ({n_dim_mcmc_no_norm}). '
             'Add LABELS keys for every entry in backend parameter tokens (see YAML).'
         )
 
@@ -508,8 +516,8 @@ def make_corner_plot(params_mcmc_yaml):
     shouldweplotalldatapoints = 'Fake' in file_prefix
 
     fig = corner.corner(
-        chain_flat,
-        labels=axis_labels,
+        chain_flat_no_norm,
+        labels=axis_labels_no_norm,
         quantiles=quants,
         show_titles=True,
         title_fmt=".3f",
@@ -528,10 +536,10 @@ def make_corner_plot(params_mcmc_yaml):
             bbox_to_anchor=(0.5, 8),
             fontsize=30,
         )
-        axes = np.array(fig.axes).reshape((n_dim_mcmc, n_dim_mcmc))
+        axes = np.array(fig.axes).reshape((n_dim_mcmc_no_norm, n_dim_mcmc_no_norm))
         for i in range(n_dim_mcmc):
             axes[i, i].axvline(truth[i], color='r')
-        for yi in range(n_dim_mcmc):
+        for yi in range(n_dim_mcmc_no_norm):
             for xi in range(yi):
                 ax = axes[yi, xi]
                 ax.axvline(truth[xi], color='r')

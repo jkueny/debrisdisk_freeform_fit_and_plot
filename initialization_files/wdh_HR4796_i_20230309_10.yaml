@@ -54,9 +54,9 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: False
+NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
-NWALKERS: 94 #Number of walkers (should be at least twice the # parameters)
+NWALKERS: 141 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
 N_ITER_MCMC: 1000 #Number of interation
 NOISE_MULTIPLICATION_FACTOR: 1 # multiplicative factor for the chains, previously 3; 04/25/23
@@ -110,10 +110,9 @@ RPROFSUB: True
 # WIND PARAMETERS
 N_WIND_LAYERS: 4
 gamma_fixed: 1.0
-beta_shared_state: false
+beta_shared_state: true
 a_r_shared_state: false
 sig_shared_state: false
-dx_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 10.0
 pa_prior_bounds:
@@ -130,7 +129,7 @@ hbeta_init: 0.82
 ha_r_init: 0.56
 hsig_up_init: 23.0
 hsig_down_init: 16.0
-hpa_init: 105.0
+hpa_init: 90.0
 hN_init: 15063.91
 
 hbeta2_init: 0.29
