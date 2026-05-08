@@ -107,6 +107,7 @@ RPROFSUB = False
 RADIAL_INDS = None
 PA_PRIOR_SIGMA = 20.0
 PA_PRIOR_BOUNDS = None
+BETA_FIXED = 0.0
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -473,7 +474,8 @@ def arr_free_params(params_mcmc_yaml):
     shared_flags = _shared_component_flags(params_mcmc_yaml)
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
 
-    for p_name in ("beta", "h0", "sigma_up", "sigma_down", "PA", "Norm"):
+    # Beta is intentionally fixed (BETA_FIXED) and excluded from theta sampling.
+    for p_name in ("h0", "sigma_up", "sigma_down", "PA", "Norm"):
         if shared_flags[p_name]:
             init_candidates, state_candidates = _param_candidates(p_name, 1, "")
             is_free = bool(_cfg_first_match(cfg, state_candidates, default=True))
@@ -504,8 +506,12 @@ def from_theta_to_params(theta):
             f"Theta size ({theta.size}) does not match free parameter count ({len(FREE_PARAMS)})."
         )
 
+    # Beta is fixed by design for now (kept in parameter dictionaries for compatibility).
+    for comp in comp_params:
+        comp["beta"] = float(BETA_FIXED)
+
     free_idx = 0
-    for p_name in ("beta", "h0", "sigma_up", "sigma_down", "PA", "Norm"):
+    for p_name in ("h0", "sigma_up", "sigma_down", "PA", "Norm"):
         if SHARED_COMPONENT_FLAGS[p_name]:
             token = f"{p_name}_1"
             if token in FREE_PARAMS:
@@ -681,9 +687,6 @@ def logp(theta):
     param_disk, _ = from_theta_to_params(theta)
     lp_reg = 0.0
     for idx, comp in enumerate(param_disk["components"], start=1):
-        if comp["beta"] < 1e-4 or comp["beta"] > 50:
-            print(f'beta_{idx} out of prior.')
-            return -np.inf
         if comp["h0"] < 0.01 or comp["h0"] > 100:
             print(f'h0_{idx} out of prior')
             return -np.inf

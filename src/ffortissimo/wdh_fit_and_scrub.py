@@ -104,7 +104,7 @@ def component_number(path):
 
 
 def find_component_files(band_dir):
-    """Return 1-4 best-fit WDH model component FITS paths from windfit_MCMC."""
+    """Return 1-5 best-fit WDH model component FITS paths from windfit_MCMC."""
     mcmc_dir = band_dir / "windfit_MCMC"
     if not mcmc_dir.is_dir():
         raise FileNotFoundError(f"Could not find windfit_MCMC directory: {mcmc_dir}")
@@ -115,9 +115,9 @@ def find_component_files(band_dir):
     )
     if not component_files:
         raise FileNotFoundError(f"Could not find '*_BestModel_comp*.fits' files in {mcmc_dir}")
-    if len(component_files) > 4:
+    if len(component_files) > 5:
         raise ValueError(
-            f"Expected at most 4 WDH component files in {mcmc_dir}, found {len(component_files)}"
+            f"Expected at most 5 WDH component files in {mcmc_dir}, found {len(component_files)}"
         )
     return component_files
 
@@ -532,27 +532,20 @@ def plot_component_key(fig, grid_slot, components, component_files, colors):
         )
 
 def _average_every_2_elements(array):
-    """Average every n elements of an array."""
-    #check if the array is divisible by 2
+    """Average neighboring pairs along axis 0, preserving a trailing odd element."""
+    array = np.asarray(array)
     n = 2
-    if len(array.shape) == 1:
-        if len(array) % 2 != 0:
-            last_element = array[-1]
-            array = array[:-1]
-        reduced_array = np.mean(array.reshape(-1, n), axis=1)
-        if last_element is not None:
-            return np.concatenate([reduced_array, [last_element]])
-        else:
-            return reduced_array
-    else:
-        if array.shape[0] % 2 != 0:
-            last_element = array[-1]
-            array = array[:-1]
-        reduced_array = np.mean(array.reshape(-1, n), axis=0)
-        if last_element is not None:
-            return np.concatenate([reduced_array, [last_element]])
-        else:
-            return reduced_array
+    if array.shape[0] == 0:
+        return array
+
+    has_odd_length = (array.shape[0] % n) != 0
+    last_element = array[-1:] if has_odd_length else None
+    paired = array[:-1] if has_odd_length else array
+    reduced_array = paired.reshape(-1, n, *array.shape[1:]).mean(axis=1)
+
+    if last_element is not None:
+        return np.concatenate([reduced_array, last_element], axis=0)
+    return reduced_array
 
 
 def plot_coefficients(
@@ -568,17 +561,9 @@ def plot_coefficients(
     if coefficients_by_frame is None or len(coefficients_by_frame) == 0:
         return None
     fig_min_fontsize = 20
-    fig_maj_fontsize = 36
+    fig_maj_fontsize = 32
     minutes_since_obs_start = date_obs_to_minutes_since_start(date_obs_values)
-    minutes_since_obs_start_arr = np.asarray(minutes_since_obs_start, dtype=np.float64)
-    reduced_minutes_since_obs_start_arr = _average_every_2_elements(minutes_since_obs_start_arr)
-    print(f"len(reduced_minutes_since_obs_start_arr): {len(reduced_minutes_since_obs_start_arr)}")
     coefficient_array = np.asarray(coefficients_by_frame, dtype=np.float64)
-    reduced_coefficient_array = _average_every_2_elements(coefficient_array)
-    print(f"len(reduced_coefficient_array): {len(reduced_coefficient_array)}")
-    print(f"len(minutes_since_obs_start): {len(minutes_since_obs_start)}")
-    print(f"coefficient_array.shape: {coefficient_array.shape}")
-    exit()
     output_path = output_dir / f"{file_prefix}_wdh_component_coefficients"
     n_frames, n_components = coefficient_array.shape
     frame_spacing = 1.0
@@ -590,12 +575,12 @@ def plot_coefficients(
     if n_components > len(colors):
         colors = [plt.cm.tab10(idx % 10) for idx in range(n_components)]
 
-    fig = plt.figure(figsize=(18, 7.2))
+    fig = plt.figure(figsize=(20, 8))
     grid = fig.add_gridspec(
         2,
         2,
         height_ratios=[2.0, 4.6],
-        width_ratios=[2.0, 1.8],
+        width_ratios=[1.7, 2.3],
         hspace=0.08,
         wspace=0.04,
         top=0.94,

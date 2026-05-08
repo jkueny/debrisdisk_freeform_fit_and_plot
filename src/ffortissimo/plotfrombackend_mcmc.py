@@ -44,7 +44,7 @@ def _initialization_yaml_path(str_yalm):
     """Resolve YAML path for `python -m ffortissimo.plotfrombackend_mcmc` from repo."""
     here = os.path.dirname(os.path.abspath(__file__))
     repo_init = os.path.join(here, '..', '..', 'initialization_files', str_yalm)
-    if os.path.isfile(repo_init):
+    if os.path.isfile(repo_init):       
         return repo_init
     cwd_init = os.path.join(os.getcwd(), 'initialization_files', str_yalm)
     if os.path.isfile(cwd_init):
@@ -99,7 +99,7 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
         return no_pa
 
     n_components = wfm._n_wdh_components(params_mcmc_yaml)
-    canonical_params = ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm')
+    canonical_params = ('h0', 'sigma_up', 'sigma_down', 'PA', 'Norm')
     canonical = [
         f'{p_name}_{idx}'
         for p_name in canonical_params
@@ -110,6 +110,19 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
     canonical_no_pa = [tok for tok in canonical if not tok.startswith('PA_')]
     if n_dim_mcmc == len(canonical_no_pa):
         return canonical_no_pa
+
+    # Backward compatibility with older backends that sampled beta.
+    legacy_params = ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm')
+    legacy = [
+        f'{p_name}_{idx}'
+        for p_name in legacy_params
+        for idx in range(1, n_components + 1)
+    ]
+    if n_dim_mcmc == len(legacy):
+        return legacy
+    legacy_no_pa = [tok for tok in legacy if not tok.startswith('PA_')]
+    if n_dim_mcmc == len(legacy_no_pa):
+        return legacy_no_pa
 
     names = list(params_mcmc_yaml.get('NAMES', []))
     token_pat = re.compile(r'^[A-Za-z][A-Za-z0-9_]*_[0-9]+$')
