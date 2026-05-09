@@ -32,8 +32,8 @@ import ffortissimo.windfit_mcmc as wfm
 basedir = get_basedir()
 
 # default_parameter_file = 'wdh_HR4796_z_20230309_10.yaml'
-default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
-# default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
+# default_parameter_file = 'wdh_HR4796_i_20230309_10.yaml'
+default_parameter_file = 'wdh_HR4796_r_20230312_13.yaml'
 
 # Populated by bootstrap_windfit_plot_runtime before plotting.
 klipdir = None
@@ -91,6 +91,12 @@ def bootstrap_windfit_plot_runtime(params_mcmc_yaml, datadir):
 
 def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
     """Infer token order for an existing backend, including pre-PA chains."""
+    explicit = params_mcmc_yaml.get('THETA_TOKENS') or params_mcmc_yaml.get(
+        'MCMC_THETA_TOKENS'
+    )
+    if explicit is not None and len(explicit) == n_dim_mcmc:
+        return list(explicit)
+
     current = list(wfm.FREE_PARAMS)
     if n_dim_mcmc == len(current):
         return current
@@ -99,7 +105,22 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
         return no_pa
 
     n_components = wfm._n_wdh_components(params_mcmc_yaml)
-    canonical_params = ('h0', 'sigma_up', 'sigma_down', 'PA', 'Norm')
+    # Chains with global gamma_fixed (no gamma columns) — same layout as today minus gamma.
+    canonical_params_no_gamma = ('h0', 'sigma_up', 'sigma_down', 'PA', 'Norm')
+    canonical_no_gamma = [
+        f'{p_name}_{idx}'
+        for p_name in canonical_params_no_gamma
+        for idx in range(1, n_components + 1)
+    ]
+    if n_dim_mcmc == len(canonical_no_gamma):
+        return canonical_no_gamma
+    canonical_no_gamma_no_pa = [
+        tok for tok in canonical_no_gamma if not tok.startswith('PA_')
+    ]
+    if n_dim_mcmc == len(canonical_no_gamma_no_pa):
+        return canonical_no_gamma_no_pa
+
+    canonical_params = ('h0', 'sigma_up', 'sigma_down', 'PA', 'Norm', 'gamma')
     canonical = [
         f'{p_name}_{idx}'
         for p_name in canonical_params
@@ -123,6 +144,19 @@ def _backend_param_tokens(n_dim_mcmc, params_mcmc_yaml):
     legacy_no_pa = [tok for tok in legacy if not tok.startswith('PA_')]
     if n_dim_mcmc == len(legacy_no_pa):
         return legacy_no_pa
+
+    # Rare: older runs sampled beta and gamma in the same 7-parameter-per-layer layout.
+    legacy_with_gamma = ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm', 'gamma')
+    legacy_gamma = [
+        f'{p_name}_{idx}'
+        for p_name in legacy_with_gamma
+        for idx in range(1, n_components + 1)
+    ]
+    if n_dim_mcmc == len(legacy_gamma):
+        return legacy_gamma
+    legacy_gamma_no_pa = [tok for tok in legacy_gamma if not tok.startswith('PA_')]
+    if n_dim_mcmc == len(legacy_gamma_no_pa):
+        return legacy_gamma_no_pa
 
     names = list(params_mcmc_yaml.get('NAMES', []))
     token_pat = re.compile(r'^[A-Za-z][A-Za-z0-9_]*_[0-9]+$')
@@ -310,7 +344,7 @@ def _write_end_of_run_summary(
                 f'{_format_summary_value(norm_total_sum)}\n'
             )
             handle.write('best-fit parameters:\n')
-            for key in ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm'):
+            for key in ('beta', 'h0', 'sigma_up', 'sigma_down', 'PA', 'Norm', 'gamma'):
                 token = f'{key}_{idx}'
                 stats = param_stats.get(token)
                 if stats is None:

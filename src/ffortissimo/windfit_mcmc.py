@@ -108,6 +108,9 @@ RADIAL_INDS = None
 PA_PRIOR_SIGMA = 20.0
 PA_PRIOR_BOUNDS = None
 BETA_FIXED = 0.0
+# Uniform prior bounds for per-component gamma (see logp); beta remains fixed at BETA_FIXED.
+GAMMA_PRIOR_MIN = 0.7
+GAMMA_PRIOR_MAX = 1.3
 
 def sort_parang_monotonic(filename):
     # This regex captures a signed float between "2x2bin_" and "_parang"
@@ -248,6 +251,7 @@ def _param_candidates(base_name, comp_idx, suffix):
     """
     init_keys = {
         "beta": [f"hbeta{suffix}_init", f"beta{suffix}_init"],
+        "gamma": [f"hgamma{suffix}_init", f"gamma{suffix}_init"],
         "h0": [f"ha_r{suffix}_init", f"a_r{suffix}_init"],
         "sigma_up": [
             f"hsig{suffix}_up_init",
@@ -264,6 +268,7 @@ def _param_candidates(base_name, comp_idx, suffix):
     }
     state_keys = {
         "beta": [f"hbeta{suffix}_state", f"beta{suffix}_state"],
+        "gamma": [f"hgamma{suffix}_state", f"gamma{suffix}_state"],
         "h0": [f"ha_r{suffix}_state", f"a_r{suffix}_state"],
         "sigma_up": [
             f"hsig{suffix}_up_state",
@@ -306,6 +311,12 @@ def _component_init_from_yaml(params_mcmc_yaml, comp_idx):
     else:
         params["sigma_up"] = float(sig_up)
         params["sigma_down"] = float(sig_dn)
+
+    gamma_candidates, _ = _param_candidates("gamma", comp_idx, suffix)
+    gamma_default = float(_cfg_first_match(cfg, ["gamma_fixed"], default=1.0))
+    params["gamma"] = float(
+        _cfg_first_match(cfg, gamma_candidates, default=gamma_default)
+    )
 
     return params
 
@@ -369,6 +380,7 @@ def _shared_component_flags(params_mcmc_yaml):
         # Keep PA component-specific by design (sharing PA would collapse components).
         "PA": False,
         "Norm": bool(_cfg_first_match(cfg, ["Norm_shared_state"], default=False)),
+        "gamma": bool(_cfg_first_match(cfg, ["gamma_shared_state"], default=False)),
     }
 
 
@@ -475,7 +487,7 @@ def arr_free_params(params_mcmc_yaml):
     cfg = params_mcmc_yaml.get("wdh_model", params_mcmc_yaml)
 
     # Beta is intentionally fixed (BETA_FIXED) and excluded from theta sampling.
-    for p_name in ("h0", "sigma_up", "sigma_down", "PA", "Norm"):
+    for p_name in ("h0", "sigma_up", "sigma_down", "PA", "Norm", "gamma"):
         if shared_flags[p_name]:
             init_candidates, state_candidates = _param_candidates(p_name, 1, "")
             is_free = bool(_cfg_first_match(cfg, state_candidates, default=True))
@@ -511,7 +523,7 @@ def from_theta_to_params(theta):
         comp["beta"] = float(BETA_FIXED)
 
     free_idx = 0
-    for p_name in ("h0", "sigma_up", "sigma_down", "PA", "Norm"):
+    for p_name in ("h0", "sigma_up", "sigma_down", "PA", "Norm", "gamma"):
         if SHARED_COMPONENT_FLAGS[p_name]:
             token = f"{p_name}_1"
             if token in FREE_PARAMS:
@@ -555,7 +567,7 @@ def from_theta_to_params(theta):
                 comp_params[idx][p_name] = value
                 vector_param.append(value)
 
-    return {"components": comp_params, "gamma": GAMMA_FIXED}, vector_param
+    return {"components": comp_params}, vector_param
 
 
 ####################################################### 
@@ -592,7 +604,7 @@ def call_gen_disk(theta):
             sigma_up=comp["sigma_up"],
             sigma_down=comp["sigma_down"],
             PA_deg=comp["PA"],
-            gamma=param_disk["gamma"],
+            gamma=comp["gamma"],
         )
         model = model * comp["Norm"]
         model[np.isnan(model)] = 0
@@ -687,6 +699,9 @@ def logp(theta):
     param_disk, _ = from_theta_to_params(theta)
     lp_reg = 0.0
     for idx, comp in enumerate(param_disk["components"], start=1):
+        if comp["gamma"] < GAMMA_PRIOR_MIN or comp["gamma"] > GAMMA_PRIOR_MAX:
+            print(f'gamma_{idx} out of prior [{GAMMA_PRIOR_MIN}, {GAMMA_PRIOR_MAX}]')
+            return -np.inf
         if comp["h0"] < 0.01 or comp["h0"] > 100:
             print(f'h0_{idx} out of prior')
             return -np.inf
