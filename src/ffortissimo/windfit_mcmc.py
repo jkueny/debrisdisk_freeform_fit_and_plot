@@ -224,7 +224,7 @@ def gen_wdh_image(
     power_law = (1.0 / r_safe) ** beta
     denom = h0 * (x_rot**2)
     denom = np.where(np.abs(denom) < 1e-12, np.copysign(1e-12, denom + 1e-30), denom)
-    radial_term = (r**2 / denom) ** gamma
+    radial_term = r**2 / (denom**gamma)
     sigma_safe = np.where(x_rot > 0, np.maximum(sigma_up, 1e-6), np.maximum(sigma_down, 1e-6))
     exp_term = np.exp(-0.5 * (radial_term + (x_rot / sigma_safe) ** 2))
     i_map = power_law * exp_term
