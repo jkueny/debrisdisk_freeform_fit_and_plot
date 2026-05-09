@@ -108,7 +108,7 @@ RADIAL_INDS = None
 PA_PRIOR_SIGMA = 20.0
 PA_PRIOR_BOUNDS = None
 BETA_FIXED = 0.0
-# Uniform prior bounds for per-component gamma (see logp); beta remains fixed at BETA_FIXED.
+# Uniform prior bounds for gamma (see logp); shared or per-layer via gamma_shared_state.
 GAMMA_PRIOR_MIN = 0.7
 GAMMA_PRIOR_MAX = 1.3
 
@@ -380,6 +380,7 @@ def _shared_component_flags(params_mcmc_yaml):
         # Keep PA component-specific by design (sharing PA would collapse components).
         "PA": False,
         "Norm": bool(_cfg_first_match(cfg, ["Norm_shared_state"], default=False)),
+        # One shared gamma for all wind layers when true (single gamma_1 in theta).
         "gamma": bool(_cfg_first_match(cfg, ["gamma_shared_state"], default=False)),
     }
 
@@ -480,7 +481,7 @@ def _init_mcmc_worker(
     # load_from_basis=True, so the object is in a usable state already.
 
 
-def arr_free_params(params_mcmc_yaml):
+def arr_free_params(params_mcmc_yaml, quiet=False):
     free_params = []
     n_components = _n_wdh_components(params_mcmc_yaml)
     shared_flags = _shared_component_flags(params_mcmc_yaml)
@@ -502,7 +503,8 @@ def arr_free_params(params_mcmc_yaml):
             if is_free:
                 free_params.append(f"{p_name}_{idx}")
 
-    print(f'Fitting params: {free_params}')
+    if not quiet:
+        print(f'Fitting params: {free_params}')
     return free_params
 
 def from_theta_to_params(theta):

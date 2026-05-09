@@ -82,9 +82,11 @@ RPROFSUB: True
 
 # WIND PARAMETERS
 N_WIND_LAYERS: 5
-# Default gamma init when per-layer hgamma*_init is absent; prior is uniform 0.7–1.3 in code.
+# gamma_fixed: default init for gamma; prior uniform 0.7–1.3 in code. With gamma_shared_state,
+# only hgamma_init / hgamma_state apply to the single fitted gamma_1.
 gamma_fixed: 1.0
 beta_shared_state: true
+gamma_shared_state: true
 a_r_shared_state: false
 sig_shared_state: false
 Norm_shared_state: false
@@ -117,7 +119,6 @@ hsig2_up_init: 20.0
 hsig2_down_init: 20.0
 hpa2_init: 125.0
 hN2_init: 19609.77
-hgamma2_init: 1.0
 
 hbeta3_init: 0.0
 ha_r3_init: 0.08
@@ -125,7 +126,6 @@ hsig3_up_init: 14.0
 hsig3_down_init: 14.0
 hpa3_init: 140.0
 hN3_init: 7596644.12
-hgamma3_init: 1.0
 
 hbeta4_init: 0.0
 ha_r4_init: 0.14
@@ -133,7 +133,6 @@ hsig4_up_init: 18.0
 hsig4_down_init: 20.0
 hpa4_init: 165.0
 hN4_init: 583607.94
-hgamma4_init: 1.0
 
 hbeta5_init: 0.0
 ha_r5_init: 0.15
@@ -141,7 +140,6 @@ hsig5_up_init: 24.0
 hsig5_down_init: 26.0
 hpa5_init: 195.0
 hN5_init: 10432.53
-hgamma5_init: 1.0
 
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
@@ -159,7 +157,6 @@ ha_r2_state: 1
 hsig2_state: 1
 hpa2_state: 1
 hN2_state: 1
-hgamma2_state: 1
 
 
 hbeta3_state: 1
@@ -167,7 +164,6 @@ ha_r3_state: 1
 hsig3_state: 1
 hpa3_state: 1
 hN3_state: 1
-hgamma3_state: 1
 
 # Added explicit third-component aliases used by the refactored parser.
 beta3_state: 1
@@ -181,7 +177,6 @@ ha_r4_state: 1
 hsig4_state: 1
 hpa4_state: 1
 hN4_state: 1
-hgamma4_state: 1
 
 # Added explicit fourth-component aliases used by the refactored parser.
 beta4_state: 1
@@ -195,7 +190,6 @@ ha_r5_state: 1
 hsig5_state: 1
 hpa5_state: 1
 hN5_state: 1
-hgamma5_state: 1
 
 # Added explicit fifth-component aliases used by the refactored parser.
 beta5_state: 1
