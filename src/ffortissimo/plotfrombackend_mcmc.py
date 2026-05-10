@@ -186,6 +186,7 @@ def _compact_axis_label(token, fallback_label):
         'sigma_up': 'sig_up',
         'sigma_down': 'sig_dn',
         'Norm': 'N',
+        'gamma': 'γ',
     }.get(p_name, p_name)
     return f'{compact_base}_{idx_str}'
 
@@ -530,26 +531,27 @@ def make_corner_plot(params_mcmc_yaml):
     axis_labels = [
         _compact_axis_label(tok, lab) for tok, lab in zip(tokens, base_labels)
     ]
-    #remove the flux norm params from the corner plot
-    n_dim_mcmc_no_norm = n_dim_mcmc - wfm.N_WDH_COMPONENTS
-    chain_flat_no_norm = chain_flat[:, :n_dim_mcmc_no_norm]
-    axis_labels_no_norm = axis_labels[:n_dim_mcmc_no_norm]
-    tokens_no_norm = tokens[:n_dim_mcmc_no_norm]
-    base_labels_no_norm = base_labels[:n_dim_mcmc_no_norm]
-    compact_axis_labels_no_norm = [
-        _compact_axis_label(tok, lab) for tok, lab in zip(tokens_no_norm, base_labels_no_norm)
-    ]
-    for j in range(n_dim_mcmc_no_norm):
-        chain4thatparam = chain_flat_no_norm[:, j]
-        wherenotnan = np.where(~np.isnan(chain4thatparam))
-        chainflatnonan = np.zeros((len(chain4thatparam[wherenotnan]), n_dim_mcmc_no_norm))
-        for i in range(n_dim_mcmc_no_norm):
-            chainflatnonan[:, i] = chain_flat[wherenotnan, i]
-        chain_flat_no_norm = chainflatnonan
+    # Drop only Norm_* columns (log-Norm sampling has awkward scales); keep gamma and all other params.
+    corner_keep = np.array(
+        [not str(tok).startswith('Norm_') for tok in tokens], dtype=bool
+    )
+    n_corner = int(np.sum(corner_keep))
+    if n_corner < 1:
+        raise ValueError('Corner plot needs at least one non-Norm parameter.')
+    chain_flat_corner = np.asarray(chain_flat[:, corner_keep], dtype=float)
+    axis_labels_corner = [lab for lab, k in zip(axis_labels, corner_keep) if k]
 
-    if n_dim_mcmc_no_norm != len(axis_labels_no_norm):
+    for j in range(n_corner):
+        chain4thatparam = chain_flat_corner[:, j]
+        wherenotnan = np.where(~np.isnan(chain4thatparam))
+        chainflatnonan = np.zeros((len(chain4thatparam[wherenotnan]), n_corner))
+        for i in range(n_corner):
+            chainflatnonan[:, i] = chain_flat_corner[wherenotnan, i]
+        chain_flat_corner = chainflatnonan
+
+    if n_corner != len(axis_labels_corner):
         raise ValueError(
-            f'LABELS count ({len(axis_labels_no_norm)}) != chain dim ({n_dim_mcmc_no_norm}). '
+            f'LABELS count ({len(axis_labels_corner)}) != corner dim ({n_corner}). '
             'Add LABELS keys for every entry in backend parameter tokens (see YAML).'
         )
 
@@ -568,8 +570,8 @@ def make_corner_plot(params_mcmc_yaml):
     shouldweplotalldatapoints = 'Fake' in file_prefix
 
     fig = corner.corner(
-        chain_flat_no_norm,
-        labels=axis_labels_no_norm,
+        chain_flat_corner,
+        labels=axis_labels_corner,
         quantiles=quants,
         show_titles=True,
         title_fmt=".3f",
@@ -578,7 +580,8 @@ def make_corner_plot(params_mcmc_yaml):
     )
 
     truth = _theta_init_for_tokens(tokens)
-    if shouldweplotalldatapoints and np.all(np.isfinite(truth)):
+    truth_corner = truth[np.asarray(corner_keep, dtype=bool)]
+    if shouldweplotalldatapoints and np.all(np.isfinite(truth_corner)):
         green_line = mlines.Line2D(
             [], [], color='red', label='Initial theta (YAML)'
         )
@@ -588,14 +591,14 @@ def make_corner_plot(params_mcmc_yaml):
             bbox_to_anchor=(0.5, 8),
             fontsize=30,
         )
-        axes = np.array(fig.axes).reshape((n_dim_mcmc_no_norm, n_dim_mcmc_no_norm))
-        for i in range(n_dim_mcmc):
-            axes[i, i].axvline(truth[i], color='r')
-        for yi in range(n_dim_mcmc_no_norm):
+        axes = np.array(fig.axes).reshape((n_corner, n_corner))
+        for i in range(n_corner):
+            axes[i, i].axvline(truth_corner[i], color='r')
+        for yi in range(n_corner):
             for xi in range(yi):
                 ax = axes[yi, xi]
-                ax.axvline(truth[xi], color='r')
-                ax.axhline(truth[yi], color='r')
+                ax.axvline(truth_corner[xi], color='r')
+                ax.axhline(truth_corner[yi], color='r')
 
     fig.subplots_adjust(hspace=0)
     fig.subplots_adjust(wspace=0)
@@ -858,7 +861,7 @@ def best_model_plot(params_mcmc_yaml, hdr):
         # norm=LogNorm(),
         cmap='bone',
         vmin=0,
-        vmax=np.percentile(intrinsic_crop, 98.0),
+        vmax=np.percentile(intrinsic_crop, 99.5),
     )
     ax_bm.set_title('Best Model', fontsize=caracsize, pad=caracsize / 3.0)
     fig.colorbar(im_bm, ax=ax_bm, fraction=0.046, pad=0.04).ax.tick_params(
