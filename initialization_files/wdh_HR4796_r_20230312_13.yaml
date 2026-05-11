@@ -124,7 +124,7 @@ hbeta3_init: 0.0
 ha_r3_init: 0.054
 hsig3_up_init: 12.82
 hsig3_down_init: 12.98
-hpa3_init: 168.26
+hpa3_init: 142.756
 hN3_init: 8956909.35
 
 hbeta4_init: 0.0
