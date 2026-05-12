@@ -34,15 +34,15 @@ from ffortissimo.dev.pyklip.klip import rotate_image
 def get_disk_params(params):
     """
     Extract disk parameters from YAML config.
-    
+
     Args:
         params: Dictionary from YAML config
-    
+
     Returns:
         dict: Dictionary of disk parameters
     """
     disk_params = {}
-    
+
     # Parameter mapping: (best_key, init_key, default)
     param_map = [
         ('pa', 'pa_test'),
@@ -63,13 +63,13 @@ def get_disk_params(params):
         ('r_inner', 'r_inner'),
         ('r_outer', 'r_outer'),
     ]
-    
+
     for param_name, test_key in param_map:
         if test_key in params:
             disk_params[param_name] = params[test_key]
         else:
             raise ValueError(f"Missing required parameter: {test_key}")
-    
+
     return disk_params
 
 def generate_hi_res_features(
@@ -113,7 +113,7 @@ def generate_hi_res_features(
     # exit()
 
     return feature_conv_shift_rot
-    
+
 
 def generate_hi_res_ellipses(
     pixscale: float,
@@ -179,15 +179,15 @@ def main():
 Examples:
   # Basic usage
   python inject_fake_disk.py -p initialization_files/config.yaml -o synthetic_data
-  
+
   # With PA offset
   python inject_fake_disk.py -p initialization_files/config.yaml -o synthetic_data --pa 115.0
-  
+
   # Override data directory
   python inject_fake_disk.py -p initialization_files/config.yaml -o synthetic_data --data-dir /path/to/data
         """
     )
-    
+
     parser.add_argument('-p', '--param-file',
                         type=str,
                         required=True,
@@ -217,16 +217,16 @@ Examples:
                         required=False,
                         help='Override data directory from YAML \
                              (uses BAND_DIR if not provided)')
-    
+
     args = parser.parse_args()
-    
+
     if not os.path.exists(args.param_file):
         raise FileNotFoundError(f"Parameter file not found: {args.param_file}")
-    
+
     # Read YAML configuration
     print(f"Reading configuration from: {args.param_file}")
     params = read_config(args.param_file)
-    
+
     # Get data directory
     if args.data_dir:
         data_dir = args.data_dir
@@ -236,20 +236,20 @@ Examples:
     else:
         print("Error: Data directory not specified. Provide --data-dir or BAND_DIR in YAML.")
         sys.exit(1)
-    
+
     if not os.path.exists(data_dir):
         raise FileNotFoundError(f"Data directory not found: {data_dir}")
-    
+
     # Get metadata
     distance = params.get("DISTANCE_STAR")
     pixscale = params.get("PIXSCALE_INS")
     aligned_center = params.get("ALIGNED_CENTER")
     file_prefix = params.get("FILE_PREFIX")
-    
+
     if distance is None or pixscale is None or aligned_center is None or file_prefix is None:
         print("Error: Missing required metadata (DISTANCE_STAR, PIXSCALE_INS, ALIGNED_CENTER, or FILE_PREFIX)")
         sys.exit(1)
-    
+
     # Load instrument PSF
     print("\nLoading instrument PSF...")
     basedir = os.environ.get("DISKFIT_BASEDIR", f'{os.environ["HOME"]}/data')
@@ -259,21 +259,21 @@ Examples:
         # Try to construct klipdir from data_dir
         klipdir = os.path.join(os.path.dirname(data_dir), "klip_fm_files")
         print(f"INFO: BAND_DIR not found in params, using klip_fm_files from data_dir: {klipdir}")
-    
+
     psf_path = os.path.join(klipdir, f"{file_prefix}_instrPSF.fits")
-    
+
     if not os.path.exists(psf_path):
         print("Please add the instrument PSF file to the klip_fm_files directory.")
         raise FileNotFoundError(f"PSF file not found: {psf_path}")
-    
+
     psf = fits.getdata(psf_path)
     psf = psf / np.sum(psf)  # Normalize PSF
     print(f"PSF loaded: {psf.shape}, L1-normalized")
-    
+
     # Get disk parameters
     print("Extracting disk parameters from YAML...")
     disk_params = get_disk_params(params)
-    
+
     # Apply PA offset
     # base_pa = disk_params['pa'] + args.pa_offset
     if args.pa is None:
@@ -281,45 +281,45 @@ Examples:
     else:
         base_pa = args.pa
     print(f"Base disk PA: {disk_params['pa']} + offset {args.pa} = {base_pa} deg")
-    
+
     # Find FITS files
     print(f"\nSearching for FITS files in: {data_dir}")
     file_pattern = os.path.join(data_dir, "camsci*.fits")
     fits_files = sorted(glob.glob(file_pattern))
-    
+
     if len(fits_files) == 0:
         print(f"Error: No FITS files found matching pattern: {file_pattern}")
         sys.exit(1)
-    
+
     print(f"Found {len(fits_files)} FITS files")
-    
+
     # Load first image to get dimensions
     print("\nLoading first image to determine dimensions...")
     with fits.open(fits_files[0]) as hdul:
         first_image = hdul[0].data
         first_header = hdul[0].header
-    
+
     if len(first_image.shape) > 2:
         first_image = np.squeeze(first_image)
-    
+
     image_shape = first_image.shape
     print(f"Image dimensions: {image_shape}")
-    
+
     # Use image dimensions for coordinate arrays (assume square or use max dimension)
     # The disk model will be created at the larger dimension, then we'll crop/resize if needed
     image_size = max(image_shape)
-    
+
     # Set up coordinate arrays for disk model
     max_fov = image_size / 2. * pixscale  # Maximum radial distance in arcsec
     n_pts = image_size
     xsize = max_fov * distance  # Maximum radial distance in AU
-    
+
     y_arr = np.linspace(-xsize, xsize, num=n_pts)
     z_arr = np.linspace(-xsize, xsize, num=n_pts)
-    
+
     # Create mask (all zeros for full disk - no masking)
     mask = np.zeros((n_pts, n_pts), dtype=bool)
-    
+
     # Create base disk model
     print(f"\nCreating base disk model...")
     print(f"  R1: {disk_params['r1']} AU")
@@ -328,9 +328,9 @@ Examples:
     print(f"  PA: {base_pa} deg")
     print(f"  alpha_in: {disk_params['alpha_in']}")
     print(f"  alpha_out: {disk_params['alpha_out']}")
-    
+
     print(f"  Semi-major axis in pixels: {disk_params['rc']/distance/pixscale}")
-    
+
     # Create output directory
     output_dir = args.injected_dir
     os.makedirs(output_dir, exist_ok=True)
@@ -388,39 +388,39 @@ Examples:
             fits.writeto(base_ellipse_path, initial_base, overwrite=True)
             print(f"  Saved base ellipse to: {base_ellipse_path}")
 
-    
+
     # Process each image
     # We need to generate the disk model + disk image per image to avoid interpolation artifacts
     print(f"\nProcessing {len(fits_files)} images...")
     for ea, fits_file in enumerate(fits_files):
         filename = os.path.basename(fits_file)
-        
+
         # Read in image and header
         with fits.open(fits_file) as hdul:
             image_data = hdul[0].data.copy()
             header = hdul[0].header.copy()
-        
+
         # Check image dimensions
         if len(image_data.shape) > 2:
             raise ValueError(f"Image {filename} has more than 2 dimensions!")
-        
+
         # Zero out any NaNs in the original image data
         nan_count_img = np.sum(np.isnan(image_data))
         if nan_count_img > 0:
             print(f"\n    Warning: Found {nan_count_img} NaNs in original image, zeroing them out")
             image_data = np.nan_to_num(image_data, nan=0.0, posinf=0.0, neginf=0.0)
-        
+
         # Get PARANG value
         if 'PARANG' not in header:
             raise ValueError(f"PARANG not found in header for {filename}")
 
 
         parang = float(header['PARANG'])
-        
+
         # Calculate rotation angle: base_pa - PARANG (conjugate PARANG) - 90.0 for N up E left
         rotation_angle = base_pa + parang #- 90.0
         # print(f"base_pa: {base_pa}, parang: {parang}, rotation_angle: {rotation_angle}")
-        
+
         # # Rotate disk model
         # rotated_disk = rotate(
         #     img=base_disk_convolved,
@@ -467,25 +467,25 @@ Examples:
             )
 
 
-        
+
         # Zero out any NaNs in the base disk model
         nan_count = np.sum(np.isnan(base_disk))
         if nan_count > 0:
             print(f"  Warning: Found {nan_count} NaNs in base disk model, zeroing them out")
             base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
-        
+
         # Crop or pad disk model to match image dimensions exactly
         if base_disk.shape != image_shape:
             raise ValueError(f"Base disk model shape {base_disk.shape} does not match image shape {image_shape}")
-        
-        
+
+
         # Final NaN check after resizing/cropping
         nan_count = np.sum(np.isnan(base_disk))
         if nan_count > 0:
             print(f"  Warning: Found {nan_count} NaNs after resizing, zeroing them out")
             base_disk = np.nan_to_num(base_disk, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        
+
+
         # Convolve base model with instrument PSF
         base_disk_convolved = fftconvolve(base_disk, psf, mode="same")
         base_disk_image_add_feats = base_disk_convolved
@@ -499,12 +499,12 @@ Examples:
         #     plt.colorbar()
         #     plt.show()
         # # sys.exit()
-        
+
         # check for NaNs after convolution
         nan_count_conv = np.sum(np.isnan(base_disk_image_add_feats))
         if nan_count_conv > 0:
             raise ValueError(f"Found {nan_count_conv} NaNs after convolution, aborting...")
-        
+
         # #debug print and display the rotated disk
         # print(f"Rotated angle: {rotation_angle}")
         # print(f"base_pa: {base_pa}")
@@ -514,24 +514,24 @@ Examples:
         # plt.show()
         # sys.exit()
 
-        
+
         # Add conv disk model to image
         image_data = image_data + base_disk_image_add_feats
-        
+
         # Final check: ensure no NaNs in the final result
         nan_count_final = np.sum(np.isnan(image_data))
         if nan_count_final > 0:
             print(f"\n    Warning: Found {nan_count_final} NaNs in final image, zeroing them out")
             image_data = np.nan_to_num(image_data, nan=0.0, posinf=0.0, neginf=0.0)
-        
+
         # Update PARANG header to -PARANG (counter-rotate for median subtraction)
         header['PARANG'] = -parang
-        
+
         # Save to output directory
         output_path = os.path.join(output_dir, filename)
         fits.writeto(output_path, image_data, header, overwrite=True)
-        
-    
+
+
     print(f"\nDisk injection successful...!")
     print(f"  Output dir: {output_dir}")
     print(f"  Num. images processed: {len(fits_files)}")
