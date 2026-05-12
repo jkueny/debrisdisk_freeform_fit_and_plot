@@ -11,6 +11,7 @@ from scipy.signal import fftconvolve
 import jax
 import jax.numpy as jnp
 from jax import lax
+from jax.experimental import checkify
 import optax
 from optax.losses import huber_loss
 
@@ -26,6 +27,27 @@ from ffortissimo.modeling.visualization import plot_training
 PLOT_FIRST_N = 1000
 PLOT_EVERY_FIRST_N = 10
 PLOT_EVERY_N = 100
+
+def rescale_model_param(model_param, reference_median, reference_std):
+    '''
+    Rescale a model parameter from the autograd-friendly dimensionless
+    units near 1.0 to physical units using the reference median and std.
+
+    Parameters
+    ----------
+    model_param : jnp.ndarray
+        Model image in dimensionless units
+    reference_median : float
+        Median disk image
+    reference_std : float
+        Pixel-wise standard deviation of disk images
+
+    Returns
+    -------
+    jnp.ndarray
+        Rescaled model image
+    '''
+    return jnp.abs(reference_std * model_param + reference_median)
 
 # Optimization functions (extracted from diskfit_freeform.py)
 def fm_scan_func_adi(_, input_pt, full_sample_refs, full_sample_models):
@@ -73,8 +95,9 @@ def loss_function(mod_pix_params, disk_image, ref_disk_median, ref_disk_std, psf
                   all_reference_images_selectors=None):
     """ measure the huber loss for a given disk freeform disk model."""
     # Rescale from param units to model units, ensure positivity
-    rescaled_pixel_model_params = jnp.abs(ref_disk_std * mod_pix_params + ref_disk_median)
+    rescaled_pixel_model_params = rescale_model_param(mod_pix_params, ref_disk_median, ref_disk_std)
     full_model_image = reconstruct_full_image(rescaled_pixel_model_params, total_pixels, disk_mask_inds)
+    checkify.check(jnp.all(full_model_image >= 0), "Model image must be non-negative after rescaling and reconstruction")
     full_noise_image = reconstruct_full_image(noise_map, total_pixels, opt_mask_inds)
     full_model_norm = full_model_image / jnp.linalg.norm(full_model_image)
     full_model_norm_meansub = full_model_norm - jnp.mean(full_model_norm)
@@ -216,6 +239,7 @@ def optimize_model(
     total_pixels = int(total_pixels)
 
     @jax.jit
+    @checkify.checkify
     def step(image_params, opt_state, reg_lambda_here):
         (loss, aux_data), grads = loss_and_grad(
             image_params, target_image,
@@ -242,7 +266,8 @@ def optimize_model(
     abs_loss_history = []
     for step_idx in range(num_steps):
         with jax.profiler.StepTraceAnnotation("train", step_num=step_idx):
-            image_params, opt_state, loss, updates, aux_data = step(image_params, opt_state, reg_lambda)
+            err, (image_params, opt_state, loss, updates, aux_data) = step(image_params, opt_state, reg_lambda)
+            err.throw()  # raise if negative model values are detected
         freeform_fm_full, full_model_image, weights_nominal = aux_data
         loss_value = loss.item()
         loss_history.append(loss_value)
@@ -295,7 +320,18 @@ def optimize_model(
                 plot_idx += 1
 
     print(f"This run took {(time.time() - run_start_ts):.6f} seconds.")
-    plot_training(f"{run_dir}/training_final.png", reduced_data, freeform_fm_full, full_model_image, np.zeros_like(reduced_data), opt_mask_indices)
+    out_filename = f"{run_dir}/training_{plot_idx:05}.png"
+    plot_training(
+        out_filename,
+        reduced_data,
+        freeform_fm_full,
+        full_model_image,
+        np.zeros_like(reduced_data),
+        opt_mask_indices,
+        ref_disk_median,
+        ref_disk_std,
+    )
 
-    optimized_model = ref_disk_std * image_params + ref_disk_median
+    optimized_model = rescale_model_param(image_params, ref_disk_median, ref_disk_std)
+
     return optimized_model, loss_history, weights_nominal
