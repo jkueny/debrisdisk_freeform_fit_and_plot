@@ -124,9 +124,10 @@ def generate_hi_res_ellipses(
     inc_deg: float,
     pa_deg: float,
     value: float
+    spacing_px: float = 5.0,
 ) -> np.ndarray:
     """
-    Generate three nested 1-pixel-width ellipses with 1-pixel spacing.
+    Generate three nested 1-pixel-width ellipses with specified spacing.
 
     Args:
         image_shape: Shape of the output image (ny, nx)
@@ -151,15 +152,13 @@ def generate_hi_res_ellipses(
     y_rot = -x * np.sin(theta) + y * np.cos(theta)
 
     cosi = np.cos(np.deg2rad(inc_deg))
-    # for ea, semi_major in enumerate((semi_major_px - 6., semi_major_px, semi_major_px + 6.)):
-    for ea, semi_major in enumerate((semi_major_px - 3., semi_major_px, semi_major_px + 3.)):
-    # for semi_major in [semi_major_px]:
+    for ea, semi_major in enumerate((semi_major_px - spacing_px, semi_major_px, semi_major_px + spacing_px)):
         if semi_major <= 0:
             continue
         empty_image = np.zeros(image_shape, dtype=float)
         semi_minor = max(1.0, semi_major * cosi)
         r_scaled = np.sqrt((x_rot / semi_major) ** 2 + (y_rot / semi_minor) ** 2)
-        # ring_mask = np.abs(r_scaled - 1.) <= (2. / semi_major)
+
         ring_mask = np.abs(r_scaled - 1.) <= (0.75 / semi_major)
         empty_image[ring_mask] = value
         if ea == 1:
@@ -341,11 +340,11 @@ Examples:
     print("Hi-res ellipse mode enabled (no disk model injection)")
     if args.hires:
         initial_disk, initial_base = generate_hi_res_ellipses(
+            pixscale=pixscale,
+            distance=distance,
             image_shape=image_shape,
             center=(aligned_center[0], aligned_center[1]),
             semi_major_au=disk_params["rc"],
-            pixscale=pixscale,
-            distance=distance,
             inc_deg=disk_params['inc'],
             pa_deg=base_pa,
             value=disk_params['Norm'] / 4
