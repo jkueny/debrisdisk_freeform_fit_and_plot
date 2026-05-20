@@ -51,7 +51,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: False
+NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 141 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
@@ -105,41 +105,41 @@ hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
 hbeta_init: 0.0
-ha_r_init: 0.376
+ha_r_init: 0.385
 hsig_up_init: 13.44
-hsig_down_init: 14.28
-hpa_init: 102.79
-hN_init: 3667.03
-hgamma_init: 1.03
+hsig_down_init: 14.294
+hpa_init: 102.78
+hN_init: 3411.789
+hgamma_init: 1.0291
 
 
 hbeta2_init: 0.0
-ha_r2_init: 0.125
-hsig2_up_init: 19.33
-hsig2_down_init: 20.15
+ha_r2_init: 0.126
+hsig2_up_init: 19.19
+hsig2_down_init: 19.978
 hpa2_init: 106.00
-hN2_init: 24727.79
+hN2_init: 24666.743
 
 hbeta3_init: 0.0
-ha_r3_init: 0.054
-hsig3_up_init: 12.82
-hsig3_down_init: 12.98
-hpa3_init: 142.756
-hN3_init: 8956909.35
+ha_r3_init: 0.0532
+hsig3_up_init: 12.7
+hsig3_down_init: 12.886
+hpa3_init: 142.674
+hN3_init: 10979266.7478
 
 hbeta4_init: 0.0
 ha_r4_init: 0.072
-hsig4_up_init: 6.65
-hsig4_down_init: 18.38
-hpa4_init: 168.26
-hN4_init: 531276.93
+hsig4_up_init: 16.6285
+hsig4_down_init: 18.315
+hpa4_init: 168.311
+hN4_init: 569814.401
 
 hbeta5_init: 0.0
-ha_r5_init: 0.139
-hsig5_up_init: 23.85
-hsig5_down_init: 25.42
-hpa5_init: 193.55
-hN5_init: 7536.93
+ha_r5_init: 0.1373
+hsig5_up_init: 23.856
+hsig5_down_init: 25.39
+hpa5_init: 193.447
+hN5_init: 7952.9260
 
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]

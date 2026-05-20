@@ -18,7 +18,6 @@ and not the WDH.
 """
 
 import os
-import re
 import sys
 import argparse
 
@@ -35,8 +34,8 @@ basedir = f'{os.environ["HOME"]}/data'  # the base directory where is
 # default_parameter_file = 'HR4796a_z_lco2023a_magao-x_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = 'HR4796_i_camsci1_20230309_10.yaml'  # name of the parameter file
 # default_parameter_file = "wdh_HR4796_z_20230309_10.yaml"
-default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
-# default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
+# default_parameter_file = "wdh_HR4796_i_20230309_10.yaml"
+default_parameter_file = "wdh_HR4796_r_20230312_13.yaml"
 # you can also call it with the python function argument -p
 
 
@@ -113,12 +112,11 @@ GAMMA_PRIOR_MIN = 0.7
 GAMMA_PRIOR_MAX = 1.3
 
 def sort_parang_monotonic(filename):
-    # This regex captures a signed float between "2x2bin_" and "_parang"
-    match = re.search(r'bin_([-+]?\d*\.?\d+)_parang', filename)
-    if match:
-        return float(match.group(1))
-    else:
-        raise ValueError(f"Filename {filename} does not match expected pattern.")
+    """Return PARANG from a science frame FITS header for monotonic sorting."""
+    header = fits.getheader(filename)
+    if "PARANG" not in header:
+        raise KeyError(f"Science frame is missing PARANG header keyword: {filename}")
+    return float(header["PARANG"])
 
 def subtract_radial_profile_np(image, radial_inds, radii):
     medians = labeled_comprehension(
