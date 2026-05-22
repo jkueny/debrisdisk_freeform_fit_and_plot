@@ -54,7 +54,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: False
+NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 141 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
@@ -119,7 +119,7 @@ sig_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 10.0
 pa_prior_bounds:
-  - [80.0, 110.0]  # WDH component 1
+  - [75.0, 110.0]  # WDH component 1
   - [100.0, 130.0]  # WDH component 2
   - [180.0, 210.0]  # WDH component 3
   - [200.0, 230.0]  # WDH component 4
@@ -129,34 +129,34 @@ hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
 hbeta_init: 0.0
-ha_r_init: 0.20
-hsig_up_init: 20.0
-hsig_down_init: 20.0
-hpa_init: 84.0
-hN_init: 8750.81
-hgamma_init: 1.0
+ha_r_init: 0.56962
+hsig_up_init: 26.3935
+hsig_down_init: 18.94502
+hpa_init: 80.047
+hN_init: 7523.64
+hgamma_init: 0.80473
 
 hbeta2_init: 0.0
-ha_r2_init: 0.43
-hsig2_up_init: 20.0
-hsig2_down_init: 20.0
+ha_r2_init: 0.9654
+hsig2_up_init: 20.230
+hsig2_down_init: 19.7156
 # hpa2_init: 176.0
 hpa2_init: 125.0
-hN2_init: 2018.83
+hN2_init: 6786.227
 
 hbeta3_init: 0.0
-ha_r3_init: 0.87
-hsig3_up_init: 31.0
-hsig3_down_init: 21.0
-hpa3_init: 195.0
-hN3_init: 139.21
+ha_r3_init: 2.277
+hsig3_up_init: 18.786
+hsig3_down_init: 17.1808
+hpa3_init: 201.136
+hN3_init: 793.4827
 
 hbeta4_init: 0.0
-ha_r4_init: 0.27
-hsig4_up_init: 22.0
-hsig4_down_init: 20.0
-hpa4_init: 225.0
-hN4_init: 4438.89
+ha_r4_init: 1.1763
+hsig4_up_init: 23.3382
+hsig4_down_init: 20.887
+hpa4_init: 227.0954
+hN4_init: 4145.423713
 
 
 hbeta5_init: 0.0
