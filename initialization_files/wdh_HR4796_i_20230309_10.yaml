@@ -129,20 +129,20 @@ hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
 hbeta_init: 0.0
-ha_r_init: 0.56962
-hsig_up_init: 26.3935
-hsig_down_init: 18.94502
-hpa_init: 80.047
-hN_init: 7523.64
-hgamma_init: 0.80473
+ha_r_init: 0.44809
+hsig_up_init: 25.5623
+hsig_down_init: 20.0144
+hpa_init: 76.305480
+hN_init: 9703.89649
+hgamma_init: 0.83219819
 
 hbeta2_init: 0.0
-ha_r2_init: 0.9654
-hsig2_up_init: 20.230
-hsig2_down_init: 19.7156
+ha_r2_init: 0.798514
+hsig2_up_init: 21.011694
+hsig2_down_init: 20.77183
 # hpa2_init: 176.0
-hpa2_init: 125.0
-hN2_init: 6786.227
+hpa2_init: 124.9969
+hN2_init: 5655.134272
 
 hbeta3_init: 0.0
 ha_r3_init: 2.277
@@ -152,19 +152,19 @@ hpa3_init: 201.136
 hN3_init: 793.4827
 
 hbeta4_init: 0.0
-ha_r4_init: 1.1763
-hsig4_up_init: 23.3382
-hsig4_down_init: 20.887
-hpa4_init: 227.0954
-hN4_init: 4145.423713
+ha_r4_init: 1.970442
+hsig4_up_init: 21.522508
+hsig4_down_init: 19.11631
+hpa4_init: 202.83317
+hN4_init: 436.6883274
 
 
 hbeta5_init: 0.0
-ha_r5_init: 0.24
-hsig5_up_init: 21.0
-hsig5_down_init: 20.0
-hpa5_init: 245.0
-hN5_init: 5710.31
+ha_r5_init: 0.99850
+hsig5_up_init: 25.06190
+hsig5_down_init: 21.0368
+hpa5_init: 225.8710
+hN5_init: 3153.26501036
 
 # WIND PARAMETER STATES [0,1] --> [fixed, free]
 hbeta_state: 0

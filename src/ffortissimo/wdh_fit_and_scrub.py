@@ -78,13 +78,11 @@ def resolve_band_dir(params):
 
 
 def sort_parang_monotonic(filename):
-    """Sort MagAO-X science frames by the PARANG value embedded in the filename."""
-    match = re.search(r"bin_([-+]?\d*\.?\d+)_parang", Path(filename).name)
-    if match:
-        return float(match.group(1))
-    raise ValueError(
-        f"Filename {filename} does not match expected '*bin_<parang>_parang.fits' pattern."
-    )
+    """Return PARANG from a science frame FITS header for monotonic sorting."""
+    header = fits.getheader(filename)
+    if "PARANG" not in header:
+        raise KeyError(f"Science frame is missing PARANG header keyword: {filename}")
+    return float(header["PARANG"])
 
 
 def find_science_frames(band_dir):
