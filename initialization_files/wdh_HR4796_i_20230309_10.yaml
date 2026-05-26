@@ -122,41 +122,41 @@ pa_prior_bounds:
   - [90.0, 110.0]  # WDH component 1
   - [100.0, 125.0]  # WDH component 2
   - [180.0, 210.0]  # WDH component 3
-  - [200.0, 230.0]  # WDH component 4
+  - [200.0, 225.0]  # WDH component 4
   # - [230.0, 260.0]  # WDH component 5
 
 hr1_init: 0.1 #include just for initializing the mask function
 hr2_init: 60 #include just for initializing the mask function
 
 hbeta_init: 0.0
-ha_r_init: 0.44809
-hsig_up_init: 25.5623
-hsig_down_init: 20.0144
-hpa_init: 96.305480
-hN_init: 9703.89649
-hgamma_init: 0.83219819
+ha_r_init: 2.57770
+hsig_up_init: 18.5522
+hsig_down_init: 15.6333
+hpa_init: 93.64228
+hN_init: 3018.424506
+hgamma_init: 0.7466675
 
 hbeta2_init: 0.0
-ha_r2_init: 0.798514
-hsig2_up_init: 21.011694
-hsig2_down_init: 20.77183
+ha_r2_init: 2.09548655
+hsig2_up_init: 21.11655
+hsig2_down_init: 20.7535237
 # hpa2_init: 176.0
 hpa2_init: 114.9969
-hN2_init: 5655.134272
+hN2_init: 4656.86
 
 hbeta3_init: 0.0
-ha_r3_init: 2.277
-hsig3_up_init: 18.786
-hsig3_down_init: 17.1808
-hpa3_init: 201.136
-hN3_init: 793.4827
+ha_r3_init: 2.5099
+hsig3_up_init: 21.6198
+hsig3_down_init: 17.7586952
+hpa3_init: 203.281995
+hN3_init: 2923.8963
 
 hbeta4_init: 0.0
-ha_r4_init: 1.970442
-hsig4_up_init: 21.522508
-hsig4_down_init: 19.11631
-hpa4_init: 202.83317
-hN4_init: 436.6883274
+ha_r4_init: 2.8018461394
+hsig4_up_init: 21.11655
+hsig4_down_init: 20.75352
+hpa4_init: 220.998243931
+hN4_init: 2174.998
 
 
 hbeta5_init: 0.0
