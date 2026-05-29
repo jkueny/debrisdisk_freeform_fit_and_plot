@@ -51,7 +51,7 @@ HP_MIN: 15
 HP_MAX: 32
 
 # MCMC PARAMETERS
-NEW_BACKEND: False
+NEW_BACKEND: True
 #if NEW_BACKEND=0, reset the backend, if not, start where you stopped
 NWALKERS: 141 #Number of walkers (should be at least twice the # parameters)
 #~530 iter w/ 94 cpus in 24 hr
@@ -92,11 +92,11 @@ sig_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 45.0
 pa_prior_bounds:
-  - [95.0, 110.0]  # WDH component 1
-  - [115.0, 130.0]  # WDH component 2
-  - [120.0, 160.0]  # WDH component 3
-  - [160.0, 200.0]  # WDH component 4
-  - [185.0, 225.0]  # WDH component 5
+  - [95.0, 130.0]  # WDH component 1
+  - [120.0, 160.0]  # WDH component 2
+  - [160.0, 180.0]  # WDH component 3
+  - [180.0, 200.0]  # WDH component 4
+  - [200.0, 225.0]  # WDH component 5
 
 
 
@@ -117,28 +117,28 @@ hbeta2_init: 0.0
 ha_r2_init: 0.126
 hsig2_up_init: 19.19
 hsig2_down_init: 19.978
-hpa2_init: 119.00
+hpa2_init: 129.00
 hN2_init: 24666.743
 
 hbeta3_init: 0.0
 ha_r3_init: 0.0532
 hsig3_up_init: 12.7
 hsig3_down_init: 12.886
-hpa3_init: 142.674
+hpa3_init: 172.674
 hN3_init: 10979266.7478
 
 hbeta4_init: 0.0
 ha_r4_init: 0.072
 hsig4_up_init: 16.6285
 hsig4_down_init: 18.315
-hpa4_init: 168.311
+hpa4_init: 188.311
 hN4_init: 569814.401
 
 hbeta5_init: 0.0
 ha_r5_init: 0.1373
 hsig5_up_init: 23.856
 hsig5_down_init: 25.39
-hpa5_init: 193.447
+hpa5_init: 213.447
 hN5_init: 7952.9260
 
 # hoffset_init: -2
