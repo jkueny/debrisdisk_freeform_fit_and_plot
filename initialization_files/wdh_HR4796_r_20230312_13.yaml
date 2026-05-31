@@ -117,7 +117,7 @@ hbeta2_init: 0.0
 ha_r2_init: 0.126
 hsig2_up_init: 19.19
 hsig2_down_init: 19.978
-hpa2_init: 99.00
+hpa2_init: 110.00
 hN2_init: 24666.743
 
 hbeta3_init: 0.0
