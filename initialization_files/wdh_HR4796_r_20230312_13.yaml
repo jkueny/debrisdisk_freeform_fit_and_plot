@@ -92,11 +92,11 @@ sig_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 45.0
 pa_prior_bounds:
-  - [95.0, 130.0]  # WDH component 1
-  - [120.0, 160.0]  # WDH component 2
-  - [160.0, 180.0]  # WDH component 3
-  - [180.0, 200.0]  # WDH component 4
-  - [200.0, 225.0]  # WDH component 5
+  - [95.0, 110.0]  # WDH component 1
+  - [105.0, 130.0]  # WDH component 2
+  - [130.0, 150.0]  # WDH component 3
+  - [160.0, 225.0]  # WDH component 4
+  - [160.0, 225.0]  # WDH component 5
 
 
 
@@ -117,14 +117,14 @@ hbeta2_init: 0.0
 ha_r2_init: 0.126
 hsig2_up_init: 19.19
 hsig2_down_init: 19.978
-hpa2_init: 129.00
+hpa2_init: 99.00
 hN2_init: 24666.743
 
 hbeta3_init: 0.0
 ha_r3_init: 0.0532
 hsig3_up_init: 12.7
 hsig3_down_init: 12.886
-hpa3_init: 172.674
+hpa3_init: 142.674
 hN3_init: 10979266.7478
 
 hbeta4_init: 0.0
