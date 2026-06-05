@@ -81,7 +81,7 @@ USE_NOISE: True
 RPROFSUB: True
 
 # WIND PARAMETERS
-N_WIND_LAYERS: 5
+N_WIND_LAYERS: 4
 # gamma_fixed: default init for gamma; prior uniform 0.7–1.3 in code. With gamma_shared_state,
 # only hgamma_init / hgamma_state apply to the single fitted gamma_1.
 gamma_fixed: 1.0
@@ -92,8 +92,9 @@ sig_shared_state: false
 Norm_shared_state: false
 pa_prior_sigma: 45.0
 pa_prior_bounds:
-  - [95.0, 110.0]  # WDH component 1
-  - [105.0, 130.0]  # WDH component 2
+  # - [95.0, 110.0]  # WDH component 1
+  # - [105.0, 130.0]  # WDH component 2
+  - [95.0, 130.0]  # WDH component 2
   - [130.0, 150.0]  # WDH component 3
   - [160.0, 225.0]  # WDH component 4
   - [160.0, 225.0]  # WDH component 5
@@ -113,33 +114,33 @@ hN_init: 3411.789
 hgamma_init: 1.0291
 
 
+# hbeta2_init: 0.0
+# ha_r2_init: 0.126
+# hsig2_up_init: 19.19
+# hsig2_down_init: 19.978
+# hpa2_init: 110.00
+# hN2_init: 24666.743
+
 hbeta2_init: 0.0
-ha_r2_init: 0.126
-hsig2_up_init: 19.19
-hsig2_down_init: 19.978
-hpa2_init: 110.00
-hN2_init: 24666.743
+ha_r2_init: 0.0532
+hsig2_up_init: 12.7
+hsig2_down_init: 12.886
+hpa2_init: 142.674
+hN2_init: 10979266.7478
 
 hbeta3_init: 0.0
-ha_r3_init: 0.0532
-hsig3_up_init: 12.7
-hsig3_down_init: 12.886
-hpa3_init: 142.674
-hN3_init: 10979266.7478
+ha_r3_init: 0.072
+hsig3_up_init: 16.6285
+hsig3_down_init: 18.315
+hpa3_init: 188.311
+hN3_init: 569814.401
 
 hbeta4_init: 0.0
-ha_r4_init: 0.072
-hsig4_up_init: 16.6285
-hsig4_down_init: 18.315
-hpa4_init: 188.311
-hN4_init: 569814.401
-
-hbeta5_init: 0.0
-ha_r5_init: 0.1373
-hsig5_up_init: 23.856
-hsig5_down_init: 25.39
-hpa5_init: 213.447
-hN5_init: 7952.9260
+ha_r4_init: 0.1373
+hsig4_up_init: 23.856
+hsig4_down_init: 25.39
+hpa4_init: 213.447
+hN4_init: 7952.9260
 
 # hoffset_init: -2
 # WIND PARAMETER STATES [0,1] --> [fixed, free]

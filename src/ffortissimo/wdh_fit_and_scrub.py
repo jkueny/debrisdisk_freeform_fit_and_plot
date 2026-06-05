@@ -829,15 +829,22 @@ def run_subtraction(args):
                 iteration_idx=iteration_idx,
                 n_iterations=n_iterations,
             )
-            if iteration_idx == 1:
-                date_obs_values.append(date_obs)
             iteration_coefficients_by_frame.append(weighted_coeffs)
             next_science_frames.append(cleaned)
             coeff_str = ", ".join(f"{value:.6g}" for value in coeffs)
-            print(
-                f"{science_path.name} -> {output_path.name}; "
-                f"coeffs=[{coeff_str}], psf_scaling={psf_scaling:.6g}"
-            )
+            if iteration_idx == 1:
+                date_obs_values.append(date_obs)
+                print(
+                    f"{science_path.name} -> {output_path.name}; "
+                    f"coeffs=[{coeff_str}], psf_scaling={psf_scaling:.6g}"
+                )
+            elif iteration_idx == n_iterations:
+                print(
+                    f"{science_path.name} -> {output_path.name}; "
+                    f"coeffs=[{coeff_str}], psf_scaling={psf_scaling:.6g}"
+                )
+            else:
+                pass
             outputs.append(output_path)
 
         iteration_coefficients_by_frame = np.asarray(iteration_coefficients_by_frame, dtype=np.float64)
