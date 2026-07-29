@@ -303,6 +303,7 @@ def build_fitting_masks(params, image_shape, speckle_ellipses=None):
     in_scaling = float(params.get("MASK_IN_SCALING", 1.0))
     out_scaling = float(params.get("MASK_OUT_SCALING", 1.0))
     inc = float(params["inc_init"])
+    pa = float(params["pa_init"])
 
     reselem = eff_wl * 1e-6 / apdiam * 180 / np.pi * 3600
     reselem_pix = reselem / pixscale_ins
@@ -316,7 +317,7 @@ def build_fitting_masks(params, image_shape, speckle_ellipses=None):
     )
     disk_exclusion = make_disk_exclusion_mask(
         image_shape[0],
-        float(params["pa_init"]),
+        pa,
         inc,
         convert.au_to_pix(float(params["r1_init"]), pixscale_ins, float(params["DISTANCE_STAR"]))
         - in_scaling / np.cos(np.radians(inc)),

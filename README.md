@@ -39,13 +39,13 @@ ffortissimo provides a flexible framework for forward modeling extended astronom
 **From GitHub (recommended if you just want to try it out):**
 
 ```bash
-pip install git+https://github.com/<username>/debrisdisk_freeform_fit_and_plot.git
+pip install git+https://github.com/jkueny/debrisdisk_freeform_fit_and_plot.git
 ```
 
 **From clone (development):**
 
 ```bash
-git clone https://github.com/<username>/debrisdisk_freeform_fit_and_plot.git
+git clone https://github.com/jkueny/debrisdisk_freeform_fit_and_plot.git
 cd debrisdisk_freeform_fit_and_plot
 
 # Install in development mode
@@ -59,7 +59,7 @@ After installation, the CLI commands `ff_klip`, `ff_setup`, and `ff_optimize` ar
 
 ## Quick Start
 
-You must supply your own PSF images which are assumed to have already been registered and square-shaped. You must also supply the instrument PSF for convolving the object model to make the image. Make sure to update your config file with the correct filenames and paths.
+You must supply your own PSF images which are assumed to have already been registered and have square dimensions (image shape: N x N pixels). You must also supply the instrument PSF for convolving the object model to make the image. Make sure to update your config file with the correct filenames and paths.
 
 The pipeline has three discrete steps. Run them in order: (1) ff_klip, (2) ff_setup, and (3) ff_optimize.
 
@@ -209,18 +209,22 @@ Outputs are saved in the directory specified by `resultsdir` in the configuratio
 
 ## Citation
 
-A paper describing FFortissiMo is currently in review. Once published, we ask that you cite:
+If you use ffortissimo in your research, we ask that you cite:
 
-*[Placeholder: paper citation will be added upon publication]*
+*Jay K. Kueny et al 2026 AJ 172 124, doi:10.3847/1538-3881/ae809a*
 
-For now, you may cite the software:
+In BibTex format:
 
 ```bibtex
-@software{ffortissimo2026,
-  author = {Kueny, Jay},
-  title = {ffortissimo: Pixel-based Freeform Forward Modeling},
+@article{ffortissimo2026,
+  doi = {10.3847/1538-3881/ae809a},
+  author = {{Kueny}, Jay K. and {Long}, Joseph D. and {Males}, Jared R. and {Weinberger}, Alycia J. and {Close}, Laird M. and {Liberman}, Joshua and {Haffert}, Sebastiaan and {McEwen}, Eden and {Kautz}, Maggie Y. and {Guyon}, Olivier and {Pearce}, Logan and {Johnson}, Parker T. and {Twitchell}, Katie and {Li}, Jialin and {Hedglen}, Alex and {Gower}, Avalon and {Foster}, Warren and {Lumbres}, Jhen and {Schatz}, Lauren},
+  title = {A Freeform Forward-modeling Pipeline for High-contrast Images of Circumstellar Disks Based on Automatic Differentiation},
+  month = {July},
   year = {2026},
-  version = {0.1.0}
+  journal = {The Astronomical Journal},
+  volume = {172},
+  number = {2},
 }
 ```
 

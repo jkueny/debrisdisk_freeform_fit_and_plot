@@ -159,8 +159,8 @@ CONV_FACTOR: 1.6192783494243498e-07 # Jy / Ang.
 
 
 # MASKING PARAMETERS
-MASK_IN_SCALING: 2 #bigger means shrink inner bound; nominally 4
-MASK_OUT_SCALING: 4 #bigger means expand outer bound; nominally 10
+MASK_IN_SCALING: 1 #bigger means shrink inner bound; nominally 4
+MASK_OUT_SCALING: 1 #bigger means expand outer bound; nominally 10
 MASK_SPECKLES: 10 #central circle mask
 # Make a tight mask for the noisemap calculation
 MASK_NOISE_IN: 3
